@@ -6,6 +6,11 @@ export interface Dependencies {
   getUser(token: string): Promise<string | null>;
   resources(user: string, lesson: string): Promise<{ course_id: string; items: Item[] } | null>;
   sign(path: string, ttl: number): Promise<string>;
+  reserve(user: string, lesson: string, id: string, title: string, fileName: string, fileSize: number, mimeType: string): Promise<{ course_id: string } | null>;
+  signUpload(path: string): Promise<{ signedUrl: string; token: string; path: string }>;
+  uploadReservation(user: string, lesson: string, id: string): Promise<{ course_id: string; bucket: string; path: string } | null>;
+  inspectUpload(path: string): Promise<{ size: number; identity: string } | null>;
+  finalizeUpload(user: string, lesson: string, id: string, size: number, identity: string): Promise<boolean>;
 }
 
 export function makeHandler(io: Dependencies, origins = ['http://localhost:4200']) {
@@ -32,13 +37,48 @@ export function makeHandler(io: Dependencies, origins = ['http://localhost:4200'
         body = JSON.parse(raw);
       } catch { return reply(400, { error: 'Solicitud inválida' }); }
       if (!body || typeof body !== 'object' || Array.isArray(body) ||
-          (body.operation !== 'list' && body.operation !== 'download') ||
+          !['list', 'download', 'prepare-upload', 'finalize-upload'].includes(body.operation as string) ||
           typeof body.lessonId !== 'string' || !UUID.test(body.lessonId) ||
-          (body.operation === 'download' &&
+          ((body.operation === 'download' || body.operation === 'finalize-upload') &&
            (typeof body.resourceId !== 'string' || !UUID.test(body.resourceId))) ||
-          Object.keys(body).some(k => !['operation', 'lessonId', 'resourceId'].includes(k)) ||
+          Object.keys(body).some(k => !(body.operation === 'prepare-upload'
+            ? ['operation', 'lessonId', 'title', 'fileName', 'fileSize', 'mimeType']
+            : ['operation', 'lessonId', 'resourceId']).includes(k)) ||
           (body.operation === 'list' && 'resourceId' in body)) {
         return reply(400, { error: 'Solicitud inválida' });
+      }
+      if (body.operation === 'prepare-upload') {
+        if (typeof body.title !== 'string' || body.title.trim().length < 1 ||
+            [...body.title.trim()].length > 160 || /[\x00-\x1f\x7f]/.test(body.title) ||
+            typeof body.fileName !== 'string' || body.fileName.length > 255 ||
+            !/^[A-Za-z0-9][A-Za-z0-9._-]*\.pdf$/i.test(body.fileName) ||
+            typeof body.fileSize !== 'number' || !Number.isInteger(body.fileSize) ||
+            body.fileSize < 1 || body.fileSize > 10 * 1024 * 1024 ||
+            body.mimeType !== 'application/pdf') return reply(400, { error: 'Solicitud inválida' });
+        const id = crypto.randomUUID();
+        const reserved = await io.reserve(user, body.lessonId, id, body.title.trim(),
+          body.fileName, body.fileSize, body.mimeType);
+        if (!reserved) return reply(403, { error: 'Acceso denegado' });
+        if (!UUID.test(reserved.course_id)) throw new Error('Respuesta inválida');
+        const path = `${reserved.course_id}/${body.lessonId}/${id}/file.pdf`;
+        const signed = await io.signUpload(path);
+        if (signed.path !== path || !signed.signedUrl || !signed.token) throw new Error('Firma inválida');
+        return reply(200, { resourceId: id, ...signed });
+      }
+      if (body.operation === 'finalize-upload') {
+        const id = body.resourceId as string;
+        const reservation = await io.uploadReservation(user, body.lessonId, id);
+        if (!reservation) return reply(403, { error: 'Acceso denegado' });
+        if (!UUID.test(reservation.course_id) || reservation.bucket !== BUCKET ||
+            reservation.path !== `${reservation.course_id}/${body.lessonId}/${id}/file.pdf`) {
+          return reply(403, { error: 'Acceso denegado' });
+        }
+        const object = await io.inspectUpload(reservation.path);
+        if (!object) return reply(422, { error: 'Archivo no válido o ausente' });
+        if (!await io.finalizeUpload(user, body.lessonId, id, object.size, object.identity)) {
+          return reply(403, { error: 'Acceso denegado' });
+        }
+        return reply(200, { resourceId: id, finalized: true });
       }
       const result = await io.resources(user, body.lessonId);
       if (!result) return reply(403, { error: 'Acceso denegado' });

@@ -1,0 +1,33 @@
+\set ON_ERROR_STOP on
+begin;
+insert into auth.users (id) values ('00000000-0000-0000-0000-00000000000a'), ('00000000-0000-0000-0000-00000000000b'), ('00000000-0000-0000-0000-00000000000d');
+insert into public.user_roles (user_id, role) values ('00000000-0000-0000-0000-00000000000d', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values ('10000000-0000-0000-0000-000000000001', 'draft-pdf', 'Curso', 'published', now());
+insert into public.course_sections (id, course_id, title) values ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Sección');
+insert into public.lessons (id, course_id, section_id, slug, title, is_published) values ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'draft', 'Lección', false);
+insert into public.entitlements (user_id, course_id) values ('00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001');
+insert into private.lesson_resources (id, lesson_id, kind, title, storage_bucket, storage_path, is_downloadable) values
+ ('40000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','pdf','Finalizado','lesson-pdfs','10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000001/40000000-0000-0000-0000-000000000001/file.pdf',true),
+ ('40000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000001','pdf','Pendiente','lesson-pdfs','10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000001/40000000-0000-0000-0000-000000000002/file.pdf',false),
+ ('40000000-0000-0000-0000-000000000003','30000000-0000-0000-0000-000000000001','pdf','Ruta ajena','lesson-pdfs','incorrecta',true);
+do $$ begin
+ if has_function_privilege('anon','public.server_lesson_pdf_resources(uuid,uuid)','execute')
+ or has_function_privilege('authenticated','public.server_lesson_pdf_resources(uuid,uuid)','execute')
+ or not has_function_privilege('service_role','public.server_lesson_pdf_resources(uuid,uuid)','execute') then raise exception 'Permisos'; end if;
+end $$;
+set local role service_role;
+do $$ declare a uuid := '00000000-0000-0000-0000-00000000000d'; buyer uuid := '00000000-0000-0000-0000-00000000000a'; other_user uuid := '00000000-0000-0000-0000-00000000000b'; l uuid := '30000000-0000-0000-0000-000000000001';
+begin
+ if jsonb_array_length(public.server_lesson_pdf_resources(a,l)->'items') <> 1
+ or public.server_lesson_pdf_resources(a,l)->'items'->0->>'id' <> '40000000-0000-0000-0000-000000000001' then raise exception 'Admin borrador o filtrado'; end if;
+ if public.server_lesson_pdf_resources(buyer,l) is not null or public.server_lesson_pdf_resources(other_user,l) is not null or public.server_lesson_pdf_resources(null,l) is not null then raise exception 'Borrador filtrado'; end if;
+end $$;
+reset role;
+update public.lessons set is_published = true where id='30000000-0000-0000-0000-000000000001';
+update public.courses set status='draft' where id='10000000-0000-0000-0000-000000000001';
+set local role service_role;
+do $$ begin
+ if jsonb_array_length(public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001')->'items') <> 1 then raise exception 'Admin curso borrador'; end if;
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Comprador curso borrador'; end if;
+end $$;
+rollback;

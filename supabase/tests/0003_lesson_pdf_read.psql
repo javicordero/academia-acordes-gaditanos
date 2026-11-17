@@ -59,12 +59,12 @@ end $$;
 update public.lessons set is_published = false where id = '30000000-0000-0000-0000-000000000001';
 do $$
 begin
- if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Lección no publicada'; end if;
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001') is null then raise exception 'Admin lección borrador'; end if;
 end $$;
 update public.lessons set is_published = true where id = '30000000-0000-0000-0000-000000000001';
 update public.courses set status = 'draft' where id = '10000000-0000-0000-0000-000000000001';
 do $$
 begin
- if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Curso no publicado'; end if;
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001') is null then raise exception 'Admin curso borrador'; end if;
 end $$;
 rollback;

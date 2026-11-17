@@ -1,0 +1,42 @@
+\set ON_ERROR_STOP on
+begin;
+insert into auth.users (id) values ('00000000-0000-0000-0000-00000000000a'), ('00000000-0000-0000-0000-00000000000d');
+insert into public.user_roles (user_id, role) values ('00000000-0000-0000-0000-00000000000d', 'admin');
+insert into public.courses (id, slug, title) values ('10000000-0000-0000-0000-000000000001', 'one', 'One');
+insert into public.course_sections (id, course_id, title) values ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'One');
+insert into public.lessons (id, course_id, section_id, slug, title) values ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'one', 'One');
+do $$
+begin
+ if has_function_privilege('anon', 'public.server_finalize_lesson_pdf(uuid,uuid,uuid,integer,text)', 'execute')
+ or has_function_privilege('authenticated', 'public.server_lesson_pdf_reservation(uuid,uuid,uuid)', 'execute')
+ or not has_function_privilege('service_role', 'public.server_finalize_lesson_pdf(uuid,uuid,uuid,integer,text)', 'execute')
+ or has_function_privilege('anon', 'public.server_prepare_lesson_pdf(uuid,uuid,uuid,text,text,integer,text)', 'execute')
+ or has_function_privilege('authenticated', 'public.server_prepare_lesson_pdf(uuid,uuid,uuid,text,text,integer,text)', 'execute')
+ or not has_function_privilege('service_role', 'public.server_prepare_lesson_pdf(uuid,uuid,uuid,text,text,integer,text)', 'execute')
+ then raise exception 'Permisos incorrectos'; end if;
+end $$;
+set local role service_role;
+do $$
+declare a uuid := '00000000-0000-0000-0000-00000000000d'; s uuid := '00000000-0000-0000-0000-00000000000a';
+ l uuid := '30000000-0000-0000-0000-000000000001'; r uuid := '40000000-0000-0000-0000-000000000001';
+begin
+ perform public.server_prepare_lesson_pdf(a,l,r,'PDF','file.pdf',6,'application/pdf');
+ if public.server_lesson_pdf_reservation(s,l,r) is not null or public.server_finalize_lesson_pdf(s,l,r,6,'object:etag') then raise exception 'Alumno'; end if;
+ if public.server_finalize_lesson_pdf(a,'30000000-0000-0000-0000-000000000002',r,6,'object:etag') then raise exception 'Lección ajena'; end if;
+ if public.server_finalize_lesson_pdf(a,l,r,0,'object:etag')
+ or public.server_finalize_lesson_pdf(a,l,r,10485761,'object:etag')
+ or public.server_finalize_lesson_pdf(a,l,r,6,null)
+ or public.server_finalize_lesson_pdf(a,l,r,6,repeat('x',513))
+ then raise exception 'Validación de metadatos'; end if;
+ if (select is_downloadable from private.lesson_resources where id=r) then raise exception 'Publicación prematura'; end if;
+ if not public.server_finalize_lesson_pdf(a,l,r,6,'object:etag') or not public.server_finalize_lesson_pdf(a,l,r,6,'object:etag') then raise exception 'Finalización'; end if;
+ if public.server_finalize_lesson_pdf(a,l,r,6,'object:other') then raise exception 'Cambio de objeto'; end if;
+ if (select count(*) from private.lesson_resources where id=r and is_downloadable and upload_size=6) <> 1 then raise exception 'Estado'; end if;
+end $$;
+reset role;
+delete from public.user_roles where user_id='00000000-0000-0000-0000-00000000000d';
+set local role service_role;
+do $$ begin
+ if public.server_finalize_lesson_pdf('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001',6,'object:etag') then raise exception 'Rol revocado'; end if;
+end $$;
+rollback;
