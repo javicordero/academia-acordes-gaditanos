@@ -1,0 +1,596 @@
+-- Pruebas de permisos y RLS del modelo inicial de la academia.
+--
+-- Es un script de psql, no una prueba pgTAP: se ejecuta dentro de una
+-- transacción y termina con ROLLBACK, así que no deja datos. Requiere un
+-- PostgreSQL con la migración inicial aplicada y el esquema/auth de Supabase
+-- (auth.users y auth.uid()).
+--
+-- Uso previsto en local, con Supabase CLI y un cliente psql:
+--   supabase start
+--   supabase db reset
+--   psql "postgresql://postgres:postgres@localhost:54322/postgres" \
+--     -v ON_ERROR_STOP=1 -f supabase/tests/0001_academy_rls.psql
+--
+-- No se ha ejecutado contra un proyecto Supabase remoto.
+
+\set ON_ERROR_STOP on
+
+begin;
+
+create schema tests;
+grant usage on schema tests to anon, authenticated, service_role;
+
+create function tests.expect(p_ok boolean, p_label text)
+returns void
+language plpgsql
+as $$
+begin
+  if p_ok is not true then
+    raise exception 'FALLO: %', p_label;
+  end if;
+  raise notice 'ok: %', p_label;
+end;
+$$;
+
+create function tests.expect_permission_denied(p_sql text, p_label text)
+returns void
+language plpgsql
+as $$
+begin
+  begin
+    execute p_sql;
+  exception
+    when insufficient_privilege then
+      raise notice 'ok (denegado): %', p_label;
+      return;
+  end;
+  raise exception 'FALLO: se permitió %', p_label;
+end;
+$$;
+
+create function tests.expect_sqlstate(p_sql text, p_expected text, p_label text)
+returns void
+language plpgsql
+as $$
+declare
+  v_state text;
+begin
+  begin
+    execute p_sql;
+  exception
+    when others then
+      get stacked diagnostics v_state = returned_sqlstate;
+      if v_state = p_expected then
+        raise notice 'ok (restricción %): %', p_expected, p_label;
+        return;
+      end if;
+      raise exception 'FALLO: % devolvió % y se esperaba %', p_label, v_state, p_expected;
+  end;
+  raise exception 'FALLO: no falló %', p_label;
+end;
+$$;
+
+grant execute on function tests.expect(boolean, text) to anon, authenticated, service_role;
+grant execute on function tests.expect_permission_denied(text, text) to anon, authenticated, service_role;
+grant execute on function tests.expect_sqlstate(text, text, text) to anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- Fixtures (datos ficticios, sin datos personales reales)
+-- ---------------------------------------------------------------------------
+
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-00000000000a', 'alumno-a@example.test'),
+  ('00000000-0000-0000-0000-00000000000b', 'alumno-b@example.test'),
+  ('00000000-0000-0000-0000-00000000000d', 'admin@example.test');
+
+update public.profiles
+set display_name = case id
+  when '00000000-0000-0000-0000-00000000000a' then 'Alumno A'
+  when '00000000-0000-0000-0000-00000000000b' then 'Alumno B'
+  when '00000000-0000-0000-0000-00000000000d' then 'Admin'
+end;
+
+insert into private.profile_private (user_id, full_name)
+values ('00000000-0000-0000-0000-00000000000a', 'Nombre ficticio A');
+
+insert into public.user_roles (user_id, role)
+values ('00000000-0000-0000-0000-00000000000d', 'admin');
+
+insert into public.courses (id, slug, title, level, status, published_at, sort_order) values
+  ('10000000-0000-0000-0000-000000000001', 'curso-publico', 'Curso público', 'basico', 'published', now(), 10),
+  ('10000000-0000-0000-0000-000000000002', 'curso-otro', 'Curso otro', 'iniciacion', 'published', now(), 20),
+  ('10000000-0000-0000-0000-000000000003', 'curso-borrador', 'Curso borrador', 'intermedio', 'draft', null, 30);
+
+insert into public.course_sections (id, course_id, title, position) values
+  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Bloque 1', 10),
+  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'Bloque 1', 10),
+  ('20000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003', 'Bloque borrador', 10);
+
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_free_preview, is_published) values
+  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'leccion-muestra', 'Lección muestra', 10, true, true),
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'leccion-pagada', 'Lección pagada', 20, false, true),
+  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', 'leccion-otra', 'Lección otro curso', 10, false, true),
+  ('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003', 'leccion-borrador', 'Lección borrador', 10, false, true);
+
+insert into public.course_prices (id, course_id, amount_minor, currency, is_active) values
+  ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 1000, 'EUR', true),
+  ('40000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 900, 'EUR', false),
+  ('40000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003', 3000, 'EUR', true);
+
+insert into public.orders (id, user_id, status, currency, amount_total_minor) values
+  ('50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000a', 'paid', 'EUR', 1000),
+  ('50000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000b', 'paid', 'EUR', 3000);
+
+insert into public.order_items (id, order_id, course_id, course_price_id, course_title_snapshot, unit_amount_minor, currency) values
+  ('60000000-0000-0000-0000-00000000000a', '50000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'Curso público', 1000, 'EUR'),
+  ('60000000-0000-0000-0000-00000000000b', '50000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000002', null, 'Curso otro', 3000, 'EUR');
+
+insert into public.entitlements (id, user_id, course_id, order_id, order_item_id, granted_at) values
+  ('70000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-00000000000a', '60000000-0000-0000-0000-00000000000a', now()),
+  ('70000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000002', '50000000-0000-0000-0000-00000000000b', '60000000-0000-0000-0000-00000000000b', now());
+
+-- Derecho revocado de A sobre el curso 2: no debe conceder acceso. Se conserva
+-- un progreso histórico de A en ese curso para comprobar que tampoco se expone.
+insert into public.entitlements (id, user_id, course_id, granted_at, revoked_at, revocation_reason) values
+  ('70000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000002', now() - interval '1 day', now(), 'prueba de revocación');
+
+insert into public.lesson_progress (user_id, lesson_id, completed_at) values
+  ('00000000-0000-0000-0000-00000000000a', '30000000-0000-0000-0000-000000000003', now() - interval '2 days');
+
+insert into private.lesson_videos (lesson_id, provider_video_id, status) values
+  ('30000000-0000-0000-0000-000000000002', 'video-ficticio-001', 'ready');
+
+insert into private.lesson_resources (lesson_id, kind, title, storage_bucket, storage_path) values
+  ('30000000-0000-0000-0000-000000000002', 'pdf', 'PDF ficticio', 'academia-privado', 'lecciones/ficticio.pdf');
+
+insert into private.commerce_events (external_event_id, event_type) values
+  ('evt_ficticio_001', 'checkout.session.completed');
+
+-- ---------------------------------------------------------------------------
+-- Visitante (anon)
+-- ---------------------------------------------------------------------------
+
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+
+select tests.expect(
+  (select count(*) from public.courses) = 2,
+  'anon ve solo cursos publicados'
+);
+select tests.expect(
+  not exists (select 1 from public.courses where id = '10000000-0000-0000-0000-000000000003'),
+  'anon no ve el curso en borrador'
+);
+select tests.expect(
+  (select count(*) from public.course_sections) = 2,
+  'anon ve solo bloques de cursos publicados'
+);
+select tests.expect(
+  (select count(*) from public.lessons) = 1,
+  'anon ve solo la lección de muestra de cursos publicados'
+);
+select tests.expect(
+  exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000001'),
+  'anon ve la lección de muestra'
+);
+select tests.expect(
+  not exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000002'),
+  'anon no ve la lección de pago'
+);
+select tests.expect(
+  (select count(*) from public.course_prices) = 1,
+  'anon ve solo el precio activo de un curso publicado'
+);
+select tests.expect_permission_denied('select * from public.profiles', 'anon no lee perfiles');
+select tests.expect_permission_denied('select * from public.orders', 'anon no lee pedidos');
+select tests.expect_permission_denied('select * from public.entitlements', 'anon no lee derechos');
+select tests.expect_permission_denied('select * from public.lesson_progress', 'anon no lee progreso');
+select tests.expect_permission_denied('select * from private.lesson_videos', 'anon no lee vídeos privados');
+select tests.expect_permission_denied('select * from private.lesson_resources', 'anon no lee rutas de recursos');
+select tests.expect_permission_denied('select * from private.profile_private', 'anon no lee datos personales');
+select tests.expect_permission_denied('select * from private.course_price_refs', 'anon no lee referencias de precio del proveedor');
+select tests.expect_permission_denied('select * from private.commerce_events', 'anon no lee eventos de comercio');
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Alumno B: compró el curso 2, no el curso 1
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated"}', true);
+
+select tests.expect(
+  (select count(*) from public.courses) = 2,
+  'alumno B ve los cursos publicados'
+);
+select tests.expect(
+  exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000001'),
+  'alumno B ve la muestra del curso 1'
+);
+select tests.expect(
+  not exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000002'),
+  'alumno B no ve la lección pagada del curso 1'
+);
+select tests.expect(
+  exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000003'),
+  'alumno B ve la lección pagada del curso 2 que compró'
+);
+select tests.expect(
+  (select count(*) from public.orders) = 1
+  and not exists (select 1 from public.orders where id = '50000000-0000-0000-0000-00000000000a'),
+  'alumno B solo ve su pedido'
+);
+select tests.expect(
+  (select count(*) from public.entitlements) = 1,
+  'alumno B solo ve su derecho'
+);
+select tests.expect(
+  not exists (select 1 from public.entitlements where user_id = '00000000-0000-0000-0000-00000000000a'),
+  'alumno B no ve derechos de A'
+);
+select tests.expect(
+  (select count(*) from public.order_items) = 1,
+  'alumno B solo ve las líneas de su pedido'
+);
+select tests.expect(
+  (select count(*) from public.profiles) = 1
+  and exists (select 1 from public.profiles where id = '00000000-0000-0000-0000-00000000000b'),
+  'alumno B solo ve su perfil público'
+);
+
+update public.profiles
+set display_name = 'Alumno B editado'
+where id = '00000000-0000-0000-0000-00000000000b';
+
+select tests.expect(
+  exists (
+    select 1 from public.profiles
+    where id = '00000000-0000-0000-0000-00000000000b'
+      and display_name = 'Alumno B editado'
+  ),
+  'alumno B edita su propio perfil'
+);
+select tests.expect(
+  (select count(*) from public.user_roles) = 0,
+  'alumno B no tiene rol administrativo'
+);
+select tests.expect_permission_denied('select * from private.lesson_videos', 'alumno B no lee vídeos privados');
+select tests.expect_permission_denied('select * from private.lesson_resources', 'alumno B no lee rutas de recursos');
+select tests.expect_permission_denied('select * from private.profile_private', 'alumno B no lee datos personales');
+select tests.expect_permission_denied('select * from private.course_price_refs', 'alumno B no lee referencias de precio del proveedor');
+select tests.expect_permission_denied('select * from private.commerce_events', 'alumno B no lee eventos de comercio');
+select tests.expect_permission_denied(
+  'insert into public.orders (currency, amount_total_minor) values (''EUR'', 0)',
+  'alumno B no crea pedidos'
+);
+select tests.expect_permission_denied(
+  'insert into public.entitlements (user_id, course_id) values (''00000000-0000-0000-0000-00000000000b'', ''10000000-0000-0000-0000-000000000001'')',
+  'alumno B no se concede acceso'
+);
+select tests.expect_permission_denied(
+  'insert into public.user_roles (user_id, role) values (''00000000-0000-0000-0000-00000000000b'', ''admin'')',
+  'alumno B no se autoconcede admin'
+);
+select tests.expect_permission_denied(
+  'insert into public.courses (slug, title, level) values (''curso-hack'', ''Curso hack'', ''iniciacion'')',
+  'alumno B no crea cursos'
+);
+select tests.expect_permission_denied(
+  'insert into public.lesson_progress (user_id, lesson_id) values (''00000000-0000-0000-0000-00000000000b'', ''30000000-0000-0000-0000-000000000001'')',
+  'alumno B no registra progreso en una muestra sin derecho'
+);
+
+with changed as (
+  update public.profiles
+  set display_name = 'Perfil ajeno'
+  where id = '00000000-0000-0000-0000-00000000000a'
+  returning 1
+)
+select tests.expect(
+  (select count(*) from changed) = 0,
+  'alumno B no edita el perfil de A'
+);
+
+with changed as (
+  update public.courses
+  set title = 'Curso hack'
+  where id = '10000000-0000-0000-0000-000000000001'
+  returning 1
+)
+select tests.expect(
+  (select count(*) from changed) = 0,
+  'alumno B no edita un curso'
+);
+
+with deleted as (
+  delete from public.courses
+  where id = '10000000-0000-0000-0000-000000000001'
+  returning 1
+)
+select tests.expect(
+  (select count(*) from deleted) = 0,
+  'alumno B no borra un curso'
+);
+
+insert into public.lesson_progress (user_id, lesson_id, completed_at)
+values ('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-000000000003', now());
+
+select tests.expect(
+  (select count(*) from public.lesson_progress) = 1,
+  'alumno B registra y ve su propio progreso'
+);
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Alumno A: compró el curso 1; tiene otro derecho revocado sobre el curso 2
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
+
+select tests.expect(
+  exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000001'),
+  'alumno A ve la muestra del curso 1'
+);
+select tests.expect(
+  exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000002'),
+  'alumno A ve la lección pagada del curso 1'
+);
+select tests.expect(
+  not exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000003'),
+  'alumno A no ve la lección del curso 2 con derecho revocado'
+);
+select tests.expect(
+  not exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000004'),
+  'alumno A no ve lecciones de un curso en borrador'
+);
+select tests.expect(
+  (select count(*) from public.orders) = 1,
+  'alumno A solo ve su pedido'
+);
+select tests.expect(
+  (select count(*) from public.entitlements) = 2
+  and (select count(*) from public.entitlements where revoked_at is null) = 1,
+  'alumno A ve su derecho activo y la traza del revocado'
+);
+select tests.expect(
+  not exists (select 1 from public.entitlements where user_id = '00000000-0000-0000-0000-00000000000b'),
+  'alumno A no ve derechos de B'
+);
+select tests.expect(
+  (select count(*) from public.order_items) = 1,
+  'alumno A solo ve las líneas de su pedido'
+);
+select tests.expect(
+  not exists (select 1 from public.lesson_progress where user_id = '00000000-0000-0000-0000-00000000000b'),
+  'alumno A no ve el progreso de B'
+);
+
+insert into public.lesson_progress (user_id, lesson_id, completed_at)
+values ('00000000-0000-0000-0000-00000000000a', '30000000-0000-0000-0000-000000000002', now());
+
+select tests.expect(
+  (select count(*) from public.lesson_progress) = 1,
+  'alumno A registra progreso en su curso comprado'
+);
+select tests.expect(
+  not exists (select 1 from public.lesson_progress where lesson_id = '30000000-0000-0000-0000-000000000003'),
+  'alumno A no ve su progreso histórico de un curso con derecho revocado'
+);
+
+select tests.expect_permission_denied(
+  'insert into public.lesson_progress (user_id, lesson_id) values (''00000000-0000-0000-0000-00000000000a'', ''30000000-0000-0000-0000-000000000003'')',
+  'alumno A no registra progreso en el curso con derecho revocado'
+);
+select tests.expect_permission_denied(
+  'insert into public.lesson_progress (user_id, lesson_id) values (''00000000-0000-0000-0000-00000000000b'', ''30000000-0000-0000-0000-000000000002'')',
+  'alumno A no registra progreso a nombre de B'
+);
+select tests.expect_permission_denied(
+  'update public.entitlements set revoked_at = now() where id = ''70000000-0000-0000-0000-00000000000a''',
+  'alumno A no revoca ni modifica derechos'
+);
+select tests.expect_permission_denied(
+  'insert into public.course_prices (course_id, amount_minor, currency) values (''10000000-0000-0000-0000-000000000001'', 1, ''EUR'')',
+  'alumno A no fija precios'
+);
+select tests.expect_permission_denied(
+  'insert into public.user_roles (user_id, role) values (''00000000-0000-0000-0000-00000000000a'', ''admin'')',
+  'alumno A no se autoconcede admin'
+);
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Administrador: CRUD editorial, borradores y acceso sin compra
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000d","role":"authenticated"}', true);
+
+select tests.expect(
+  (select count(*) from public.courses) = 3,
+  'admin ve cursos publicados y borradores'
+);
+select tests.expect(
+  (select count(*) from public.lessons) = 4,
+  'admin ve lecciones publicadas y en borrador'
+);
+select tests.expect(
+  exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000004'),
+  'admin ve la lección del curso en borrador'
+);
+select tests.expect(
+  exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000002'),
+  'admin accede a una lección pagada sin compra'
+);
+select tests.expect(
+  (select count(*) from public.profiles) = 3,
+  'admin lee los perfiles públicos mínimos'
+);
+select tests.expect(
+  (select count(*) from public.user_roles) = 1
+  and exists (select 1 from public.user_roles where role = 'admin'),
+  'admin ve su propio rol'
+);
+select tests.expect(
+  (select count(*) from public.course_prices) = 3,
+  'admin ve también precios históricos o inactivos'
+);
+select tests.expect(
+  (select count(*) from public.orders) = 0,
+  'admin no lee finanzas desde la API pública'
+);
+select tests.expect_permission_denied(
+  'select * from private.lesson_videos',
+  'admin no lee identificadores de vídeo desde el cliente'
+);
+select tests.expect_permission_denied('select * from private.lesson_resources', 'admin no lee rutas de recursos desde el cliente');
+select tests.expect_permission_denied('select * from private.profile_private', 'admin no lee datos personales desde el cliente');
+select tests.expect_permission_denied('select * from private.course_price_refs', 'admin no lee referencias de precio del proveedor desde el cliente');
+select tests.expect_permission_denied('select * from private.commerce_events', 'admin no lee eventos de comercio desde el cliente');
+select tests.expect(
+  has_table_privilege('authenticated', 'public.orders', 'SELECT')
+  and has_table_privilege('authenticated', 'public.order_items', 'SELECT')
+  and has_table_privilege('authenticated', 'public.entitlements', 'SELECT'),
+  'admin no tiene privilegio extra de finanzas: los grants siguen limitados a RLS de fila propia'
+);
+select tests.expect(
+  not has_table_privilege('authenticated', 'public.orders', 'INSERT, UPDATE, DELETE')
+  and not has_table_privilege('authenticated', 'public.order_items', 'INSERT, UPDATE, DELETE')
+  and not has_table_privilege('authenticated', 'public.entitlements', 'INSERT, UPDATE, DELETE'),
+  'authenticated no escribe pedidos, líneas ni derechos'
+);
+select tests.expect(
+  not has_table_privilege('anon', 'private.commerce_events', 'SELECT')
+  and not has_table_privilege('authenticated', 'private.commerce_events', 'SELECT')
+  and not has_table_privilege('anon', 'private.course_price_refs', 'SELECT')
+  and not has_table_privilege('authenticated', 'private.course_price_refs', 'SELECT')
+  and not has_table_privilege('anon', 'private.profile_private', 'SELECT')
+  and not has_table_privilege('authenticated', 'private.profile_private', 'SELECT')
+  and not has_table_privilege('anon', 'private.lesson_videos', 'SELECT')
+  and not has_table_privilege('authenticated', 'private.lesson_videos', 'SELECT')
+  and not has_table_privilege('anon', 'private.lesson_resources', 'SELECT')
+  and not has_table_privilege('authenticated', 'private.lesson_resources', 'SELECT'),
+  'privado sin grants de lectura: anon y authenticated denegados por privilegio y no por filas'
+);
+select tests.expect(
+  has_table_privilege('service_role', 'private.commerce_events', 'SELECT')
+  and has_table_privilege('service_role', 'private.course_price_refs', 'SELECT')
+  and has_table_privilege('service_role', 'private.profile_private', 'SELECT')
+  and has_table_privilege('service_role', 'private.lesson_videos', 'SELECT')
+  and has_table_privilege('service_role', 'private.lesson_resources', 'SELECT')
+  and has_table_privilege('service_role', 'public.orders', 'INSERT, UPDATE, DELETE')
+  and has_table_privilege('service_role', 'public.entitlements', 'INSERT, UPDATE, DELETE')
+  and has_table_privilege('service_role', 'public.user_roles', 'INSERT, UPDATE, DELETE'),
+  'service_role conserva los grants de servidor sobre privado y comercio'
+);
+
+insert into public.courses (id, slug, title, level, status)
+values ('10000000-0000-0000-0000-000000000004', 'curso-nuevo', 'Curso nuevo', 'iniciacion', 'draft');
+
+insert into public.course_sections (id, course_id, title, position)
+values ('20000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000004', 'Bloque nuevo', 10);
+
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_free_preview, is_published)
+values ('30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000004', 'leccion-nueva', 'Lección nueva', 10, false, true);
+
+select tests.expect(
+  exists (select 1 from public.courses where id = '10000000-0000-0000-0000-000000000004'),
+  'admin crea un curso en borrador'
+);
+select tests.expect(
+  exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000005'),
+  'admin crea bloque y lección en borrador'
+);
+
+update public.courses
+set status = 'published', published_at = now()
+where id = '10000000-0000-0000-0000-000000000004';
+
+update public.lessons
+set position = 20
+where id = '30000000-0000-0000-0000-000000000005';
+
+select tests.expect(
+  exists (select 1 from public.courses where id = '10000000-0000-0000-0000-000000000004' and status = 'published'),
+  'admin publica el curso'
+);
+select tests.expect(
+  exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000005' and position = 20),
+  'admin reordena una lección'
+);
+
+delete from public.lessons where id = '30000000-0000-0000-0000-000000000005';
+delete from public.course_sections where id = '20000000-0000-0000-0000-000000000004';
+delete from public.courses where id = '10000000-0000-0000-0000-000000000004';
+
+select tests.expect(
+  not exists (select 1 from public.courses where id = '10000000-0000-0000-0000-000000000004'),
+  'admin borra contenido sin pedidos asociados'
+);
+select tests.expect_permission_denied(
+  'insert into public.user_roles (user_id, role) values (''00000000-0000-0000-0000-00000000000d'', ''admin'')',
+  'admin no modifica roles desde el cliente'
+);
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Servidor: service_role sí puede escribir comercio y eventos
+-- ---------------------------------------------------------------------------
+
+set local role service_role;
+
+insert into public.orders (id, user_id, status, currency, amount_total_minor)
+values ('50000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-00000000000a', 'paid', 'EUR', 1000);
+
+insert into private.commerce_events (external_event_id, event_type, processing_state, processed_at)
+values ('evt_ficticio_002', 'checkout.session.completed', 'processed', now());
+
+insert into private.lesson_videos (lesson_id, provider_video_id, status)
+values ('30000000-0000-0000-0000-000000000001', 'video-ficticio-002', 'pending');
+
+insert into private.lesson_resources (lesson_id, kind, title, storage_bucket, storage_path)
+values ('30000000-0000-0000-0000-000000000001', 'pdf', 'PDF ficticio 2', 'academia-privado', 'lecciones/ficticio-2.pdf');
+
+select tests.expect(
+  exists (select 1 from public.orders where id = '50000000-0000-0000-0000-00000000000c'),
+  'service_role escribe pedidos'
+);
+select tests.expect(
+  exists (select 1 from private.commerce_events where external_event_id = 'evt_ficticio_002'),
+  'service_role registra eventos de comercio para idempotencia'
+);
+select tests.expect(
+  exists (select 1 from private.lesson_videos where provider_video_id = 'video-ficticio-002'),
+  'service_role guarda metadatos de vídeo'
+);
+select tests.expect(
+  exists (select 1 from private.lesson_resources where storage_path = 'lecciones/ficticio-2.pdf'),
+  'service_role guarda metadatos de recursos privados'
+);
+
+select tests.expect_sqlstate(
+  'insert into public.entitlements (user_id, course_id) values (''00000000-0000-0000-0000-00000000000a'', ''10000000-0000-0000-0000-000000000001'')',
+  '23505',
+  'no se duplica un derecho activo por usuario y curso'
+);
+select tests.expect_sqlstate(
+  'insert into private.commerce_events (external_event_id, event_type) values (''evt_ficticio_002'', ''checkout.session.completed'')',
+  '23505',
+  'no se procesa dos veces el mismo evento externo'
+);
+select tests.expect_sqlstate(
+  'insert into public.courses (slug, title, level) values (''curso-publico'', ''Duplicado'', ''iniciacion'')',
+  '23505',
+  'el slug de curso es único'
+);
+
+reset role;
+
+select tests.expect(true, 'suite de permisos completada');
+
+rollback;

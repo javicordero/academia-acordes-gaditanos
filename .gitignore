@@ -20,6 +20,10 @@ yarn-error.log
 /docs/plan-maestro.md
 /docs/privado/
 
+# Supabase local
+/supabase/.temp/
+/supabase/.branches/
+
 # IDEs and editors
 .idea/
 .project

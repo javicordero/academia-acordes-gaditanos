@@ -1,8 +1,9 @@
 # Academia Acordes Gaditanos
 
 Base técnica de la academia online de guitarra para el Carnaval de Cádiz. Esta
-fase solo levanta el proyecto Angular y su shell navegable; **no hay cursos,
-cuentas, pagos ni comunidad activos**.
+fase levanta el proyecto Angular y su shell navegable. Incluye además el **modelo
+de datos y permisos inicial de Supabase**, versionado y probado en local, pero
+**no hay proyecto en la nube, cuentas, pagos, vídeo ni comunidad activos**.
 
 El plan de producto completo está en `docs/plan-maestro.md`. Es una propuesta
 viva: las decisiones pendientes no se dan por cerradas.
@@ -73,10 +74,21 @@ npm install
 npm start          # servidor de desarrollo en http://localhost:4200
 npm run build      # build de producción en dist/
 npm test           # pruebas una sola vez, sin watch
+npm run test:sql   # suite SQL/RLS sobre PGlite en memoria (sin Docker ni psql)
 ```
 
 `npm test` ejecuta Vitest con `--watch=false`. Para desarrollo interactivo de
 pruebas puede usarse `npx ng test` (watch por defecto en terminal TTY).
+
+`npm run test:sql` requiere solo `npm ci`/`npm install`: aplica las migraciones
+de `supabase/migrations/` y ejecuta `supabase/tests/*.psql` en PGlite
+(`@electric-sql/pglite`, `devDependencies`), sin Docker, sin `psql` y sin red. Es
+**limitado a lógica SQL/RLS**: no es Supabase ni Auth ni PostgREST reales. Los
+metacomandos de psql admitidos están en una lista blanca exacta dentro de
+`scripts/test-sql.mjs`; cualquier otro hace fallar la ejecución. Ante un error
+termina con código 1. La verificación contra Supabase local (Docker + CLI y
+`psql`) sigue siendo el requisito posterior documentado en
+[`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
 
 ## Alcance de esta fase
 
@@ -84,9 +96,42 @@ pruebas puede usarse `npx ng test` (watch por defecto en terminal TTY).
 - Rutas lazy: `/cursos`, `/mis-cursos`, `/comunidad` y comodín 404.
 - Redirección de `/` a `/cursos`.
 - Páginas placeholder honestas, sin simular autenticación, matrículas ni compras.
+- Modelo SQL inicial de la academia en `supabase/migrations/`: cursos, bloques,
+  lecciones, muestra gratuita, precios, pedidos, derechos de acceso y progreso.
+- RLS inicial y pruebas de autorización en `supabase/tests/`; no se ha aplicado a
+  ningún proyecto Supabase remoto.
 - Pruebas del shell y de las rutas (render, títulos y 404).
 - Angular standalone, strict, SCSS, routing, zoneless y Vitest.
 - Sin SSR: la aplicación se sirve como CSR estático.
+
+## Datos y permisos (base)
+
+El detalle está en [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
+
+- La autorización real vive en RLS y en servidor; Angular nunca es la única
+  barrera.
+- La compra es individual por curso, sin suscripción y sin caducidad programada.
+  El derecho es revocable explícitamente desde servidor; no implica promesa de
+  disponibilidad perpetua.
+- La lección de muestra se marca por lección. El resto exige un derecho activo.
+- El progreso es manual y solo se registra con derecho vigente.
+- Los IDs de vídeo, rutas de recursos, precios de proveedor y eventos de comercio
+  viven en el esquema `private`, no expuesto a la API.
+- El rol admin se guarda en una tabla server-only y no se puede autoasignar.
+- El panel editorial `/admin` es un requisito confirmado, pero **no está
+  implementado** en esta fase. El foro y las dudas por lección también se posponen
+  y compartirán un único servicio de conversación, no comentarios paralelos.
+- La portada deberá presentar al profesor, pero su estructura y contenido quedan
+  para el diseño definitivo. No se inventan nombre, foto, bio, credenciales ni
+  testimonios; la ruta raíz sigue provisional.
+
+## Panel de administración (previsto)
+
+El panel propio permitirá cargar y mantener el curso piloto: cursos,
+bloques/módulos y su orden, lecciones, publicación y vista previa de borradores,
+metadatos de vídeo y documentos anexos. El CRUD editorial público usará RLS de
+admin; la subida a Bunny y los archivos privados se gestionarán desde servidor,
+sin credenciales en el navegador. No hay UI ni subidas implementadas todavía.
 
 ## Estructura
 
@@ -103,6 +148,11 @@ src/
       comunidad/
       not-found/
   styles.scss                         # estilos globales
+supabase/
+  migrations/                         # esquema SQL versionado
+  tests/                              # pruebas de RLS (transacción + rollback)
+scripts/test-sql.mjs                  # runner portable de la suite SQL/RLS (PGlite)
+docs/arquitectura-datos.md            # modelo, permisos y límites
 docs/plan-maestro.md                  # plan local, ignorado; no se publica
 docs/privado/                         # notas internas futuras, ignoradas
 opencode.jsonc                        # agentes OpenCode V2 del proyecto
@@ -113,13 +163,19 @@ AGENTS.md                             # instrucciones para agentes
 
 Todavía no están implementadas ni configuradas:
 
-- Supabase (PostgreSQL, Auth, perfiles, roles, RLS, migraciones y Edge Functions).
+- Proyecto Supabase en la nube, Auth, Edge Functions y aplicación de las
+  migraciones locales. El esquema y la RLS inicial ya están versionados, pero no
+  se ha desplegado nada.
 - Stripe Checkout y webhook firmado e idempotente; ninguna página de éxito
-  concede acceso por sí sola.
+  concede acceso por sí sola. No hay precios ni claves reales.
 - Bunny Stream y emisión de tokens temporales desde servidor tras comprobar el
   derecho de acceso.
+- Panel `/admin`: CRUD editorial, borradores, vista previa, subida segura de
+  vídeo/recursos y respuestas a preguntas (estas últimas junto al foro).
 - Catálogo real de cursos, lecciones, materiales, progreso y ejercicios.
 - Foro, dudas por lección, moderación y notificaciones.
+- Portada con presentación del profesor; estructura y contenido pendientes de la
+  fase de diseño definitivo, sin datos inventados.
 - Analítica propia y textos legales.
 
 Por eso no hay `.env.example` todavía: no existe ninguna variable de entorno
@@ -134,6 +190,11 @@ necesaria. No se deben añadir secretos al repositorio.
 - npm como único gestor; sin pnpm, yarn ni Corepack.
 - El CLI global no se modifica; se usa la versión local declarada en
   `devDependencies`.
+- PostgreSQL/Supabase con migraciones SQL versionadas, RLS en todas las tablas
+  públicas y un esquema `private` para identificadores y datos de servidor.
+- El acceso comprado no caduca por fecha, pero es revocable desde servidor. No
+  hay suscripción.
+- Las pruebas SQL se ejecutan en transacción con `ROLLBACK`; no dejan datos.
 
 ## Agentes y skill de Angular
 
@@ -143,6 +204,17 @@ respetando la versión del proyecto y las reglas de `AGENTS.md`. Cargar la skill
 no autoriza a instalar el MCP de Angular, `angular-new-app` ni otros paquetes
 mediante `npx`. La procedencia, la revisión fija y el método de actualización
 están en `UPSTREAM.md`.
+
+Modelos autorizados para el flujo de agentes del proyecto:
+
+- **Sol** coordina, revisa y decide.
+- **Implementador preferido:** DeepSeek V4.1 Flash de AMD Token Lab, con ID de
+  proveedor/modelo `tokenlab/DeepSeek-V4.1-Flash`, autorizado por el usuario.
+- **Revisor:** Hy4 Free.
+- No usar otro proveedor o modelo de pago sin permiso explícito. No se afirma que
+  AMD Token Lab sea gratuito: el coste de catálogo figura como desconocido.
+- La configuración vive en `opencode.jsonc`; no se cambia el modelo global de
+  OpenCode ni el agente por defecto desde este repositorio.
 
 ## Aviso
 

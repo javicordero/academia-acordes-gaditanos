@@ -9,12 +9,11 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 ## Stack y reglas técnicas
 
 - **Angular 22.2**, standalone, strict, routing, SCSS y npm. Node.js 24 LTS (`>=24.15.0`). No usar pnpm, yarn ni Corepack. No reinstalar ni cambiar el CLI global: el proyecto usa el `ng` local (`npm run ng` o `npx ng`).
-- **Supabase** para PostgreSQL, Auth, RLS y Edge Functions. Los permisos se comprueban en base de datos/servidor; Angular nunca es la única barrera. El `service_role` solo vive en servidor.
+- **Supabase** para PostgreSQL, Auth, RLS y Edge Functions. Los permisos se comprueban en base de datos/servidor; Angular nunca es la única barrera. El `service_role` solo vive en servidor. Las migraciones se versionan en `supabase/migrations/` y las pruebas de RLS en `supabase/tests/`; no aplicar a una base remota sin revisión y permiso.
 - **Stripe**: el acceso se concede por un webhook firmado, verificado e idempotente. La página de éxito no concede acceso. Precios e importes se calculan en servidor.
 - **Bunny Stream**: los tokens de reproducción son temporales y se emiten en una Edge Function tras comprobar el derecho de acceso. Ninguna clave de firma en el cliente.
 - **Sin SSR por ahora**: Angular CSR estático. No introducirlo sin una decisión SEO concreta.
 - Sin AdSense ni GTM en la academia. La analítica, si se añade, usa una propiedad propia y consentimiento.
-- No cambiar el modelo global de OpenCode ni el agente por defecto del usuario.
 
 ## Seguridad y datos
 
@@ -23,24 +22,34 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 - `.gitignore` no protege archivos ya seguidos: comprobar el índice antes de publicar.
 - `.env` está ignorado. Si hace falta una plantilla, `.env.example` solo lleva nombres y valores ficticios.
 - No confiar en ocultar rutas de Angular: toda autorización real va en RLS/Edge Functions.
+- El esquema `private` no se expone a la API: IDs de Bunny, rutas de Storage, precios de proveedor, datos personales y eventos de comercio viven ahí. No guardar IDs de vídeo ni rutas de recursos en filas públicas.
+- Pedidos, precios, derechos de acceso (`entitlements`) y roles se escriben solo desde servidor. El rol admin no se puede autoasignar desde una cuenta de alumno.
+- Los archivos y vídeos serán privados; las URLs firmadas y los tokens se emiten en servidor tras comprobar el derecho. Ninguna clave de Bunny o Stripe en el cliente.
 - No prometer protección absoluta de vídeo, corrección automática de audio ni capacidades no verificadas.
 
 ## Producto
 
 - No inventar precios, duración del acceso, visibilidad del foro, política de reembolsos, número de cursos ni otras decisiones abiertas del plan.
+- Compra individual por curso, sin suscripción. El acceso no tiene caducidad programada, pero es revocable desde servidor (reembolso, contracargo u operación de soporte según la política que se apruebe). No prometer disponibilidad perpetua.
+- El progreso es manual. La lección de muestra se marca por lección; el resto exige derecho activo.
+- Panel de administración propio: requisito confirmado. Ruta `/admin` lazy en el futuro, con CRUD editorial de cursos, bloques y orden, lecciones, borradores y vista previa, metadatos de vídeo y documentos anexos. La subida a Bunny y los archivos privados van por servidor. No crear UI ni subidas reales hasta que toque.
+- Foro y dudas por lección: fase posterior, misma cuenta. Las preguntas usarán un único servicio de conversación; no crear un sistema de comentarios paralelo.
+- La portada debe presentar al profesor, pero estructura, textos, nombre, foto, bio, credenciales y testimonios quedan para el diseño definitivo. No inventarlos ni construir la landing ahora; la raíz sigue provisional.
+- El estilo visual actual es provisional; no invertir en acabado hasta el rediseño, pero mantener accesibilidad, responsive y tokens separados de los estilos de componente.
 - Las páginas de esta fase son placeholders honestos: sin auth ni pagos simulados que parezcan reales.
 - Interfaz en español, responsive y accesible (teclado, foco visible, etiquetas, contraste, `lang="es"`).
 
 ## Flujo de trabajo
 
 - Tareas pequeñas y verificables. Antes de ampliar alcance, comprobar el plan y las decisiones pendientes.
-- Comandos: `npm install`, `npm start`, `npm run build`, `npm test` (una pasada, sin watch).
+- Comandos: `npm install`, `npm start`, `npm run build`, `npm test` (una pasada, sin watch) y `npm run test:sql`. `test:sql` ejecuta `supabase/migrations/` y `supabase/tests/*.psql` sobre PGlite en memoria (`scripts/test-sql.mjs`), sin Docker ni `psql`; solo valida lógica SQL/RLS, no es Supabase/Auth/PostgREST real. La verificación real (Supabase local con Docker + CLI y `psql`) queda documentada en `docs/arquitectura-datos.md` como requisito posterior.
 - Toda funcionalidad nueva debe incluir pruebas proporcionadas a su riesgo.
 - Para tareas Angular pertinentes, los subagentes cargan la skill project-local `angular-developer` y respetan la versión del proyecto y estas reglas. Cargarla no autoriza a instalar MCP, `angular-new-app` ni paquetes extra vía `npx`; procedencia y actualización en `.opencode/skills/angular-developer/UPSTREAM.md`.
 - Actualizar `README.md` y la documentación cuando cambien comandos, arquitectura o alcance. No editar `docs/plan-maestro.md`.
 - Informes breves: qué se hizo, cómo se verificó y limitaciones. Solo el subagente designado y autorizado para Git hace commits; los implementadores no hacen commits por iniciativa propia. No hacer push sin permiso (ver «Commits»).
-- Todas las tareas operativas, incluidas las de Git, se delegan a subagentes gratuitos. Sol coordina, revisa y decide, e interviene directamente solo cuando la complejidad lo justifique.
-- Implementan modelos gratuitos; Sol coordina, revisa y decide. Los subagentes `implementador` y `revisor` están definidos en `opencode.jsonc`; el revisor no edita.
+- **Sol** coordina, revisa y decide, e interviene directamente solo cuando la complejidad lo justifique. **Todas las tareas operativas, incluidas las de Git, se delegan a subagentes.** Los implementadores no hacen commits por iniciativa propia; solo el subagente designado y autorizado para Git ejecuta los commits que coordina el agente padre.
+- **Implementador preferido:** DeepSeek V4.1 Flash de AMD Token Lab, ID `tokenlab/DeepSeek-V4.1-Flash`, autorizado por el usuario. **Revisor:** Hy4 Free. No usar otro proveedor o modelo de pago sin permiso explícito. No afirmar que AMD Token Lab sea gratuito: el coste de catálogo está sin confirmar.
+- No cambiar el modelo global de OpenCode ni el agente por defecto del usuario. La configuración de agentes vive en `opencode.jsonc` y la ajusta el agente autorizado.
 
 ## Commits
 
@@ -54,6 +63,9 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 
 - `src/app/` — shell, rutas y páginas.
 - `src/app/features/` — páginas por área (`cursos`, `mis-cursos`, `comunidad`, `not-found`).
+- `supabase/migrations/` — esquema SQL versionado; no aplicar a remoto sin permiso.
+- `supabase/tests/` — pruebas de RLS en transacción con `ROLLBACK`.
+- `docs/arquitectura-datos.md` — modelo público, matriz de permisos y límites.
 - `docs/plan-maestro.md` — plan de producto local e ignorado; no se publica.
 - `docs/privado/` — notas internas futuras, ignoradas.
 - `docs/` — documentación técnica pública permitida.
