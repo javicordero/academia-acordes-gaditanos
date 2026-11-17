@@ -1,0 +1,51 @@
+\set ON_ERROR_STOP on
+begin;
+insert into auth.users(id) values ('00000000-0000-0000-0000-000000000001');
+insert into public.courses(id,slug,title,status,published_at) values ('10000000-0000-0000-0000-000000000001','curso','Curso','published',now());
+insert into public.course_prices(id,course_id,amount_minor,currency) values ('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',100,'EUR');
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values ('20000000-0000-0000-0000-000000000001','stripe','price_fixture');
+do $$ begin
+ if has_function_privilege('anon','public.checkout_offer(uuid,uuid)','execute')
+ or has_function_privilege('authenticated','public.checkout_offer(uuid,uuid)','execute')
+ or not has_function_privilege('service_role','public.checkout_offer(uuid,uuid)','execute') then raise exception 'Permisos'; end if;
+end $$;
+set local role service_role;
+do $$ begin
+ if (select count(*) from public.checkout_offer('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001') where not owned and provider_price_id='price_fixture') <> 1 then raise exception 'Oferta'; end if;
+end $$;
+reset role;
+insert into public.entitlements(user_id,course_id) values ('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001');
+do $$ begin
+ if not (select owned from public.checkout_offer('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001')) then raise exception 'Derecho'; end if;
+end $$;
+-- Negativo: precio inactivo no produce oferta.
+update public.course_prices set is_active=false where id='20000000-0000-0000-0000-000000000001';
+do $$ begin
+ if exists (select 1 from public.checkout_offer('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001')) then raise exception 'Precio inactivo'; end if;
+end $$;
+update public.course_prices set is_active=true where id='20000000-0000-0000-0000-000000000001';
+-- Negativo: ventana de validez vencida no produce oferta.
+update public.course_prices set valid_to=now()-interval '1 day' where id='20000000-0000-0000-0000-000000000001';
+do $$ begin
+ if exists (select 1 from public.checkout_offer('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001')) then raise exception 'Validez vencida'; end if;
+end $$;
+update public.course_prices set valid_to=null where id='20000000-0000-0000-0000-000000000001';
+do $$ begin
+ if (select count(*) from public.checkout_offer('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001')) <> 1 then raise exception 'Restauracion'; end if;
+end $$;
+-- El indice unico course_prices_one_active_per_course impide legalmente un
+-- segundo precio activo: la ruta ambigua (>1 SKU) no es alcanzable con datos
+-- legales y no se fuerza ningun bypass. Se comprueba el invariante.
+do $$ begin
+ begin
+  insert into public.course_prices(id,course_id,amount_minor,currency,is_active)
+    values ('20000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001',200,'EUR',true);
+  raise exception 'El indice unico deberia impedir un segundo precio activo';
+ exception when unique_violation then null;
+ end;
+end $$;
+update public.courses set status='draft' where id='10000000-0000-0000-0000-000000000001';
+do $$ begin
+ if exists(select 1 from public.checkout_offer('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001')) then raise exception 'Borrador'; end if;
+end $$;
+rollback;
