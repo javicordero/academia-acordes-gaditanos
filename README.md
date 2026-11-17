@@ -14,11 +14,20 @@ viva: las decisiones pendientes no se dan por cerradas.
 Para PDFs privados se aplicaron las dos migraciones y se desplegó la función de
 listado y descarga en desarrollo. Se verificaron el bucket, la política, los
 grants y respuestas HTTP negativas. La subida, finalización e interfaz de PDFs
-están implementadas y revisadas; la prueba completa con un PDF real sigue
-pendiente. El historial CLI no está conciliado: no ejecutar `db push`.
+están implementadas. El usuario comunicó una subida aparentemente exitosa;
+queda por verificar el ajuste del nombre de archivo y el flujo completo. El
+historial CLI no está conciliado: no ejecutar `db push`.
 Detalles en `docs/arquitectura-datos.md`.
+En administración, abre los materiales de la lección, pulsa «Preparar descarga»
+en el PDF listado y después «Descargar PDF» para abrirlo en tu equipo. El enlace
+temporal caduca en un máximo de 60 segundos; si caduca, prepáralo de nuevo.
 `npm run test:functions` ejecuta por separado los tests Node con mocks de las
 funciones Edge; no sustituye la comprobación del runtime Deno ni Supabase real.
+
+Para revisar una lección guardada sin publicarla, entra con una cuenta
+administradora en `/admin`, abre la estructura del curso y pulsa «Vista previa
+del aula» o «Ver en el aula» junto a la lección. La vista previa no registra
+progreso ni concede compras o matrículas; el acceso a borradores depende de RLS.
 
 > **Documentación privada:** el repositorio será público. `docs/plan-maestro.md`
 > se aporta localmente y **no se publica**; está incluido en `.gitignore` junto
@@ -250,8 +259,10 @@ La ruta `/admin` es lazy y exige sesión y rol `admin`. Permite gestionar cursos
 bloques y lecciones mediante el cliente Supabase y RLS. Las lecciones pueden
 guardarse como borrador o publicarse y marcarse como muestra. Los elementos se
 añaden al final: reordenar está pendiente y no se ofrecen borrados destructivos.
-Los bloques de un curso publicado son visibles. No gestiona precios, vista previa
-ni subidas. El Markdown se guarda como texto, sin representación HTML.
+Los bloques de un curso publicado son visibles. La vista previa administrativa
+está implementada localmente para lecciones guardadas, también borradores. La
+interfaz de subida de PDF está implementada; no se gestionan precios ni subidas
+de vídeo. El Markdown se guarda como texto, sin representación HTML.
 
 El acceso y la gestión de cursos se han probado con una cuenta administradora
 real; la nueva gestión de estructura solo se ha probado localmente con mocks.
@@ -299,16 +310,16 @@ Todavía no están implementadas ni configuradas:
 
 - La integración de estructura no se ha comprobado en PostgREST real; las
   pruebas automatizadas del cliente usan mocks.
-- Edge Functions, datos semilla y despliegue del frontend. El esquema y la RLS
-  inicial están versionados y la migración inicial se aplicó una vez al
-  proyecto de desarrollo con autorización explícita.
+- Datos semilla y despliegue del frontend. Las funciones de PDF existen; otras
+  integraciones de servidor siguen pendientes. El esquema y la RLS inicial
+  están versionados y se aplicaron a desarrollo con autorización explícita.
 - Stripe Checkout y webhook firmado e idempotente; ninguna página de éxito
   concede acceso por sí sola. No hay precios ni claves reales.
 - Proveedor definitivo de vídeo privado y emisión de acceso temporal desde
   servidor tras comprobar el derecho de acceso.
-- Panel `/admin`: reordenación, precios, vista previa, subida segura de
-  vídeo/recursos y respuestas a preguntas (estas últimas junto al foro) siguen
-  pendientes. La gestión de bloques y lecciones no tiene verificación E2E real.
+- Panel `/admin`: reordenación, precios, subida de vídeo y respuestas a
+  preguntas (estas últimas junto al foro) siguen pendientes. La vista previa
+  local no acredita una prueba E2E de compra ni un despliegue de producción.
 - Catálogo real de cursos, lecciones, materiales, progreso y ejercicios.
 - Foro, dudas por lección, moderación y notificaciones.
 - Portada con presentación del profesor; estructura y contenido pendientes de la

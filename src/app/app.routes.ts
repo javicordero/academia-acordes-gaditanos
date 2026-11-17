@@ -85,6 +85,16 @@ export const routes: Routes = [
       import('./features/auth/forbidden/forbidden').then((m) => m.Forbidden),
   },
   {
+    path: 'admin/vista-previa/:courseId/:lessonId',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () => import('./features/admin/preview/preview').then(m => m.Preview),
+  },
+  {
+    path: 'admin/vista-previa/:courseId',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () => import('./features/admin/preview/preview').then(m => m.Preview),
+  },
+  {
     path: 'admin',
     title: 'Administración · Academia Acordes Gaditanos',
     canActivate: [adminGuard],

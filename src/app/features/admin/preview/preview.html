@@ -1,0 +1,58 @@
+<section class="page admin-workspace" aria-labelledby="preview-heading">
+  <h1 #heading id="preview-heading" tabindex="-1">Vista previa del aula</h1>
+  <p><strong>Vista previa de administración. No implica compra ni matrícula.</strong></p>
+  <p><a class="preview-action" routerLink="/admin">Volver a administración y cursos</a></p>
+  @switch (state()) {
+    @case ('loading') { <p role="status">Cargando lección…</p> }
+    @case ('denied') { <p>Esta lección no está disponible o no tienes acceso.</p> }
+    @case ('error') { <p role="alert">No se pudo cargar la vista previa. Comprueba la conexión y vuelve a intentarlo.</p> }
+    @case ('ready') {
+      @if (data(); as aula) {
+        <h2>{{ aula.course.title }}</h2>
+        @if (aula.lesson; as lesson) {
+          <div class="layout">
+            <nav aria-label="Lecciones del curso">
+              <h2>Lecciones</h2>
+              @for (section of aula.sections; track section.id) {
+                <h3>{{ section.title }}</h3>
+                <ul>
+                  @for (item of aula.lessons; track item.id) {
+                    @if (item.section_id === section.id) {
+                      <li><a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]" [attr.aria-current]="item.id === lesson.id ? 'page' : null">{{ item.title }}</a></li>
+                    }
+                  }
+                </ul>
+              }
+            </nav>
+            <article>
+              <h2>{{ lesson.title }}</h2>
+              @if (lesson.summary) { <p class="text">{{ lesson.summary }}</p> }
+              <h3>Vídeo</h3>
+              @if (video(); as source) {
+                <p>{{ source.notice }}</p>
+                @if (videoRequested()) {
+                  <iframe #frame class="video" [src]="source.embedUrl" [title]="'Vídeo de prueba: ' + lesson.title" tabindex="0" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation" allow="fullscreen; encrypted-media" allowfullscreen></iframe>
+                } @else {
+                  <button type="button" (click)="loadVideo()">Cargar vídeo de prueba en YouTube</button>
+                }
+              } @else if (demoEnabled) {
+                <p>No hay vídeo de prueba configurado para esta lección; la reproducción definitiva está pendiente.</p>
+              } @else {
+                <p>La demo de vídeo no está disponible en producción; la reproducción definitiva está pendiente.</p>
+              }
+              @if (lesson.content_md) { <h3>Contenido</h3><p class="text">{{ lesson.content_md }}</p> }
+              @else { <p>Esta lección no tiene contenido escrito.</p> }
+              <h3>Progreso manual</h3>
+              <p>En la vista previa no se guarda progreso de alumno.</p>
+              <app-lesson-materials [lessonId]="lesson.id" [courseId]="courseId()" [returnUrl]="'/admin/vista-previa/' + courseId() + '/' + lesson.id" />
+              <nav aria-label="Navegación entre lecciones">
+                @if (previous(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]">Anterior: {{ item.title }}</a> }
+                @if (next(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]">Siguiente: {{ item.title }}</a> }
+              </nav>
+            </article>
+          </div>
+        } @else { <p>Añade una lección para abrir la vista previa del aula.</p> }
+      }
+    }
+  }
+</section>

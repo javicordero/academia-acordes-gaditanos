@@ -115,6 +115,11 @@ describe('Routes', () => {
     );
   });
 
+  it('rechaza la vista previa para usuarios sin rol administrador', async () => {
+    await harness.navigateByUrl('/admin/vista-previa/11111111-1111-1111-1111-111111111111');
+    expect(TestBed.inject(Router).url).toBe('/sin-acceso');
+  });
+
   it('muestra la página 404 para una ruta desconocida', async () => {
     await harness.navigateByUrl('/ruta-que-no-existe');
     await harness.fixture.whenStable();

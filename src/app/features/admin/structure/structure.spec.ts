@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 import { Structure } from './structure';
 import { StructureRepository } from '../structure-repository';
@@ -13,7 +14,7 @@ describe('Structure', () => {
     repo.list.mockResolvedValue({ sections: [section], lessons: [] });
     repo.saveSection.mockResolvedValue(undefined);
     repo.saveLesson.mockResolvedValue(undefined);
-    TestBed.configureTestingModule({ providers: [{ provide: StructureRepository, useValue: repo }] });
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: StructureRepository, useValue: repo }] });
   });
   async function setup() {
     const fixture = TestBed.createComponent(Structure);
@@ -27,6 +28,7 @@ describe('Structure', () => {
     repo.list.mockResolvedValueOnce({ sections: [], lessons: [] });
     const fixture = await setup();
     expect(fixture.nativeElement.textContent).toContain('No hay bloques');
+    expect(fixture.nativeElement.textContent).toContain('Añade una lección');
     expect(repo.list).toHaveBeenCalledWith('course');
   });
   it('al abrir materiales enfoca el panel y al cerrar vuelve a estructura sin perder el editor', async () => {
@@ -35,6 +37,9 @@ describe('Structure', () => {
       duration_seconds: null, is_free_preview: false, is_published: false };
     repo.list.mockResolvedValueOnce({ sections: [section], lessons: [lesson] });
     const fixture = await setup(); const component = fixture.componentInstance;
+    expect(fixture.nativeElement.textContent).toContain('Vista previa del aula');
+    expect(fixture.nativeElement.querySelector('a[aria-label="Ver en el aula Lección"]').getAttribute('href'))
+      .toBe('/admin/vista-previa/course/22222222-2222-2222-2222-222222222222');
     component.editLesson(section, lesson); component.lessonTitle = 'Sin guardar';
     component.openMaterials(lesson); fixture.detectChanges(); await fixture.whenStable();
     expect(document.activeElement?.id).toBe('materials-heading');

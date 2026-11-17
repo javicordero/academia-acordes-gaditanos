@@ -1,12 +1,13 @@
 import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, afterNextRender, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Course } from '../courses-repository';
 import { Lesson, Section, StructureRepository } from '../structure-repository';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
 
 @Component({
   selector: 'app-structure',
-  imports: [FormsModule, LessonMaterials],
+  imports: [FormsModule, LessonMaterials, RouterLink],
   templateUrl: './structure.html',
   styleUrl: './structure.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -9,7 +9,12 @@
   <button type="button" (click)="load()">Reintentar</button>
 } @else {
   <button type="button" [disabled]="saving()" (click)="load()">Recargar estructura</button>
-  <button type="button" [disabled]="saving()" (click)="editSection()">Añadir bloque</button>
+  @if (lessons().length) {
+    <a [routerLink]="['/admin/vista-previa', course().id]">Vista previa del aula</a>
+  } @else {
+    <p>Añade una lección para abrir la vista previa del aula.</p>
+  }
+  <button class="button" type="button" [disabled]="saving()" (click)="editSection()">Añadir bloque</button>
   @if (sectionEditor()) {
     <form (ngSubmit)="saveSection()" novalidate aria-labelledby="section-editor-heading">
       <h3 id="section-editor-heading">{{ sectionEditor() === 'new' ? 'Nuevo bloque' : 'Editar bloque' }}</h3>
@@ -58,7 +63,8 @@
         @for (lesson of lessons(); track lesson.id) {
           @if (lesson.section_id === section.id) {
             <li>{{ lesson.title }} — {{ lesson.is_published ? 'Publicada' : 'Borrador' }}{{ lesson.is_free_preview ? ' · Muestra' : '' }}
-              <button type="button" [disabled]="saving()" (click)="editLesson(section, lesson)" [attr.aria-label]="'Editar lección ' + lesson.title">Editar</button>
+              <a [routerLink]="['/admin/vista-previa', course().id, lesson.id]" [attr.aria-label]="'Ver en el aula ' + lesson.title">Ver en el aula</a>
+              <button type="button" [disabled]="saving()" (click)="editLesson(section, lesson)" [attr.aria-label]="'Editar lección ' + lesson.title">Editar lección</button>
               @if (canOpenMaterials(lesson)) {
                 <button type="button" [disabled]="saving()" (click)="openMaterials(lesson)" [attr.aria-label]="'Materiales PDF de ' + lesson.title">Materiales PDF</button>
               }

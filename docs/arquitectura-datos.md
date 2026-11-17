@@ -394,8 +394,9 @@ se deben usar credenciales reales en pruebas locales.
 - Retirada o archivo de un curso: el estado `archived` oculta el catálogo y las
   lecciones. Qué ocurre con derechos ya comprados, progreso y comunicaciones al
   alumno sigue pendiente de decisión; no se promete disponibilidad perpetua.
-- Panel `/admin`: cursos, bloques y lecciones implementados; orden, precios,
-  vista previa, subidas y verificación E2E con admin real siguen pendientes.
+- Panel `/admin`: cursos, bloques, lecciones, vista previa local y flujo de
+  subida de PDF implementados; orden, precios, subida de vídeo y verificación
+  E2E de compra real siguen pendientes.
 - Portada y presentación del profesor: la portada debe presentarlo, pero
   estructura, textos, nombre, foto, credenciales y testimonios quedan para la
   fase de diseño definitivo. No se inventan datos ni se construye la landing
@@ -404,6 +405,6 @@ se deben usar credenciales reales en pruebas locales.
   acciones admin, límites de abuso y copias de seguridad: pendientes de decisión.
 # Preparación local de PDFs
 
-El flujo local `prepare-upload` → subida firmada sin sobrescritura → `finalize-upload` y su interfaz de administración y alumno están implementados y revisados; siguen pendientes de despliegue y la prueba completa con un PDF real. La migración local `20261117170000_admin_pdf_drafts.sql` permite a administradores consultar recursos finalizados de borradores; los alumnos siguen limitados a cursos y lecciones publicados y con derecho activo. La finalización comprueba tamaño, MIME y cabecera `%PDF-`, que no garantiza un PDF seguro ni constituye un antivirus: solo documentos propios de administradores, servidos como adjunto. Si falla la firma o no se sube el objeto queda una reserva pendiente no consumible que requiere futura limpieza manual. Reservas anteriores sin propietario no se pueden finalizar automáticamente. El tamaño y MIME declarados por el cliente no son prueba del contenido.
+El flujo `prepare-upload` → subida firmada sin sobrescritura → `finalize-upload` y su interfaz de administración y alumno están implementados. El usuario comunicó una subida aparentemente exitosa en desarrollo; queda por verificar el ajuste del nombre de archivo y el flujo completo, sin dar por probada la experiencia de compra o producción. La migración `20261117170000_admin_pdf_drafts.sql` permite a administradores consultar recursos finalizados de borradores; los alumnos siguen limitados a cursos y lecciones publicados y con derecho activo. La finalización comprueba tamaño, MIME y cabecera `%PDF-`, que no garantiza un PDF seguro ni constituye un antivirus: solo documentos propios de administradores, servidos como adjunto. Si falla la firma o no se sube el objeto queda una reserva pendiente no consumible que requiere futura limpieza manual. Reservas anteriores sin propietario no se pueden finalizar automáticamente. El tamaño y MIME declarados por el cliente no son prueba del contenido.
 
 Se usa `info()` y `download()` del SDK Storage 2.119; el segundo descarga el objeto completo tras comprobar su tamaño y depende del límite del bucket. La comprobación de metadatos y la publicación no forman una transacción con Storage: evitar operaciones privilegiadas concurrentes que sustituyan o eliminen objetos. Fuentes: [info](https://supabase.com/docs/reference/javascript/file-buckets-info) y [download](https://supabase.com/docs/reference/javascript/file-buckets-download).
