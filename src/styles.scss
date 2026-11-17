@@ -444,3 +444,151 @@ main:focus {
     transition: none !important;
   }
 }
+
+/* Herramientas editoriales provisionales, limitadas al panel de administración. */
+.admin-workspace {
+  max-width: 58rem;
+}
+
+.admin-workspace h2 {
+  margin-top: 2rem;
+}
+
+.admin-workspace :is(button, a[download]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  margin: 0.25rem 0.35rem 0.25rem 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 650;
+  line-height: 1.3;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-workspace :is(button.button, button[type='submit'], a[download]) {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.admin-workspace :is(button, a[download]):hover:not(:disabled) {
+  border-color: #6f2b1e;
+  background: #f1e9db;
+  color: #6f2b1e;
+}
+
+.admin-workspace :is(button.button, button[type='submit'], a[download]):hover:not(:disabled) {
+  background: #6f2b1e;
+  color: var(--accent-ink);
+}
+
+.admin-workspace :is(button:disabled, fieldset:disabled button) {
+  border-color: #a89f94;
+  background: #e5e0d8;
+  color: #514c45;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.admin-workspace :is(.admin-courses, app-structure ul, app-lesson-materials ul) {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-workspace :is(.admin-courses > li, app-structure section, app-structure li, app-lesson-materials section) {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.admin-workspace :is(app-structure section, app-lesson-materials section) {
+  margin-block: 1rem;
+}
+
+.admin-workspace :is(app-structure li, app-lesson-materials li) {
+  background: var(--bg);
+}
+
+.admin-workspace :is(form, fieldset) {
+  min-width: 0;
+}
+
+.admin-workspace form {
+  margin-block: 1.25rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.admin-workspace fieldset {
+  padding: 0;
+  border: 0;
+}
+
+.admin-workspace :is(legend, label) {
+  font-weight: 650;
+}
+
+.admin-workspace legend {
+  margin-bottom: 1rem;
+}
+
+.admin-workspace :is(input:not([type='checkbox']), textarea, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #8a8073;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.admin-workspace textarea {
+  min-height: 6rem;
+}
+
+.admin-workspace input[type='checkbox'] {
+  width: 1.2rem;
+  height: 1.2rem;
+  vertical-align: middle;
+}
+
+.admin-workspace input[type='file']::file-selector-button {
+  min-height: 36px;
+  margin-right: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.admin-workspace :is(input, textarea, select)[aria-invalid='true'] {
+  border: 2px solid #9b2c2c;
+}
+
+.admin-workspace :is(form p[role='alert'], form p[id$='-error']) {
+  margin: 0;
+  color: #8a1f1f;
+  font-size: 0.9rem;
+}

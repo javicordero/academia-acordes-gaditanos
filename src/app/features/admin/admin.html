@@ -1,4 +1,4 @@
-<section class="page">
+<section class="page admin-workspace">
   <p class="eyebrow">Administración</p>
   <h1>Panel de administración</h1>
   @if (structure(); as selectedCourse) {
@@ -17,12 +17,12 @@
     } @else if (courses().length === 0) {
       <p>No hay cursos disponibles.</p>
     } @else {
-      <ul>
+      <ul class="admin-courses">
         @for (course of courses(); track course.id) {
           <li>
             <strong>{{ course.title }}</strong> — {{ course.status === 'draft' ? 'Borrador' : course.status === 'published' ? 'Publicado' : 'Archivado' }}
-            <button type="button" (click)="editor.set(course)" [attr.aria-label]="'Editar ' + course.title">Editar</button>
-            <button type="button" (click)="structure.set(course)" [attr.aria-label]="'Estructura de ' + course.title">Estructura</button>
+            <button type="button" (click)="editor.set(course)" [attr.aria-label]="'Editar ' + course.title">Editar curso</button>
+            <button type="button" (click)="structure.set(course)" [attr.aria-label]="'Estructura de ' + course.title">Organizar bloques y lecciones</button>
           </li>
         }
       </ul>

@@ -1,5 +1,6 @@
 ﻿import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { SUPABASE_CONFIG } from '../../../../environments/supabase-config';
 import { AuthService } from '../../../core/auth/auth.service';
 import { LessonResources, PdfResource } from '../../../shared/lesson-resources/lesson-resources';
 
@@ -15,7 +16,22 @@ import { LessonResources, PdfResource } from '../../../shared/lesson-resources/l
       @else {
         @if (listFailed()) { <button type="button" [disabled]="loading() || busy()" (click)="reload()">Recargar lista</button> }
         @else if (!items().length) { <p>No hay materiales PDF.</p> }
-        @else { <ul>@for (item of items(); track item.id) { <li>{{ item.title }}</li> }</ul> }
+        @else {
+          <p>Descargar para abrirlo en tu equipo. Los enlaces caducan en un máximo de 60 segundos y pueden compartirse hasta entonces.</p>
+          <ul>@for (item of items(); track item.id) { <li>
+            <span>{{ item.title }}</span>
+            <button type="button" [disabled]="downloadPending()[item.id]" (click)="prepareDownload(item)"
+              [attr.aria-label]="'Preparar descarga ' + item.title + ' · ' + item.id">Preparar descarga</button>
+            <span role="status" aria-live="polite" aria-atomic="true">
+              @if (downloadPending()[item.id]) { Preparando descarga de {{ item.title }}… }
+              @else if (downloadErrors()[item.id]) { No se pudo preparar la descarga de {{ item.title }}. Comprueba tu sesión y conexión e inténtalo de nuevo. }
+              @else if (links()[item.id]) { Descarga lista: {{ item.title }}. }
+            </span>
+            @if (links()[item.id]; as link) {
+              <a [href]="link" rel="noopener" download [attr.aria-label]="'Descargar PDF ' + item.title + ' · ' + item.id">Descargar PDF: {{ item.title }}</a>
+            }
+          </li> }</ul>
+        }
       }
       <form (ngSubmit)="submit()" novalidate>
         <fieldset [disabled]="busy() || !!pending() || !!publishedPendingRefresh()"><legend>Añadir PDF</legend>
@@ -39,6 +55,7 @@ export class LessonMaterials {
   readonly courseId = input.required<string>(); readonly lessonId = input.required<string>(); readonly lessonTitle = input.required<string>();
   readonly closed = output<void>();
   private readonly service = inject(LessonResources); private readonly auth = inject(AuthService); private readonly destroy = inject(DestroyRef);
+  private readonly config = inject(SUPABASE_CONFIG);
   private readonly userId = computed(() => this.auth.session()?.user.id);
   private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
@@ -47,11 +64,17 @@ export class LessonMaterials {
   readonly busy = signal(false); readonly status = signal(''); readonly error = signal(''); readonly pending = signal<string | null>(null);
   readonly publishedPendingRefresh = signal<string | null>(null);
   readonly invalidTitle = signal(false); readonly invalidFile = signal(false);
+  readonly links = signal<Record<string, string>>({});
+  readonly downloadPending = signal<Record<string, boolean>>({});
+  readonly downloadErrors = signal<Record<string, boolean>>({});
+  private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
   title = ''; private file: File | null = null; private generation = 0;
   constructor() {
+    this.destroy.onDestroy(() => { this.generation++; this.clearDownloads(); });
     effect(() => {
       const course = this.courseId(), lesson = this.lessonId(), user = this.userId();
       const version = ++this.generation;
+      this.clearDownloads();
       this.items.set([]); this.error.set(''); this.status.set(''); this.pending.set(null); this.publishedPendingRefresh.set(null); this.busy.set(false); this.file = null; this.title = '';
       this.invalidTitle.set(false); this.invalidFile.set(false);
       untracked(() => { const fileInput = this.fileInput(); if (fileInput) fileInput.nativeElement.value = ''; });
@@ -64,8 +87,47 @@ export class LessonMaterials {
   private async load(v: number, c: string, l: string, u: string): Promise<boolean> {
     this.loading.set(true); this.listFailed.set(false);
     try { const items = await this.service.list(l); if (!this.current(v,c,l,u)) return false; this.items.set(items); return true; }
-    catch { if (this.current(v,c,l,u)) { this.listFailed.set(true); this.error.set('No se pudieron cargar los materiales.'); } return false; }
+    catch { if (this.current(v,c,l,u)) { this.listFailed.set(true); this.error.set('No se pudieron cargar los materiales. Comprueba tu sesión, permisos y conexión; no se puede confirmar qué archivos aparecen en la lista.'); } return false; }
     finally { if (this.current(v,c,l,u)) this.loading.set(false); }
+  }
+  async prepareDownload(item: PdfResource): Promise<void> {
+    const u = this.auth.session()?.user.id, c = this.courseId(), l = this.lessonId(), v = this.generation;
+    if (!u || this.downloadPending()[item.id] || !this.items().some(i => i.id === item.id)) return;
+    const started = Date.now();
+    this.removeLink(item.id);
+    this.downloadErrors.update(state => ({ ...state, [item.id]: false }));
+    this.downloadPending.update(state => ({ ...state, [item.id]: true }));
+    try {
+      const url = await this.service.download(l, item.id);
+      if (!this.current(v,c,l,u) || !this.items().some(i => i.id === item.id)) return;
+      const remaining = 60_000 - (Date.now() - started);
+      if (remaining <= 0 || !this.validUrl(url, c, l, item.id)) throw new Error('Enlace no válido');
+      this.links.update(state => ({ ...state, [item.id]: url }));
+      this.timers.set(item.id, setTimeout(() => this.removeLink(item.id), remaining));
+    } catch {
+      if (this.current(v,c,l,u)) this.downloadErrors.update(state => ({ ...state, [item.id]: true }));
+    } finally {
+      if (this.current(v,c,l,u)) this.downloadPending.update(state => ({ ...state, [item.id]: false }));
+    }
+  }
+  private validUrl(value: string, course: string, lesson: string, resource: string): boolean {
+    try {
+      const url = new URL(value), origin = new URL(this.config.url);
+      const local = origin.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname);
+      return (url.protocol === 'https:' || local) && url.origin === origin.origin && !url.username && !url.password &&
+        url.pathname === `/storage/v1/object/sign/lesson-pdfs/${course}/${lesson}/${resource}/file.pdf` &&
+        !!url.searchParams.get('token') && !url.hash;
+    } catch { return false; }
+  }
+  private removeLink(id: string): void {
+    const timer = this.timers.get(id);
+    if (timer) clearTimeout(timer);
+    this.timers.delete(id);
+    this.links.update(state => { const next = { ...state }; delete next[id]; return next; });
+  }
+  private clearDownloads(): void {
+    this.timers.forEach(timer => clearTimeout(timer)); this.timers.clear();
+    this.links.set({}); this.downloadPending.set({}); this.downloadErrors.set({});
   }
   async reload(): Promise<void> {
     const u = this.auth.session()?.user.id, v = this.generation, c = this.courseId(), l = this.lessonId();
