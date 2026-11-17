@@ -10,11 +10,12 @@ describe('Índice del aula', () => {
     fixture.componentRef.setInput('courseId', 'curso');
     fixture.componentRef.setInput('courseSlug', 'curso');
     fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
-    fixture.componentRef.setInput('lessons', [{ id: 'l', section_id: 's', title: 'Lección', slug: 'leccion' }]);
+    fixture.componentRef.setInput('lessons', [{ id: 'l', section_id: 's', title: 'Lección', slug: 'leccion', content_type: 'pdf' }]);
     fixture.componentRef.setInput('activeId', 'l');
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('a[aria-current="page"]')?.textContent).toContain('Lección');
+    expect(root.querySelector('a[aria-current="page"]')?.textContent).toContain('PDF');
     expect(root.querySelector('details')?.open).toBe(true);
     const button = root.querySelector<HTMLButtonElement>('button')!;
     expect(button.getAttribute('aria-expanded')).toBe('false');
@@ -30,7 +31,7 @@ describe('Índice del aula', () => {
     fixture.componentRef.setInput('courseId', 'curso');
     fixture.componentRef.setInput('courseSlug', 'curso');
     fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
-    fixture.componentRef.setInput('lessons', [{ id: 'l', section_id: 's', title: 'Lección', slug: 'leccion' }]);
+    fixture.componentRef.setInput('lessons', [{ id: 'l', section_id: 's', title: 'Lección', slug: 'leccion', content_type: 'video' }]);
     fixture.componentRef.setInput('activeId', 'l');
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;

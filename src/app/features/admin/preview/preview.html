@@ -13,7 +13,7 @@
             <app-classroom-nav [title]="aula.course.title" [sections]="aula.sections" [lessons]="aula.lessons"
               [activeId]="lesson.id" [courseId]="courseId()" [admin]="true" />
             <article>
-              <div class="video-stage">
+              @if (lesson.content_type === 'video') { <div class="video-stage">
               @if (video(); as source) {
                 <strong>Vídeo de ejemplo</strong>
                 <p>{{ source.notice }}</p>
@@ -27,20 +27,21 @@
               } @else {
                 <p>La demo de vídeo no está disponible en producción; la reproducción definitiva está pendiente.</p>
               }
-              </div>
+              </div> }
               <h2>{{ lesson.title }}</h2>
               @if (lesson.summary) { <p class="text">{{ lesson.summary }}</p> }
               @if (lesson.content_md) { <h3>Contenido</h3><p class="text">{{ lesson.content_md }}</p> }
               @else { <p>Esta lección no tiene contenido escrito.</p> }
-              <h3>Progreso manual</h3>
-              <p>En la vista previa no se guarda progreso de alumno.</p>
-              <h3>Materiales de esta lección</h3>
-              <app-lesson-materials [lessonId]="lesson.id" [courseId]="courseId()" [returnUrl]="'/admin/vista-previa/' + courseId() + '/' + lesson.id" />
+              <app-lesson-materials [lessonId]="lesson.id" [courseId]="courseId()" [returnUrl]="'/admin/vista-previa/' + courseId() + '/' + lesson.id" [primary]="lesson.content_type === 'pdf'" />
               <section><h3>Dudas y comentarios de esta lección</h3><p>Esta función está pendiente de implementación.</p></section>
               <nav aria-label="Navegación entre lecciones">
                 @if (previous(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]">Anterior: {{ item.title }}</a> }
+                @else { <span>Primera lección</span> }
+                <button type="button" disabled aria-describedby="preview-progress">Marcar como completada</button>
                 @if (next(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]">Siguiente: {{ item.title }}</a> }
+                @else { <span>Última lección</span> }
               </nav>
+              <p id="preview-progress">En la vista previa no se guarda progreso de alumno.</p>
             </article>
           </div>
         } @else { <h2>{{ aula.course.title }}</h2><p>Añade una lección para abrir la vista previa del aula.</p> }

@@ -31,7 +31,7 @@ export class Aula {
   readonly data = signal<AulaData | null>(null);
   readonly videoSource = signal<import('../video-playback').PlaybackSource | null>(null);
   readonly videoRequested = signal(false);
-  private readonly videoLessonId = computed(() => this.data()?.lesson.id ?? null);
+  private readonly videoLessonId = computed(() => this.data()?.lesson.content_type === 'video' ? this.data()!.lesson.id : null);
   readonly saving = signal(false);
   readonly saveError = signal(false);
   readonly courseSlug = computed(() => this.params().get('courseSlug') ?? '');

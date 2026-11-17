@@ -14,7 +14,7 @@ describe('StructureRepository', () => {
   const query = { select, eq, order, single, insert, update, delete: remove };
   const from = vi.fn(() => query);
   const values = { title: 'Lección', slug: 'leccion', summary: null, content_md: null,
-    duration_seconds: null, is_free_preview: false, is_published: false };
+    duration_seconds: null, is_free_preview: false, is_published: false, content_type: 'pdf' as const };
   let repo: StructureRepository;
   beforeEach(() => {
     vi.clearAllMocks();

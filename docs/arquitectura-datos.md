@@ -192,6 +192,12 @@ private.commerce_events                     (idempotencia de webhooks)
 impide que una lección quede en un bloque de otro curso. El orden editorial se
 expresa con `position` en bloques y lecciones.
 
+La migración `20261117180000_lesson_content_type.sql` añade `content_type`
+(`video`, `pdf` o `text`, por defecto `video`). Es un modelo editorial
+provisional: no asigna un documento principal ni cambia la autorización.
+Los documentos siguen en recursos privados y se consultan mediante el flujo
+existente. Aplicar la migración en cada entorno antes de desplegar este cliente.
+
 ## Tablas
 
 | Tabla | Para qué | Datos sensibles |

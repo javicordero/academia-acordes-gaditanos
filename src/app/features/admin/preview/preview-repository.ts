@@ -19,7 +19,7 @@ export class PreviewRepository {
     const [course, sections, lessons] = await Promise.all([
       this.client.from('courses').select('id,title').eq('id', courseId).maybeSingle(),
       this.client.from('course_sections').select('id,course_id,title,summary,position').eq('course_id', courseId).order('position'),
-      this.client.from('lessons').select('id,course_id,section_id,slug,title,summary,content_md,position,duration_seconds,is_free_preview,is_published').eq('course_id', courseId).order('position'),
+      this.client.from('lessons').select('id,course_id,section_id,slug,title,summary,content_md,position,duration_seconds,is_free_preview,is_published,content_type').eq('course_id', courseId).order('position'),
     ]);
     if (this.auth.session()?.user.id !== userId || !this.auth.isAdmin()) return null;
     if (course.error || sections.error || lessons.error) throw new Error('preview_failed');

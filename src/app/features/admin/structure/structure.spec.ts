@@ -34,7 +34,7 @@ describe('Structure', () => {
   it('al abrir materiales enfoca el panel y al cerrar vuelve a estructura sin perder el editor', async () => {
     const lesson = { id: '22222222-2222-2222-2222-222222222222', course_id: 'course', section_id: 'section',
       slug: 'leccion', title: 'Lección', summary: null, content_md: null, position: 0,
-      duration_seconds: null, is_free_preview: false, is_published: false };
+      duration_seconds: null, is_free_preview: false, is_published: false, content_type: 'video' as const };
     repo.list.mockResolvedValueOnce({ sections: [section], lessons: [lesson] });
     const fixture = await setup(); const component = fixture.componentInstance;
     expect(fixture.nativeElement.textContent).toContain('Vista previa del aula');
@@ -65,6 +65,19 @@ describe('Structure', () => {
     expect(repo.saveLesson).toHaveBeenCalledWith('course', 'section', expect.objectContaining({
       title: 'Título', slug: 'leccion', duration_seconds: 45, content_md: 'texto', is_published: false,
     }), 0, undefined);
+  });
+  it('guarda PDF y texto y rechaza tipos desconocidos', async () => {
+    const fixture = await setup(); const component = fixture.componentInstance;
+    component.editLesson(section); component.lessonTitle = 'Lección'; component.slug = 'leccion';
+    expect(component.contentType).toBe('video');
+    component.contentType = 'audio'; await component.saveLesson();
+    expect(repo.saveLesson).not.toHaveBeenCalled();
+    expect(component.invalid().contentType).toBe(true);
+    component.contentType = 'pdf'; await component.saveLesson();
+    expect(repo.saveLesson).toHaveBeenLastCalledWith('course', 'section', expect.objectContaining({content_type: 'pdf'}), 0, undefined);
+    component.editLesson(section); component.lessonTitle = 'Texto'; component.slug = 'texto'; component.contentType = 'text';
+    await component.saveLesson();
+    expect(repo.saveLesson).toHaveBeenLastCalledWith('course', 'section', expect.objectContaining({content_type: 'text'}), 0, undefined);
   });
   it('guarda bloques al final e informa de error sin especular', async () => {
     const fixture = await setup(); const component = fixture.componentInstance;

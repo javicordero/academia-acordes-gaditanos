@@ -4,3 +4,5 @@
   min-height: 44px;
   padding-inline: .5rem;
 }
+nav[aria-label="Navegación entre lecciones"] { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+nav[aria-label="Navegación entre lecciones"] > * { min-height: 44px; display: inline-flex; align-items: center; }

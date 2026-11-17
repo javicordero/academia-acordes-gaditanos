@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { Course } from '../courses-repository';
 import { Lesson, Section, StructureRepository } from '../structure-repository';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
+import { isLessonContentType } from '../../../shared/lesson-content-type';
 
 @Component({
   selector: 'app-structure',
@@ -28,7 +29,7 @@ export class Structure implements AfterViewInit {
   readonly saving = signal(false);
   readonly loadFailed = signal(false);
   readonly error = signal('');
-  readonly invalid = signal({ sectionTitle: false, lessonTitle: false, slug: false, duration: false });
+  readonly invalid = signal({ sectionTitle: false, lessonTitle: false, slug: false, duration: false, contentType: false });
   readonly sectionEditor = signal<Section | 'new' | null>(null);
   readonly lessonEditor = signal<{ section: Section; lesson?: Lesson } | null>(null);
   readonly materials = signal<Lesson | null>(null);
@@ -51,6 +52,7 @@ export class Structure implements AfterViewInit {
   slug = '';
   lessonSummary = '';
   content = '';
+  contentType = 'video';
   duration = '';
   preview = false;
   published = false;
@@ -81,9 +83,9 @@ export class Structure implements AfterViewInit {
     }, { injector: this.injector });
   }
   private clearValidation(): void {
-    this.invalid.set({ sectionTitle: false, lessonTitle: false, slug: false, duration: false });
+    this.invalid.set({ sectionTitle: false, lessonTitle: false, slug: false, duration: false, contentType: false });
   }
-  clearField(field: 'sectionTitle' | 'lessonTitle' | 'slug' | 'duration'): void {
+  clearField(field: 'sectionTitle' | 'lessonTitle' | 'slug' | 'duration' | 'contentType'): void {
     this.invalid.update(v => ({ ...v, [field]: false }));
   }
   cancelEditor(): void {
@@ -102,6 +104,7 @@ export class Structure implements AfterViewInit {
     this.sectionEditor.set(null);
     this.lessonTitle = lesson?.title ?? ''; this.slug = lesson?.slug ?? '';
     this.lessonSummary = lesson?.summary ?? ''; this.content = lesson?.content_md ?? '';
+    this.contentType = lesson ? lesson.content_type : 'video';
     this.duration = lesson?.duration_seconds == null ? '' : String(lesson.duration_seconds);
     this.preview = lesson?.is_free_preview ?? false; this.published = lesson?.is_published ?? false;
     this.clearValidation(); this.error.set(''); this.lessonEditor.set({ section, lesson }); this.focus('lesson');
@@ -129,12 +132,13 @@ export class Structure implements AfterViewInit {
     if (!editor) return;
     this.invalid.update(v => ({ ...v, lessonTitle: !title || [...title].length > 160,
       slug: !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug),
-      duration: duration !== '' && (!/^\d+$/.test(duration) || Number(duration) > 2147483647) }));
-    if (this.invalid().lessonTitle || this.invalid().slug || this.invalid().duration) return;
+      duration: duration !== '' && (!/^\d+$/.test(duration) || Number(duration) > 2147483647),
+      contentType: !isLessonContentType(this.contentType) }));
+    if (this.invalid().lessonTitle || this.invalid().slug || this.invalid().duration || !isLessonContentType(this.contentType)) return;
     this.saving.set(true); this.error.set('');
     try {
       await this.repository.saveLesson(this.course().id, editor.section.id, {
-        title, slug, summary: this.lessonSummary.trim() || null, content_md: this.content.trim() || null,
+        title, slug, summary: this.lessonSummary.trim() || null, content_md: this.content.trim() || null, content_type: this.contentType,
         duration_seconds: duration === '' ? null : Number(duration), is_free_preview: this.preview, is_published: this.published,
       }, Math.max(-1, ...this.lessons().filter(l => l.section_id === editor.section.id).map(l => l.position)) + 1, editor.lesson);
       if (this.destroyRef.destroyed) return;

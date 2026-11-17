@@ -50,7 +50,7 @@ export class Preview {
         this.data.set(data); this.state.set(data && (!lesson || data.lesson) ? 'ready' : 'denied');
         if (data?.lesson) {
           afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
-          void Promise.resolve(this.playback.sourceForLesson(data.lesson.id)).then(video => {
+          if (data.lesson.content_type === 'video') void Promise.resolve(this.playback.sourceForLesson(data.lesson.id)).then(video => {
             if (generation === this.generation) this.video.set(video);
           }).catch(() => {});
         }

@@ -14,6 +14,7 @@ class MaterialsStub {
   readonly lessonId = input.required<string>();
   readonly courseId = input.required<string>();
   readonly returnUrl = input.required<string>();
+  readonly primary = input(false);
 }
 
 describe('Vista previa administrativa', () => {
@@ -26,7 +27,7 @@ describe('Vista previa administrativa', () => {
   const sections = [{ id: sectionId, course_id: courseId, title: 'Bloque', summary: null, position: 0 }];
   const first = { id: firstId, course_id: courseId, section_id: sectionId, slug: 'primera',
     title: 'Primera', summary: null, content_md: '<img src=x onerror=alert(1)>', position: 0,
-    duration_seconds: null, is_free_preview: false, is_published: false };
+    duration_seconds: null, is_free_preview: false, is_published: false, content_type: 'video' as const };
   const second = { ...first, id: secondId, title: 'Segunda', content_md: 'Texto', position: 1 };
   const lessons = [first, second];
   const load = vi.fn();
@@ -63,6 +64,17 @@ describe('Vista previa administrativa', () => {
     expect(root.textContent).toContain('Curso borrador');
     expect(root.querySelector('button')?.textContent ?? '').not.toContain('completada');
     expect(load).toHaveBeenCalledWith(courseId, firstId);
+  });
+
+  it('muestra PDF sin reproductor y mantiene progreso deshabilitado', async () => {
+    const pdf = { ...first, content_type: 'pdf' as const };
+    load.mockResolvedValueOnce({ course, sections, lessons: [pdf], lesson: pdf });
+    await harness.navigateByUrl(path(firstId), Preview);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('iframe, .video-stage')).toBeNull();
+    expect(root.querySelector<HTMLButtonElement>('nav[aria-label="Navegación entre lecciones"] button')?.disabled).toBe(true);
+    expect(root.querySelector('app-lesson-materials')).not.toBeNull();
   });
 
   it('explica cuando el curso no tiene lecciones', async () => {

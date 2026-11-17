@@ -1,5 +1,5 @@
 ﻿<section aria-labelledby="materials-heading">
-  <h3 id="materials-heading">Materiales PDF</h3>
+  <h3 id="materials-heading">{{ primary() ? 'Documento de la lección' : 'Materiales PDF' }}</h3>
   @switch (state()) {
     @case ('loading') { <p role="status">Consultando materiales…</p> }
     @case ('unconfigured') { <p>Los materiales están pendientes de configuración.</p> }
@@ -9,7 +9,7 @@
     }
     @case ('error') { <p role="alert">No se puede acceder a los materiales. Comprueba tu sesión y conexión.</p> }
     @case ('ready') {
-      @if (!items().length) { <p>No hay materiales disponibles para esta lección.</p> }
+      @if (!items().length) { <p>{{ primary() ? 'El documento de la lección está pendiente.' : 'No hay materiales disponibles para esta lección.' }}</p> }
       @else {
         <p>Los enlaces preparados caducan en un máximo de 60 segundos y pueden compartirse hasta entonces.</p>
         <ul>

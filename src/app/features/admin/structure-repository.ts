@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SUPABASE_CLIENT } from '../../core/supabase/supabase-client';
+import { LessonContentType } from '../../shared/lesson-content-type';
 
 export interface Section {
   id: string; course_id: string; title: string; summary: string | null; position: number;
@@ -7,10 +8,10 @@ export interface Section {
 export interface Lesson {
   id: string; course_id: string; section_id: string; slug: string; title: string;
   summary: string | null; content_md: string | null; position: number;
-  duration_seconds: number | null; is_free_preview: boolean; is_published: boolean;
+  duration_seconds: number | null; is_free_preview: boolean; is_published: boolean; content_type: LessonContentType;
 }
 export type SectionValues = Pick<Section, 'title' | 'summary'>;
-export type LessonValues = Pick<Lesson, 'slug' | 'title' | 'summary' | 'content_md' | 'duration_seconds' | 'is_free_preview' | 'is_published'>;
+export type LessonValues = Pick<Lesson, 'slug' | 'title' | 'summary' | 'content_md' | 'duration_seconds' | 'is_free_preview' | 'is_published' | 'content_type'>;
 
 @Injectable({ providedIn: 'root' })
 export class StructureRepository {
@@ -20,7 +21,7 @@ export class StructureRepository {
     if (!this.client) throw new Error('unavailable');
     const [sections, lessons] = await Promise.all([
       this.client.from('course_sections').select('id,course_id,title,summary,position').eq('course_id', courseId).order('position'),
-      this.client.from('lessons').select('id,course_id,section_id,slug,title,summary,content_md,position,duration_seconds,is_free_preview,is_published').eq('course_id', courseId).order('position'),
+      this.client.from('lessons').select('id,course_id,section_id,slug,title,summary,content_md,position,duration_seconds,is_free_preview,is_published,content_type').eq('course_id', courseId).order('position'),
     ]);
     if (sections.error || lessons.error) throw new Error('list_failed');
     return { sections: sections.data as Section[] ?? [], lessons: lessons.data as Lesson[] ?? [] };

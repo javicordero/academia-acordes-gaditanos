@@ -1,9 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 import { SUPABASE_CLIENT } from '../../core/supabase/supabase-client';
+import { LessonContentType } from '../../shared/lesson-content-type';
 
 export interface AulaLesson {
   id: string; section_id: string; slug: string; title: string;
-  summary: string | null; content_md: string | null;
+  summary: string | null; content_md: string | null; content_type: LessonContentType;
 }
 export interface AulaSection { id: string; title: string }
 export interface AulaData {
@@ -27,7 +28,7 @@ export class AulaRepository {
     const course = courseResult.data;
     if (!course) return null;
     const lessonResult = await this.client.from('lessons')
-      .select('id,section_id,slug,title,summary,content_md')
+      .select('id,section_id,slug,title,summary,content_md,content_type')
       .eq('course_id', course.id).eq('slug', lessonSlug).eq('is_published', true)
       .maybeSingle<AulaLesson>();
     if (lessonResult.error) throw new Error('load');
@@ -36,7 +37,7 @@ export class AulaRepository {
     const [sections, lessons] = await Promise.all([
       this.client.from('course_sections').select('id,title').eq('course_id', course.id)
         .order('position').returns<AulaSection[]>(),
-      this.client.from('lessons').select('id,section_id,slug,title,summary,content_md')
+      this.client.from('lessons').select('id,section_id,slug,title,summary,content_md,content_type')
         .eq('course_id', course.id).eq('is_published', true).order('position').returns<AulaLesson[]>(),
     ]);
     if (sections.error || lessons.error) throw new Error('load');

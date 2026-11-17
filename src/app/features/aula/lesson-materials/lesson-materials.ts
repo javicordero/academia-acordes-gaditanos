@@ -14,6 +14,7 @@ export class LessonMaterials {
   readonly lessonId = input.required<string>();
   readonly courseId = input.required<string>();
   readonly returnUrl = input.required<string>();
+  readonly primary = input(false);
   private readonly auth = inject(AuthService);
   private readonly resources = inject(LessonResources);
   private readonly config = inject(SUPABASE_CONFIG);

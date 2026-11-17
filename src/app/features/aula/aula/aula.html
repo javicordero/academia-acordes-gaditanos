@@ -20,7 +20,7 @@
           <app-classroom-nav [title]="aula.course.title" [sections]="aula.sections" [lessons]="aula.lessons"
             [activeId]="aula.lesson.id" [courseId]="aula.course.id" [courseSlug]="courseSlug()" />
           <article>
-            <div class="video-stage">
+            @if (aula.lesson.content_type === 'video') { <div class="video-stage">
             @if (videoSource(); as video) {
               <strong>Vídeo de ejemplo</strong>
               <p>{{ video.notice }}</p>
@@ -39,19 +39,26 @@
                 <p>La demo de vídeo no está disponible en producción; la reproducción definitiva está pendiente de integrar.</p>
               }
             }
-            </div>
+            </div> }
             <h2>{{ aula.lesson.title }}</h2>
             @if (aula.lesson.summary) { <p class="text">{{ aula.lesson.summary }}</p> }
             @if (aula.lesson.content_md) {
               <h3>Contenido</h3>
               <p class="text">{{ aula.lesson.content_md }}</p>
             } @else { <p>Esta lección no tiene contenido escrito.</p> }
-            <h3>Progreso manual</h3>
-            @if (aula.canTrack) {
-              <p role="status">{{ aula.completed ? 'Completada' : 'Pendiente' }}</p>
-              <button class="progress-button" type="button" [disabled]="saving()" (click)="toggleProgress()">
+            <app-lesson-materials [lessonId]="aula.lesson.id" [courseId]="aula.course.id" [returnUrl]="returnUrl()" [primary]="aula.lesson.content_type === 'pdf'" />
+            <section><h3>Dudas y comentarios de esta lección</h3><p>Esta función está pendiente de implementación.</p></section>
+            <nav aria-label="Navegación entre lecciones">
+              @if (previous(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Anterior: {{ item.title }}</a> }
+              @else { <span>Primera lección</span> }
+              <button class="progress-button" type="button" [disabled]="saving() || !aula.canTrack" (click)="toggleProgress()">
                 {{ aula.completed ? 'Marcar como pendiente' : 'Marcar como completada' }}
               </button>
+              @if (next(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Siguiente: {{ item.title }}</a> }
+              @else { <span>Última lección</span> }
+            </nav>
+            @if (aula.canTrack) {
+              <p role="status">Progreso manual: {{ aula.completed ? 'Completada' : 'Pendiente' }}</p>
               @if (saveError()) { <p role="alert">No se pudo guardar el progreso. Inténtalo de nuevo.</p> }
             } @else if (!auth.session()) {
               <p>Inicia sesión para consultar si puedes guardar progreso. La muestra por sí sola no lo permite.</p>
@@ -59,13 +66,6 @@
             } @else {
               <p>Guardar progreso requiere un derecho activo al curso; la muestra y el rol de administración por sí solos no lo permiten.</p>
             }
-            <h3>Materiales de esta lección</h3>
-            <app-lesson-materials [lessonId]="aula.lesson.id" [courseId]="aula.course.id" [returnUrl]="returnUrl()" />
-            <section><h3>Dudas y comentarios de esta lección</h3><p>Esta función está pendiente de implementación.</p></section>
-            <nav aria-label="Navegación entre lecciones">
-              @if (previous(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Anterior: {{ item.title }}</a> }
-              @if (next(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Siguiente: {{ item.title }}</a> }
-            </nav>
           </article>
         </div>
       }

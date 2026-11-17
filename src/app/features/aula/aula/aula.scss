@@ -6,6 +6,10 @@
 article h2 { font-size:clamp(1.7rem, 3vw, 2.5rem); }
 nav a { display: inline-block; margin-block: .25rem; }
 nav[aria-label="Navegación entre lecciones"] { display: flex; gap: 1rem; flex-wrap: wrap; margin-block: 1rem; }
+nav[aria-label="Navegación entre lecciones"] > * { min-height: 44px; display: inline-flex; align-items: center; }
+@media (max-width: 47.999rem) {
+  nav[aria-label="Navegación entre lecciones"] > * { width: 100%; overflow-wrap: anywhere; }
+}
 @media (min-width: 48rem) {
   .layout { grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr); }
 }

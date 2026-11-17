@@ -9,7 +9,7 @@ import { AULA_ROUTES } from '../aula.routes';
 import { Aula } from './aula';
 import { VIDEO_DEMO_CONFIG, VIDEO_DEMO_ENABLED } from '../video-playback';
 
-const lesson = { id: 'l', section_id: 's', slug: 'uno', title: 'Lección', summary: null, content_md: '<script>texto</script>' };
+const lesson = { id: 'l', section_id: 's', slug: 'uno', title: 'Lección', summary: null, content_md: '<script>texto</script>', content_type: 'video' as const };
 const data: AulaData = { course: { id: 'c', title: 'Curso' }, lesson, sections: [{id: 's', title: 'Bloque'}], lessons: [lesson], canTrack: true, completed: false };
 const firstLesson = { ...lesson, id: 'l1', slug: 'uno' };
 const secondLesson = { ...lesson, id: 'l2', slug: 'dos' };
@@ -35,6 +35,19 @@ describe('Aula', () => {
     return { save, session, status, error };
   }
 
+  it('sitúa el progreso entre los extremos de navegación sin enlaces rotos', async () => {
+    setup(vi.fn().mockResolvedValue(twoLessons));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const nav = harness.routeNativeElement!.querySelector('nav[aria-label="Navegación entre lecciones"]')!;
+    expect(nav.textContent).toContain('Primera lección');
+    expect(nav.querySelector('button')?.disabled).toBe(false);
+    expect(nav.querySelectorAll('a').length).toBe(1);
+    expect(nav.querySelector('a')?.textContent).toContain('Siguiente');
+  });
+
   it('muestra texto escapado y guarda progreso manual', async () => {
     const { save } = setup(vi.fn().mockResolvedValue(data));
     const harness = await RouterTestingHarness.create();
@@ -47,6 +60,27 @@ describe('Aula', () => {
     await component.toggleProgress();
     expect(save).toHaveBeenCalledWith('u', 'l', true);
     expect(component.data()?.completed).toBe(true);
+  });
+
+  it('PDF y texto nunca cargan vídeo, incluso con demo configurada para la misma lección', async () => {
+    const pdf = { ...firstLesson, content_type: 'pdf' as const };
+    const text = { ...secondLesson, content_type: 'text' as const };
+    setup(vi.fn((_course: string, slug: string) =>
+      Promise.resolve({ ...twoLessons, lesson: slug === 'dos' ? text : pdf, lessons: [pdf, text] })));
+    TestBed.configureTestingModule({ providers: [
+      { provide: VIDEO_DEMO_ENABLED, useValue: true },
+      { provide: VIDEO_DEMO_CONFIG, useValue: { l1: 'dQw4w9WgXcQ', l2: 'dQw4w9WgXcQ' } },
+    ] });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('iframe, .video-stage')).toBeNull();
+    expect(harness.routeNativeElement?.textContent).toContain('Documento de la lección');
+    await harness.navigateByUrl('/aula/curso/dos', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('iframe, .video-stage')).toBeNull();
+    expect(harness.routeNativeElement?.querySelector('script')).toBeNull();
+    expect(harness.routeNativeElement?.textContent).toContain('<script>texto</script>');
   });
 
   it('solo carga YouTube tras acción y descarta el reproductor al cambiar de lección', async () => {

@@ -2,7 +2,8 @@ import { afterNextRender, Component, DestroyRef, ElementRef, inject, input, sign
 import { RouterLink } from '@angular/router';
 
 interface Section { id: string; title: string }
-interface Lesson { id: string; section_id: string; title: string; slug: string; is_free_preview?: boolean }
+import { LessonContentType } from '../../shared/lesson-content-type';
+interface Lesson { id: string; section_id: string; title: string; slug: string; content_type: LessonContentType; is_free_preview?: boolean }
 
 @Component({
   selector: 'app-classroom-nav',
@@ -21,7 +22,8 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
               @if (lesson.section_id === section.id) {
                 <li><a [routerLink]="admin() ? ['/admin/vista-previa', courseId(), lesson.id] : ['/aula', courseSlug(), lesson.slug]"
                   [attr.aria-current]="lesson.id === activeId() ? 'page' : null" (click)="open.set(false)">
-                  <span aria-hidden="true">{{ lesson.id === activeId() ? '▶' : '○' }}</span>
+                  <span aria-hidden="true">{{ lesson.content_type === 'video' ? '▶' : lesson.content_type === 'pdf' ? '▤' : '≡' }}</span>
+                  <span class="sr-only">{{ lesson.content_type === 'video' ? 'Vídeo' : lesson.content_type === 'pdf' ? 'PDF' : 'Texto' }}:</span>
                   {{ lesson.title }} @if (lesson.is_free_preview) { <small>Muestra</small> }
                 </a></li>
               }
@@ -33,6 +35,7 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
   `,
   styles: [`
     :host { display:block; min-width:0; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
     nav { background:#f3f0e9; border:1px solid #e2dbce; border-radius:.75rem; padding:1.25rem; }
     nav > a { font-size:.9rem; }
     h2 { font-size:1.2rem; overflow-wrap:anywhere; margin:1.25rem 0; }

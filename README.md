@@ -33,6 +33,12 @@ la administrativa. Los materiales son los ya autorizados; las dudas solo
 reservan un espacio visual y todavía no permiten publicar. El futuro foro y las
 dudas compartirán una única conversación asociada a la lección.
 
+El editor permite elegir el tipo provisional de lección: vídeo, PDF o texto.
+Para PDF, guarda primero la lección y adjunta sus documentos desde «Materiales
+PDF»; si todavía no hay ninguno disponible, el aula lo indica. PDF y texto no
+cargan el reproductor de vídeo. El progreso sigue siendo manual y sujeto al
+derecho activo; la vista previa administrativa no lo guarda.
+
 > **Documentación privada:** el repositorio será público. `docs/plan-maestro.md`
 > se aporta localmente y **no se publica**; está incluido en `.gitignore` junto
 > con `docs/privado/`, reservado para notas internas. El resto de `docs/` puede

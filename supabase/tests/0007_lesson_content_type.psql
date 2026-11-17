@@ -1,0 +1,105 @@
+-- Prueba local transaccional del tipo editorial y los permisos existentes.
+\set ON_ERROR_STOP on
+
+begin;
+
+create schema tests;
+grant usage on schema tests to anon, authenticated;
+
+create function tests.expect(p_ok boolean, p_label text)
+returns void language plpgsql as $$
+begin
+  if p_ok is not true then
+    raise exception 'FALLO: %', p_label;
+  end if;
+end;
+$$;
+
+create function tests.expect_sqlstate(p_sql text, p_expected text, p_label text)
+returns void language plpgsql as $$
+declare
+  v_state text;
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    get stacked diagnostics v_state = returned_sqlstate;
+    if v_state = p_expected then return; end if;
+    raise exception 'FALLO: % devolvió %, se esperaba %', p_label, v_state, p_expected;
+  end;
+  raise exception 'FALLO: no falló %', p_label;
+end;
+$$;
+grant execute on function tests.expect(boolean, text) to anon, authenticated;
+grant execute on function tests.expect_sqlstate(text, text, text) to anon, authenticated;
+
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-00000000000a', 'alumno@example.test'),
+  ('00000000-0000-0000-0000-00000000000d', 'admin@example.test');
+insert into public.user_roles (user_id, role)
+values ('00000000-0000-0000-0000-00000000000d', 'admin');
+insert into public.courses (id, slug, title, level, status, published_at)
+values ('10000000-0000-0000-0000-000000000001', 'curso-prueba', 'Curso prueba', 'basico', 'published', now());
+insert into public.course_sections (id, course_id, title, position)
+values ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Bloque', 0);
+-- El patrón anterior de inserción, sin la columna nueva, sigue produciendo vídeo.
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview)
+values ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001',
+        '20000000-0000-0000-0000-000000000001', 'leccion', 'Lección', 0, true, true);
+select tests.expect(
+  (select content_type = 'video' from public.lessons where id = '30000000-0000-0000-0000-000000000001'),
+  'inserción existente conserva el tipo vídeo por defecto'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000d","role":"authenticated"}', true);
+insert into public.lessons (id, course_id, section_id, slug, title, position, content_type) values
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'pdf', 'PDF', 1, 'pdf'),
+  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'texto', 'Texto', 2, 'text');
+update public.lessons set content_type = 'text' where id = '30000000-0000-0000-0000-000000000002';
+update public.lessons set content_type = 'pdf' where id = '30000000-0000-0000-0000-000000000003';
+select tests.expect(
+  (select content_type = 'text' from public.lessons where id = '30000000-0000-0000-0000-000000000002')
+  and (select content_type = 'pdf' from public.lessons where id = '30000000-0000-0000-0000-000000000003'),
+  'admin inserta y actualiza PDF y texto'
+);
+select tests.expect_sqlstate(
+  $q$update public.lessons set content_type = 'audio' where id = '30000000-0000-0000-0000-000000000001'$q$,
+  '23514', 'tipo no válido'
+);
+select tests.expect_sqlstate(
+  $q$update public.lessons set content_type = null where id = '30000000-0000-0000-0000-000000000001'$q$,
+  '23502', 'tipo nulo'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}', true);
+select tests.expect_sqlstate(
+  $q$insert into public.lessons (course_id, section_id, slug, title, position, content_type) values ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'intruso', 'Intruso', 3, 'pdf')$q$,
+  '42501', 'alumno no inserta lecciones'
+);
+with changed as (
+  update public.lessons set content_type = 'pdf'
+  where id = '30000000-0000-0000-0000-000000000001' returning 1
+)
+select tests.expect((select count(*) from changed) = 0, 'alumno no modifica tipo');
+reset role;
+
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select tests.expect_sqlstate(
+  $q$insert into public.lessons (course_id, section_id, slug, title, position, content_type) values ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'intruso', 'Intruso', 3, 'pdf')$q$,
+  '42501', 'anon no inserta lecciones'
+);
+select tests.expect_sqlstate(
+  $q$update public.lessons set content_type = 'pdf' where id = '30000000-0000-0000-0000-000000000001'$q$,
+  '42501', 'anon no modifica tipo'
+);
+reset role;
+
+select tests.expect(
+  (select content_type = 'video' from public.lessons where id = '30000000-0000-0000-0000-000000000001'),
+  'los intentos no autorizados no cambian la lección'
+);
+rollback;
