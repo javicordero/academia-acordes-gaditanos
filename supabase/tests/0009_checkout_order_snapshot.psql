@@ -1,0 +1,76 @@
+\set ON_ERROR_STOP on
+begin;
+insert into auth.users(id) values ('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
+insert into public.courses(id,slug,title,status,published_at) values ('10000000-0000-0000-0000-000000000001','one','Uno','published',now()),('10000000-0000-0000-0000-000000000002','two','Dos','published',now()),('10000000-0000-0000-0000-000000000003','draft','Borrador','draft',null);
+insert into public.course_prices(id,course_id,amount_minor,currency) values ('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',100,'EUR'),('20000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002',200,'EUR');
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values ('20000000-0000-0000-0000-000000000001','stripe','price_fixture1'),('20000000-0000-0000-0000-000000000002','stripe','price_fixture2');
+do $$ begin
+ if has_function_privilege('anon','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute') or has_function_privilege('authenticated','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute') or not has_function_privilege('service_role','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute') or has_table_privilege('authenticated','private.checkout_attempts','select') then raise exception 'permissions'; end if;
+ begin perform public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',60); raise exception 'missing config accepted'; exception when raise_exception then if sqlerrm <> 'terms configuration missing' then raise; end if; end;
+end $$;
+insert into private.checkout_order_config(terms_version) values ('fixture-version');
+set local role service_role;
+select * from public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',60);
+reset role;
+do $$ begin
+ if (select amount_tax_minor from public.orders where id=(select order_id from private.checkout_attempts where attempt_id='30000000-0000-0000-0000-000000000001')) is not null then raise exception 'tax must start unknown'; end if;
+end $$;
+set local role service_role;
+do $$ declare oid uuid; begin
+ select order_id into oid from public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',60);
+ begin update public.orders set amount_tax_minor=-1 where id=oid; raise exception 'negative accepted'; exception when check_violation then null; end;
+ update public.orders set amount_tax_minor=17 where id=oid;
+ begin update public.orders set amount_tax_minor=18 where id=oid; raise exception 'overwrite accepted'; exception when raise_exception then if sqlerrm <> 'immutable order snapshot' then raise; end if; end;
+ begin update public.orders set amount_tax_minor=null where id=oid; raise exception 'reset accepted'; exception when raise_exception then if sqlerrm <> 'immutable order snapshot' then raise; end if; end;
+ update public.orders set status='paid' where id=oid;
+end $$;
+reset role;
+set local role anon;
+do $$ begin
+ begin update public.orders set amount_tax_minor=0; raise exception 'anon update accepted'; exception when insufficient_privilege then null; end;
+ begin perform public.reserve_checkout_order(null,null,null,60); raise exception 'anon execute accepted'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"00000000-0000-0000-0000-000000000001","app_metadata":{"role":"admin"}}', true);
+set local role authenticated;
+do $$ begin
+ begin update public.orders set amount_tax_minor=0; raise exception 'authenticated update accepted'; exception when insufficient_privilege then null; end;
+ begin perform public.reserve_checkout_order(null,null,null,60); raise exception 'authenticated execute accepted'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+update public.course_prices set amount_minor=500 where id='20000000-0000-0000-0000-000000000001';
+do $$ declare r record; begin
+ select * into r from public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',60);
+ if (r.snapshot->>'amount_minor')::int <> 100 or r.canonical_attempt_id <> '30000000-0000-0000-0000-000000000001' then raise exception 'snapshot'; end if;
+ begin perform public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000002',60); raise exception 'expected conflict'; exception when raise_exception then if sqlerrm <> 'open reservation conflict' then raise; end if; end;
+ begin perform public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000001',60); raise exception 'expected conflict'; exception when raise_exception then if sqlerrm <> 'attempt conflict' then raise; end if; end;
+ begin update public.order_items set unit_amount_minor=3 where order_id=r.order_id; raise exception 'expected immutable'; exception when raise_exception then if sqlerrm <> 'immutable item snapshot' then raise; end if; end;
+ begin update private.checkout_attempts set snapshot='{}' where order_id=r.order_id; raise exception 'expected immutable'; exception when raise_exception then if sqlerrm <> 'immutable checkout snapshot' then raise; end if; end;
+ begin update public.orders set amount_total_minor=3 where id=r.order_id; raise exception 'expected immutable'; exception when raise_exception then if sqlerrm <> 'immutable order snapshot' then raise; end if; end;
+end $$;
+select * from public.reserve_checkout_order('00000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000003',60);
+select * from public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000004',60);
+-- Reserva ya caducada de fixture: no se manipula el reloj ni el snapshot.
+insert into public.orders(id,user_id,currency,amount_total_minor,terms_version) values ('40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000002','EUR',200,'fixture-version');
+insert into private.checkout_attempts(attempt_id,actor_id,course_id,order_id,expires_at,snapshot) values ('30000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002','40000000-0000-0000-0000-000000000001',now()-interval '1 second','{"fixture":true}');
+select * from public.reserve_checkout_order('00000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000008',60);
+do $$ begin
+ if not exists(select 1 from private.checkout_attempts where attempt_id='30000000-0000-0000-0000-000000000007' and closed_at is not null and snapshot='{"fixture":true}') then raise exception 'expired history'; end if;
+end $$;
+insert into public.entitlements(user_id,course_id) values ('00000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002');
+do $$ begin
+ begin perform public.reserve_checkout_order('00000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000005',60); raise exception 'expected owned'; exception when raise_exception then if sqlerrm <> 'already owned' then raise; end if; end;
+ begin perform public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000003','30000000-0000-0000-0000-000000000006',60); raise exception 'expected unavailable'; exception when raise_exception then if sqlerrm <> 'offer unavailable' then raise; end if; end;
+end $$;
+-- Curso publicado sin precio y después sin referencia privada del proveedor.
+update public.courses set status='published', published_at=now() where id='10000000-0000-0000-0000-000000000003';
+do $$ begin
+ begin perform public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000003','30000000-0000-0000-0000-000000000009',60); raise exception 'missing price accepted'; exception when raise_exception then if sqlerrm <> 'offer unavailable' then raise; end if; end;
+end $$;
+insert into public.course_prices(id,course_id,amount_minor,currency) values ('20000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000003',100,'EUR');
+do $$ begin
+ begin perform public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000003','30000000-0000-0000-0000-000000000009',60); raise exception 'missing provider accepted'; exception when raise_exception then if sqlerrm <> 'offer unavailable' then raise; end if; end;
+end $$;
+delete from auth.users where id='00000000-0000-0000-0000-000000000001';
+do $$ begin if exists(select 1 from private.checkout_attempts where attempt_id='30000000-0000-0000-0000-000000000001' and actor_id is not null) then raise exception 'actor deletion'; end if; end $$;
+rollback;
