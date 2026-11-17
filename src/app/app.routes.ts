@@ -30,6 +30,13 @@ export const routes: Routes = [
       import('./features/mis-cursos/mis-cursos').then((m) => m.MisCursos),
   },
   {
+    path: 'perfil',
+    title: 'Mi perfil · Academia Acordes Gaditanos',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/perfil/perfil').then((m) => m.Perfil),
+  },
+  {
     path: 'comunidad',
     title: 'Comunidad · Academia Acordes Gaditanos',
     loadComponent: () =>

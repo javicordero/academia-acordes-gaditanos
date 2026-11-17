@@ -54,6 +54,7 @@
           <span class="session-actions__user" [title]="session.user.email ?? ''">
             {{ session.user.email ?? 'Sesión iniciada' }}
           </span>
+          <a routerLink="/perfil" routerLinkActive="is-active" ariaCurrentWhenActive="page">Mi perfil</a>
           @if (auth.isAdmin()) {
             <a
               routerLink="/admin"

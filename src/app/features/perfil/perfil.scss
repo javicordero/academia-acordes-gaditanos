@@ -1,0 +1,7 @@
+.perfil { max-width: 42rem; margin: 2rem auto; padding: 0 1rem; }
+.card { padding: 1.5rem; border: 1px solid var(--color-border, #ccc); border-radius: .5rem; }
+form { display: grid; gap: .5rem; margin-block: 1.5rem; }
+label { font-weight: 700; }
+input { min-height: 44px; padding: .5rem; font: inherit; max-width: 100%; }
+button { min-height: 44px; padding: .5rem 1rem; font: inherit; justify-self: start; }
+a { display: inline-block; padding-block: .75rem; }

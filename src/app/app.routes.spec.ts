@@ -7,8 +7,10 @@ import { Session } from '@supabase/supabase-js';
 import { vi } from 'vitest';
 import { routes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
+import { authGuard } from './core/auth/auth.guard';
 import { AulaRepository } from './features/aula/aula-repository';
 import { PublicCoursesRepository } from './features/cursos/public-courses-repository';
+import { PerfilRepository } from './features/perfil/perfil-repository';
 
 const session = { user: { id: 'user-1' } } as unknown as Session;
 
@@ -23,6 +25,7 @@ describe('Routes', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter(routes),
+        { provide: PerfilRepository, useValue: { load: () => Promise.resolve(null) } },
         {
           provide: AuthService,
           useValue: {
@@ -75,9 +78,14 @@ describe('Routes', () => {
     expect(TestBed.inject(Router).url).toBe('/cursos');
   });
 
+  it('protege /perfil con el guard de autenticación', () => {
+    expect(routes.find(route => route.path === 'perfil')?.canActivate).toContain(authGuard);
+  });
+
   it.each([
     ['/cursos', 'Cursos', 'Cursos · Academia Acordes Gaditanos'],
     ['/mis-cursos', 'Mis cursos', 'Mis cursos · Academia Acordes Gaditanos'],
+    ['/perfil', 'Mi perfil', 'Mi perfil · Academia Acordes Gaditanos'],
     ['/comunidad', 'Comunidad', 'Comunidad · Academia Acordes Gaditanos'],
   ])('carga %s con su título', async (url, heading, title) => {
     await harness.navigateByUrl(url);
