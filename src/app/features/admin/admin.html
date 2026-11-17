@@ -1,0 +1,33 @@
+<section class="page">
+  <p class="eyebrow">Administración</p>
+  <h1>Panel de administración</h1>
+
+  <p class="lead">
+    Base del área reservada. El acceso se ha comprobado con la fila propia de
+    <code>public.user_roles</code>; el rol no se lee de metadatos editables.
+    La autorización real sigue en RLS y en servidor.
+  </p>
+
+  <div class="callout">
+    <h2>Sin CRUD todavía</h2>
+    <p>
+      Esta primera versión no permite crear, editar ni publicar cursos,
+      bloques o lecciones. Tampoco hay subidas de vídeo, documentos ni
+      operaciones de comercio.
+    </p>
+    <p class="note">
+      No se muestran contadores, alumnos ni datos de ejemplo: no hay datos
+      reales cargados.
+    </p>
+  </div>
+
+  <p>
+    La concesión del rol admin es manual y se hace desde servidor por una
+    persona autorizada. No existe autoascenso ni formulario para asignarse el
+    rol desde la aplicación.
+  </p>
+
+  <p class="auth-links">
+    <a routerLink="/cursos">Volver a la vista pública</a>
+  </p>
+</section>

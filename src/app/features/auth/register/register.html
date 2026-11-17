@@ -1,0 +1,98 @@
+<section class="page auth-page">
+  <p class="eyebrow">Cuenta</p>
+  <h1>Crear cuenta</h1>
+
+  @if (configurationPending()) {
+    <div class="feedback feedback--warning" role="status">
+      La autenticación aún no está configurada en esta instalación. El registro
+      no está disponible y no se simula ninguna cuenta.
+    </div>
+  }
+
+  @if (confirmationSent()) {
+    <div class="feedback feedback--success" role="status">
+      Hemos procesado el registro. Revisa tu correo para confirmar la cuenta.
+      Si ya existía una cuenta con esa dirección, inicia sesión o recupera la
+      contraseña.
+    </div>
+    <p class="auth-links">
+      <a routerLink="/auth/login">Volver a iniciar sesión</a>
+    </p>
+  } @else {
+    <p class="lead">
+      Regístrate con tu correo. El perfil mínimo se crea automáticamente al
+      registrar la cuenta; la edición del nombre visible queda para una fase
+      posterior.
+    </p>
+
+    <form class="auth-card" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      @if (error(); as errorText) {
+        <div class="feedback feedback--error" role="alert">{{ errorText }}</div>
+      }
+
+      <div class="form-field">
+        <label for="register-email">Correo electrónico</label>
+        <input
+          id="register-email"
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+          inputmode="email"
+          required
+          [attr.aria-invalid]="
+            form.controls.email.touched && form.controls.email.invalid
+          "
+          [attr.aria-describedby]="
+            form.controls.email.touched && form.controls.email.invalid
+              ? 'register-email-error'
+              : null
+          "
+        />
+        @if (form.controls.email.touched && form.controls.email.invalid) {
+          <p class="field-error" id="register-email-error">
+            Introduce un correo electrónico válido.
+          </p>
+        }
+      </div>
+
+      <div class="form-field">
+        <label for="register-password">Contraseña</label>
+        <input
+          id="register-password"
+          type="password"
+          formControlName="password"
+          autocomplete="new-password"
+          required
+          [attr.aria-invalid]="
+            form.controls.password.touched && form.controls.password.invalid
+          "
+          [attr.aria-describedby]="
+            form.controls.password.touched && form.controls.password.invalid
+              ? 'register-password-error'
+              : null
+          "
+        />
+        @if (form.controls.password.touched && form.controls.password.invalid) {
+          <p class="field-error" id="register-password-error">
+            Introduce una contraseña.
+          </p>
+        }
+        <p class="field-hint">
+          La política de contraseñas la aplica el servicio de cuentas; esta
+          pantalla no inventa requisitos adicionales.
+        </p>
+      </div>
+
+      <div class="form-actions">
+        <button class="button" type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Creando cuenta…' : 'Crear cuenta' }}
+        </button>
+      </div>
+    </form>
+
+    <p class="auth-links">
+      ¿Ya tienes cuenta?
+      <a routerLink="/auth/login">Iniciar sesión</a>
+    </p>
+  }
+</section>

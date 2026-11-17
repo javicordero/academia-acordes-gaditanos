@@ -2,14 +2,29 @@ import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { Session } from '@supabase/supabase-js';
 import { routes } from './app.routes';
+import { AuthService } from './core/auth/auth.service';
+
+const session = { user: { id: 'user-1' } } as unknown as Session;
 
 describe('Routes', () => {
   let harness: RouterTestingHarness;
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
-      providers: [provideRouter(routes)],
+      providers: [
+        provideRouter(routes),
+        {
+          provide: AuthService,
+          useValue: {
+            whenInitialized: () => Promise.resolve(),
+            whenRoleResolved: () => Promise.resolve(),
+            session: () => session,
+            isAdmin: () => false,
+          },
+        },
+      ],
     });
     harness = await RouterTestingHarness.create();
   });

@@ -1,5 +1,16 @@
 <a class="skip-link" href="#contenido-principal">Saltar al contenido principal</a>
 
+@if (auth.configurationPending()) {
+  <p class="config-banner" role="status">
+    Autenticación pendiente de configuración local. No hay cuentas activas en
+    esta instalación.
+  </p>
+}
+
+@if (logoutError(); as errorText) {
+  <p class="config-banner config-banner--error" role="alert">{{ errorText }}</p>
+}
+
 <header class="site-header">
   <div class="site-header__inner">
     <a class="brand" routerLink="/cursos">
@@ -7,31 +18,61 @@
       <span class="brand__sub">Acordes Gaditanos</span>
     </a>
 
-    <nav aria-label="Navegación principal">
-      <ul class="nav-list">
-        <li>
+    <div class="site-header__tools">
+      <nav aria-label="Navegación principal">
+        <ul class="nav-list">
+          <li>
+            <a
+              routerLink="/cursos"
+              routerLinkActive="is-active"
+              ariaCurrentWhenActive="page"
+            >Cursos</a>
+          </li>
+          <li>
+            <a
+              routerLink="/mis-cursos"
+              routerLinkActive="is-active"
+              ariaCurrentWhenActive="page"
+            >Mis cursos</a>
+          </li>
+          <li>
+            <a
+              routerLink="/comunidad"
+              routerLinkActive="is-active"
+              ariaCurrentWhenActive="page"
+            >Comunidad</a>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="session-actions">
+        @if (auth.loading()) {
+          <span class="session-actions__status" role="status">
+            Comprobando sesión…
+          </span>
+        } @else if (auth.session(); as session) {
+          <span class="session-actions__user" [title]="session.user.email ?? ''">
+            {{ session.user.email ?? 'Sesión iniciada' }}
+          </span>
+          @if (auth.isAdmin()) {
+            <a
+              routerLink="/admin"
+              routerLinkActive="is-active"
+              ariaCurrentWhenActive="page"
+            >Administración</a>
+          }
+          <button class="link-button" type="button" (click)="logout()">
+            Cerrar sesión
+          </button>
+        } @else {
           <a
-            routerLink="/cursos"
+            routerLink="/auth/login"
             routerLinkActive="is-active"
             ariaCurrentWhenActive="page"
-          >Cursos</a>
-        </li>
-        <li>
-          <a
-            routerLink="/mis-cursos"
-            routerLinkActive="is-active"
-            ariaCurrentWhenActive="page"
-          >Mis cursos</a>
-        </li>
-        <li>
-          <a
-            routerLink="/comunidad"
-            routerLinkActive="is-active"
-            ariaCurrentWhenActive="page"
-          >Comunidad</a>
-        </li>
-      </ul>
-    </nav>
+          >Iniciar sesión</a>
+        }
+      </div>
+    </div>
   </div>
 </header>
 

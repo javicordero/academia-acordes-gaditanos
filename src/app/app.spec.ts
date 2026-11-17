@@ -1,7 +1,9 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { App } from './app';
 import { routes } from './app.routes';
+import { AuthService } from './core/auth/auth.service';
 
 describe('App shell', () => {
   beforeEach(async () => {
@@ -56,5 +58,43 @@ describe('App shell', () => {
     expect(footer).not.toBeNull();
     expect(siteFooter).not.toBeNull();
     expect(siteFooter?.textContent).toContain('Proyecto en construcción');
+  });
+
+  it('avisa de la configuración pendiente y ofrece acceso real de sesión', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.config-banner')?.textContent).toContain(
+      'Autenticación pendiente de configuración local',
+    );
+    expect(
+      element.querySelector<HTMLAnchorElement>('.session-actions a[href="/auth/login"]'),
+    ).not.toBeNull();
+  });
+
+  it('muestra el enlace de administración solo con rol admin', async () => {
+    TestBed.overrideProvider(AuthService, {
+      useValue: {
+        configurationPending: signal(false),
+        loading: signal(false),
+        session: signal({ user: { id: 'user-1' } }),
+        isAdmin: signal(true),
+        logout: vi.fn().mockResolvedValue({ ok: true }),
+      },
+    });
+
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(
+      element.querySelector<HTMLAnchorElement>('.session-actions a[href="/admin"]'),
+    ).not.toBeNull();
+    expect(element.querySelector('.session-actions')?.textContent).toContain(
+      'Cerrar sesión',
+    );
   });
 });

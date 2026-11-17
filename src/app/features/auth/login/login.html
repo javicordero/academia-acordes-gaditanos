@@ -1,0 +1,84 @@
+<section class="page auth-page">
+  <p class="eyebrow">Cuenta</p>
+  <h1>Iniciar sesión</h1>
+
+  @if (configurationPending()) {
+    <div class="feedback feedback--warning" role="status">
+      La autenticación aún no está configurada en esta instalación. No hay
+      cuentas activas ni acceso simulado.
+    </div>
+  }
+
+  @if (notice(); as noticeText) {
+    <div class="feedback feedback--success" role="status">{{ noticeText }}</div>
+  }
+
+  <p class="lead">
+    Accede con el correo y la contraseña de tu cuenta de la academia.
+  </p>
+
+  <form class="auth-card" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    @if (error(); as errorText) {
+      <div class="feedback feedback--error" role="alert">{{ errorText }}</div>
+    }
+
+    <div class="form-field">
+      <label for="login-email">Correo electrónico</label>
+      <input
+        id="login-email"
+        type="email"
+        formControlName="email"
+        autocomplete="username"
+        inputmode="email"
+        required
+        [attr.aria-invalid]="form.controls.email.touched && form.controls.email.invalid"
+        [attr.aria-describedby]="
+          form.controls.email.touched && form.controls.email.invalid
+            ? 'login-email-error'
+            : null
+        "
+      />
+      @if (form.controls.email.touched && form.controls.email.invalid) {
+        <p class="field-error" id="login-email-error">
+          Introduce un correo electrónico válido.
+        </p>
+      }
+    </div>
+
+    <div class="form-field">
+      <label for="login-password">Contraseña</label>
+      <input
+        id="login-password"
+        type="password"
+        formControlName="password"
+        autocomplete="current-password"
+        required
+        [attr.aria-invalid]="
+          form.controls.password.touched && form.controls.password.invalid
+        "
+        [attr.aria-describedby]="
+          form.controls.password.touched && form.controls.password.invalid
+            ? 'login-password-error'
+            : null
+        "
+      />
+      @if (form.controls.password.touched && form.controls.password.invalid) {
+        <p class="field-error" id="login-password-error">
+          Introduce tu contraseña.
+        </p>
+      }
+    </div>
+
+    <div class="form-actions">
+      <button class="button" type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Entrando…' : 'Entrar' }}
+      </button>
+      <a routerLink="/auth/recuperar">He olvidado mi contraseña</a>
+    </div>
+  </form>
+
+  <p class="auth-links">
+    ¿Todavía no tienes cuenta?
+    <a routerLink="/auth/registro">Crear una cuenta</a>
+  </p>
+</section>

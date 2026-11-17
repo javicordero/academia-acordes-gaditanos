@@ -1,0 +1,20 @@
+<section class="page auth-page">
+  <p class="eyebrow">Cuenta</p>
+
+  @if (state() === 'loading') {
+    <h1>Confirmando el enlace</h1>
+    <p class="lead" role="status">{{ message() }}</p>
+  } @else {
+    <h1>Enlace no válido</h1>
+    <div class="feedback feedback--error" role="alert">{{ message() }}</div>
+    <p>
+      Los enlaces de confirmación y recuperación caducan. Puedes solicitar uno
+      nuevo desde la pantalla de recuperación.
+    </p>
+    <p class="auth-links">
+      <a routerLink="/auth/recuperar">Solicitar otro enlace</a>
+      ·
+      <a routerLink="/auth/login">Volver a iniciar sesión</a>
+    </p>
+  }
+</section>
