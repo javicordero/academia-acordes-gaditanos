@@ -1,0 +1,39 @@
+\set ON_ERROR_STOP on
+begin;
+do $$ begin
+ if has_function_privilege('anon','public.record_stripe_event(text,text,boolean,text,text,uuid)','execute')
+ or has_function_privilege('authenticated','public.record_stripe_event(text,text,boolean,text,text,uuid)','execute')
+ or not has_function_privilege('service_role','public.record_stripe_event(text,text,boolean,text,text,uuid)','execute')
+ or has_table_privilege('authenticated','private.commerce_events','select') then raise exception 'permisos'; end if;
+end $$;
+set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+do $$ begin
+ begin
+  perform public.record_stripe_event('evt_1','checkout.session.completed',false,repeat('a',64),'cs_test_1',null);
+  raise exception 'ejecucion indebida';
+ exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role service_role;
+do $$ begin
+ if public.record_stripe_event('evt_1','checkout.session.completed',false,repeat('a',64),'cs_test_1',null) <> 'created' then raise exception 'alta'; end if;
+ if public.record_stripe_event('evt_1','checkout.session.completed',false,repeat('a',64),'cs_test_1',null) <> 'received_unprocessed' then raise exception 'duplicado pendiente'; end if;
+ begin
+  perform public.record_stripe_event('evt_1','checkout.session.completed',false,repeat('b',64),'cs_test_1',null);
+  raise exception 'conflicto no detectado';
+ exception when raise_exception then
+  if sqlerrm <> 'event conflict' then raise; end if;
+ end;
+end $$;
+reset role;
+update private.commerce_events set processing_state='processed', processed_at=now() where external_event_id='evt_1';
+set local role service_role;
+do $$ begin
+ if public.record_stripe_event('evt_1','checkout.session.completed',false,repeat('a',64),'cs_test_1',null) <> 'processed' then raise exception 'procesado'; end if;
+end $$;
+reset role;
+do $$ begin
+ if (select payload_sha256 from private.commerce_events where external_event_id='evt_1') <> repeat('a',64) then raise exception 'hash sobrescrito'; end if;
+end $$;
+rollback;
