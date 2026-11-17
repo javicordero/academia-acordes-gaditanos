@@ -2,10 +2,11 @@ import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementR
 import { FormsModule } from '@angular/forms';
 import { Course } from '../courses-repository';
 import { Lesson, Section, StructureRepository } from '../structure-repository';
+import { LessonMaterials } from '../lesson-materials/lesson-materials';
 
 @Component({
   selector: 'app-structure',
-  imports: [FormsModule],
+  imports: [FormsModule, LessonMaterials],
   templateUrl: './structure.html',
   styleUrl: './structure.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,6 +30,20 @@ export class Structure implements AfterViewInit {
   readonly invalid = signal({ sectionTitle: false, lessonTitle: false, slug: false, duration: false });
   readonly sectionEditor = signal<Section | 'new' | null>(null);
   readonly lessonEditor = signal<{ section: Section; lesson?: Lesson } | null>(null);
+  readonly materials = signal<Lesson | null>(null);
+  private readonly materialsPanel = viewChild(LessonMaterials);
+  canOpenMaterials(lesson: Lesson): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(lesson.id) &&
+      this.lessons().includes(lesson);
+  }
+  openMaterials(lesson: Lesson): void {
+    if (this.saving() || !this.canOpenMaterials(lesson)) return;
+    this.materials.set(lesson);
+    afterNextRender(() => {
+      if (!this.destroyRef.destroyed && this.materials()?.id === lesson.id) this.materialsPanel()?.focusHeading();
+    }, { injector: this.injector });
+  }
+  closeMaterials(): void { this.materials.set(null); this.focus('heading'); }
   sectionTitle = '';
   sectionSummary = '';
   lessonTitle = '';

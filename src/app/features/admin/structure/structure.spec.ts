@@ -29,6 +29,20 @@ describe('Structure', () => {
     expect(fixture.nativeElement.textContent).toContain('No hay bloques');
     expect(repo.list).toHaveBeenCalledWith('course');
   });
+  it('al abrir materiales enfoca el panel y al cerrar vuelve a estructura sin perder el editor', async () => {
+    const lesson = { id: '22222222-2222-2222-2222-222222222222', course_id: 'course', section_id: 'section',
+      slug: 'leccion', title: 'Lección', summary: null, content_md: null, position: 0,
+      duration_seconds: null, is_free_preview: false, is_published: false };
+    repo.list.mockResolvedValueOnce({ sections: [section], lessons: [lesson] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    component.editLesson(section, lesson); component.lessonTitle = 'Sin guardar';
+    component.openMaterials(lesson); fixture.detectChanges(); await fixture.whenStable();
+    expect(document.activeElement?.id).toBe('materials-heading');
+    expect(component.lessonTitle).toBe('Sin guardar');
+    component.closeMaterials(); fixture.detectChanges(); await fixture.whenStable();
+    expect(document.activeElement?.textContent).toContain('Estructura:');
+    expect(component.lessonTitle).toBe('Sin guardar');
+  });
   it('oculta edición si falla la carga', async () => {
     repo.list.mockRejectedValueOnce(new Error('denied'));
     const fixture = await setup();

@@ -44,6 +44,9 @@
       <button type="button" [disabled]="saving()" (click)="cancelEditor()">Cancelar</button>
     </form>
   }
+  @if (materials(); as selected) {
+    <app-lesson-materials [courseId]="course().id" [lessonId]="selected.id" [lessonTitle]="selected.title" (closed)="closeMaterials()" />
+  }
   @if (!sections().length) { <p>No hay bloques en este curso.</p> }
   @for (section of sections(); track section.id) {
     <section>
@@ -56,6 +59,9 @@
           @if (lesson.section_id === section.id) {
             <li>{{ lesson.title }} — {{ lesson.is_published ? 'Publicada' : 'Borrador' }}{{ lesson.is_free_preview ? ' · Muestra' : '' }}
               <button type="button" [disabled]="saving()" (click)="editLesson(section, lesson)" [attr.aria-label]="'Editar lección ' + lesson.title">Editar</button>
+              @if (canOpenMaterials(lesson)) {
+                <button type="button" [disabled]="saving()" (click)="openMaterials(lesson)" [attr.aria-label]="'Materiales PDF de ' + lesson.title">Materiales PDF</button>
+              }
             </li>
           }
         }
