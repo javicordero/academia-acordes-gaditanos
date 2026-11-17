@@ -20,7 +20,7 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 - Nunca incluir secretos, claves, tokens, contraseñas, correos de alumnos, ventas ni datos personales en el repositorio.
 - El repositorio será público. `docs/plan-maestro.md` es local y está ignorado; no publicarlo ni forzarlo con `git add -f`. `docs/privado/` es para notas internas y también está ignorado. La documentación técnica pública sí puede vivir en `docs/`.
 - `.gitignore` no protege archivos ya seguidos: comprobar el índice antes de publicar.
-- `.env` está ignorado. Si hace falta una plantilla, `.env.example` solo lleva nombres y valores ficticios.
+- `.env` está ignorado. Si hace falta una plantilla, `.env.example` solo lleva nombres y valores ficticios. Angular no lee `.env`: la configuración pública de Supabase vive en `src/environments/environment.local.ts` (ignorado, creado por `npm run config:init` desde la plantilla versionada). Solo URL y publishable key; nunca secretos.
 - No confiar en ocultar rutas de Angular: toda autorización real va en RLS/Edge Functions.
 - El esquema `private` no se expone a la API: IDs de Bunny, rutas de Storage, precios de proveedor, datos personales y eventos de comercio viven ahí. No guardar IDs de vídeo ni rutas de recursos en filas públicas.
 - Pedidos, precios, derechos de acceso (`entitlements`) y roles se escriben solo desde servidor. El rol admin no se puede autoasignar desde una cuenta de alumno.
@@ -48,7 +48,9 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 - Actualizar `README.md` y la documentación cuando cambien comandos, arquitectura o alcance. No editar `docs/plan-maestro.md`.
 - Informes breves: qué se hizo, cómo se verificó y limitaciones. Solo el subagente designado y autorizado para Git hace commits; los implementadores no hacen commits por iniciativa propia. No hacer push sin permiso (ver «Commits»).
 - **Sol** coordina, revisa y decide, e interviene directamente solo cuando la complejidad lo justifique. **Todas las tareas operativas, incluidas las de Git, se delegan a subagentes.** Los implementadores no hacen commits por iniciativa propia; solo el subagente designado y autorizado para Git ejecuta los commits que coordina el agente padre.
-- **Implementador preferido:** DeepSeek V4.1 Flash de AMD Token Lab, ID `tokenlab/DeepSeek-V4.1-Flash`, autorizado por el usuario. **Revisor:** Hy4 Free. No usar otro proveedor o modelo de pago sin permiso explícito. No afirmar que AMD Token Lab sea gratuito: el coste de catálogo está sin confirmar.
+- **Implementador principal:** DeepSeek V4.1 Flash Free, ID `opencode/deepseek-v4.1-flash-free`. **Fallback de implementación:** Hy4 Free, ID `opencode/hy4-flash-free`, lo decide quien orquesta y queda limitado a la tarea afectada. **Revisor preferido:** Hy4 Free, ID `opencode/hy4-flash-free`.
+- **Último recurso autorizado:** si los modelos gratuitos de OpenCode agotan cuota o no están disponibles, se puede usar `tokenlab/DeepSeek-V4.1-Flash` (AMD Token Lab). El usuario autorizó explícitamente este retroceso; se usa solo cuando Free falla, no por preferencia. El proveedor tuvo saturaciones previas, así que no se reintenta mientras haya un modelo Free disponible. Se desconoce su coste de catálogo: no afirmar que es gratuito. No usar ningún otro proveedor o modelo de pago sin permiso explícito.
+- `opencode.jsonc` no tiene campo de fallback: `agents.implementador.model` fija el principal en DeepSeek Free. El orden de preferencia (DeepSeek Free → Hy4 Free → AMD como último recurso) lo aplica quien orquesta, limitado a la tarea afectada; no inventar claves de configuración para esto.
 - No cambiar el modelo global de OpenCode ni el agente por defecto del usuario. La configuración de agentes vive en `opencode.jsonc` y la ajusta el agente autorizado.
 
 ## Commits

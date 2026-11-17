@@ -1,9 +1,12 @@
 # Academia Acordes Gaditanos
 
 Base técnica de la academia online de guitarra para el Carnaval de Cádiz. Esta
-fase levanta el proyecto Angular y su shell navegable. Incluye además el **modelo
-de datos y permisos inicial de Supabase**, versionado y probado en local, pero
-**no hay proyecto en la nube, cuentas, pagos, vídeo ni comunidad activos**.
+fase levanta el proyecto Angular y su shell navegable, con **autenticación real
+de Supabase** (registro, acceso, salida, confirmación y recuperación por correo)
+y una base honesta de `/admin`. Incluye el modelo de datos y permisos inicial,
+versionado y probado en local. La migración inicial se aplicó al proyecto de
+desarrollo con autorización explícita; siguen pendientes Auth configurado en la
+nube, datos semilla, pagos, vídeo y comunidad.
 
 El plan de producto completo está en `docs/plan-maestro.md`. Es una propuesta
 viva: las decisiones pendientes no se dan por cerradas.
@@ -59,6 +62,7 @@ ejecutar `nvm` desde scripts no interactivos.
 | RxJS | 7.8.2 |
 | tslib | 2.9.1 |
 | Vitest | 4.1.12 |
+| `@supabase/supabase-js` | 2.119.0 |
 | jsdom | 28.1.0 |
 | Prettier | 3.10.1 |
 | Node.js | 24.22.3 |
@@ -71,11 +75,16 @@ en `.nvmrc`.
 
 ```powershell
 npm install
-npm start          # servidor de desarrollo en http://localhost:4200
-npm run build      # build de producción en dist/
-npm test           # pruebas una sola vez, sin watch
-npm run test:sql   # suite SQL/RLS sobre PGlite en memoria (sin Docker ni psql)
+npm run config:init   # crea src/environments/environment.local.ts si falta
+npm start             # servidor de desarrollo en http://localhost:4200
+npm run build         # build de producción en dist/
+npm test              # pruebas una sola vez, sin watch
+npm run test:sql      # suite SQL/RLS sobre PGlite en memoria (sin Docker ni psql)
 ```
+
+`npm start`, `npm run build` y `npm test` ejecutan `config:init` automáticamente:
+no fallan en un clon limpio ni en `npm ci`. Si se invoca `ng` directamente, hay
+que ejecutar `npm run config:init` una vez antes.
 
 `npm test` ejecuta Vitest con `--watch=false`. Para desarrollo interactivo de
 pruebas puede usarse `npx ng test` (watch por defecto en terminal TTY).
@@ -90,17 +99,79 @@ termina con código 1. La verificación contra Supabase local (Docker + CLI y
 `psql`) sigue siendo el requisito posterior documentado en
 [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
 
+## Configuración local de Supabase (Auth)
+
+Angular no lee `.env`. La configuración del cliente vive en
+`src/environments/environment.local.ts`, que está ignorado por Git y se crea a
+partir de `src/environments/environment.local.example.ts`:
+
+```powershell
+npm run config:init
+# Edita src/environments/environment.local.ts y rellena:
+#   supabaseUrl: 'https://<ref>.supabase.co'
+#   supabasePublishableKey: 'sb_publishable_...'
+```
+
+- La URL y la **publishable key** son públicas por diseño y llegan al
+  navegador. No son secretos, pero se mantienen fuera del repositorio.
+- **Nunca** poner `service_role`, la contraseña de la base de datos ni claves
+  de Bunny/Stripe en ese archivo ni en otro archivo del cliente.
+- Sin esos dos valores la aplicación sigue funcionando, muestra un aviso de
+  «autenticación pendiente de configuración local» y no simula cuentas ni
+  accesos.
+- El SDK instalado es `@supabase/supabase-js` 2.119.0 (estable). Se usa flujo
+  PKCE con `detectSessionInUrl: false`; `/auth/callback` gestiona tanto `code`
+  como `token_hash` del correo, sin guardarlos en logs ni en la URL final.
+
+Para probar la integración real, una persona autorizada debe configurar en el
+panel de Supabase (no se ha tocado la nube en este bloque):
+
+- Site URL de desarrollo: `http://localhost:4200`.
+- Redirect URL: `http://localhost:4200/auth/callback` (y el patrón con
+  `?next=...` que exija el proveedor).
+- Proveedor de correo y plantillas de confirmación/recuperación operativos.
+  No se afirma que se envíen correos ni se promete un volumen de envío
+  ilimitado: pueden aplicarse límites de tasa y de correo del proveedor.
+
+### Rutas de autenticación
+
+| Ruta | Uso |
+| --- | --- |
+| `/auth/login` | Acceso con correo y contraseña; acepta `returnUrl` solo interno. |
+| `/auth/registro` | Alta con correo y contraseña; confirmación por correo si procede. |
+| `/auth/recuperar` | Solicitud de enlace de cambio de contraseña (respuesta genérica). |
+| `/auth/callback` | Canje del código PKCE de confirmación o recuperación. |
+| `/auth/actualizar-contrasena` | Establecer la nueva contraseña con sesión vigente. |
+| `/auth/cuenta-confirmada` | Fin del enlace de confirmación. |
+| `/sin-acceso` | Destino para sesiones sin rol admin. |
+| `/admin` | Base del panel; sin CRUD todavía. |
+
+`/mis-cursos` y `/auth/actualizar-contrasena` exigen sesión; `/admin` exige
+además el rol `admin` leído de una consulta propia a `public.user_roles`, nunca
+de metadatos editables. Los guards esperan a que se restaure la sesión y a que
+termine la consulta del rol. La ruta sigue sin ser la barrera de seguridad:
+RLS y servidor siguen decidiendo.
+
 ## Alcance de esta fase
 
 - Shell responsive y accesible en español: cabecera, navegación, contenido y pie.
 - Rutas lazy: `/cursos`, `/mis-cursos`, `/comunidad` y comodín 404.
 - Redirección de `/` a `/cursos`.
-- Páginas placeholder honestas, sin simular autenticación, matrículas ni compras.
+- Páginas placeholder honestas: no hay matrículas ni compras simuladas. La
+  autenticación es real pero queda inactiva hasta configurar la URL y la
+  publishable key locales.
+- Registro, acceso, salida, confirmación por correo y recuperación de
+  contraseña con Supabase Auth; cliente singleton y estado de sesión con
+  signals; guards de sesión y admin; base de `/admin` sin CRUD.
 - Modelo SQL inicial de la academia en `supabase/migrations/`: cursos, bloques,
   lecciones, muestra gratuita, precios, pedidos, derechos de acceso y progreso.
-- RLS inicial y pruebas de autorización en `supabase/tests/`; no se ha aplicado a
-  ningún proyecto Supabase remoto.
-- Pruebas del shell y de las rutas (render, títulos y 404).
+- RLS inicial y pruebas de autorización en `supabase/tests/`. La migración
+  inicial sí se ha aplicado, con autorización explícita, al proyecto de
+  desarrollo `academia-acordes-gaditanos-dev`, verificada por catálogo; Auth,
+  datos semilla y pagos siguen pendientes.
+- Pruebas del shell y de las rutas (render, títulos y 404), además de pruebas
+  unitarias con mocks del SDK para sesión, roles, guards, formularios, callback
+  PKCE y seguridad de `returnUrl`.
 - Angular standalone, strict, SCSS, routing, zoneless y Vitest.
 - Sin SSR: la aplicación se sirve como CSR estático.
 
@@ -118,20 +189,31 @@ El detalle está en [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
 - Los IDs de vídeo, rutas de recursos, precios de proveedor y eventos de comercio
   viven en el esquema `private`, no expuesto a la API.
 - El rol admin se guarda en una tabla server-only y no se puede autoasignar.
-- El panel editorial `/admin` es un requisito confirmado, pero **no está
-  implementado** en esta fase. El foro y las dudas por lección también se posponen
-  y compartirán un único servicio de conversación, no comentarios paralelos.
+- El panel editorial `/admin` es un requisito confirmado. Ahora existe una
+  ruta lazy protegida con una base honesta, **sin CRUD, subidas ni datos de
+  ejemplo**. El foro y las dudas por lección se posponen y compartirán un único
+  servicio de conversación, no comentarios paralelos.
+- El registro no pide nombre visible: el trigger actual crea `public.profiles`
+  solo con el identificador y no copia metadatos; `display_name` es de
+  actualización futura. El registro no crea rol admin.
 - La portada deberá presentar al profesor, pero su estructura y contenido quedan
   para el diseño definitivo. No se inventan nombre, foto, bio, credenciales ni
   testimonios; la ruta raíz sigue provisional.
 
-## Panel de administración (previsto)
+## Panel de administración (base)
 
-El panel propio permitirá cargar y mantener el curso piloto: cursos,
-bloques/módulos y su orden, lecciones, publicación y vista previa de borradores,
-metadatos de vídeo y documentos anexos. El CRUD editorial público usará RLS de
-admin; la subida a Bunny y los archivos privados se gestionarán desde servidor,
-sin credenciales en el navegador. No hay UI ni subidas implementadas todavía.
+La ruta `/admin` es lazy y solo se abre con sesión y rol `admin` comprobado
+contra `public.user_roles`. La página actual se limita a explicar ese estado y
+a hacer constar que no hay CRUD implementado. El panel propio permitirá cargar y
+mantener el curso piloto: cursos, bloques/módulos y su orden, lecciones,
+publicación y vista previa de borradores, metadatos de vídeo y documentos
+anexos. El CRUD editorial público usará RLS de admin; la subida a Bunny y los
+archivos privados se gestionarán desde servidor, sin credenciales en el
+navegador. No hay UI de edición ni subidas implementadas todavía.
+
+No se ha creado ninguna cuenta admin ni concedido ningún rol en esta tarea. El
+siguiente paso, cuando se decida, es aprovisionar el rol desde servidor por una
+persona autorizada; la aplicación no permite autoasignárselo.
 
 ## Estructura
 
@@ -142,16 +224,25 @@ src/
     app.routes.ts                     # rutas lazy
     app.spec.ts                       # pruebas del shell
     app.routes.spec.ts                # pruebas de rutas
+    core/
+      auth/                           # servicio de sesión, guards y utilidades
+      supabase/                       # cliente singleton inyectable
     features/
       cursos/
       mis-cursos/
       comunidad/
       not-found/
+      auth/                           # login, registro, recuperación, callback...
+      admin/                          # base del panel, sin CRUD
   styles.scss                         # estilos globales
+src/environments/
+  environment.local.example.ts        # plantilla versionada
+  environment.local.ts                # copia local ignorada por Git
 supabase/
   migrations/                         # esquema SQL versionado
   tests/                              # pruebas de RLS (transacción + rollback)
 scripts/test-sql.mjs                  # runner portable de la suite SQL/RLS (PGlite)
+scripts/ensure-local-config.mjs       # generador de configuración local
 docs/arquitectura-datos.md            # modelo, permisos y límites
 docs/plan-maestro.md                  # plan local, ignorado; no se publica
 docs/privado/                         # notas internas futuras, ignoradas
@@ -163,23 +254,29 @@ AGENTS.md                             # instrucciones para agentes
 
 Todavía no están implementadas ni configuradas:
 
-- Proyecto Supabase en la nube, Auth, Edge Functions y aplicación de las
-  migraciones locales. El esquema y la RLS inicial ya están versionados, pero no
-  se ha desplegado nada.
+- Auth real en la nube: hace falta la configuración local y, por parte de una
+  persona autorizada, Site URL, Redirect URLs, proveedor de correo y plantillas.
+  El cliente Angular ya está implementado y probado solo con mocks; no se ha
+  comprobado el envío de correos ni PostgREST real.
+- Edge Functions, datos semilla y despliegue del frontend. El esquema y la RLS
+  inicial están versionados y la migración inicial se aplicó una vez al
+  proyecto de desarrollo con autorización explícita.
 - Stripe Checkout y webhook firmado e idempotente; ninguna página de éxito
   concede acceso por sí sola. No hay precios ni claves reales.
 - Bunny Stream y emisión de tokens temporales desde servidor tras comprobar el
   derecho de acceso.
 - Panel `/admin`: CRUD editorial, borradores, vista previa, subida segura de
-  vídeo/recursos y respuestas a preguntas (estas últimas junto al foro).
+  vídeo/recursos y respuestas a preguntas (estas últimas junto al foro). La base
+  de la ruta ya existe; el resto sigue pendiente.
 - Catálogo real de cursos, lecciones, materiales, progreso y ejercicios.
 - Foro, dudas por lección, moderación y notificaciones.
 - Portada con presentación del profesor; estructura y contenido pendientes de la
   fase de diseño definitivo, sin datos inventados.
 - Analítica propia y textos legales.
 
-Por eso no hay `.env.example` todavía: no existe ninguna variable de entorno
-necesaria. No se deben añadir secretos al repositorio.
+No hay `.env.example`: Angular no lee `.env` y la configuración pública se
+guarda en el archivo local ignorado descrito arriba. No se deben añadir
+secretos al repositorio.
 
 ## Decisiones técnicas de esta fase
 
@@ -208,13 +305,23 @@ están en `UPSTREAM.md`.
 Modelos autorizados para el flujo de agentes del proyecto:
 
 - **Sol** coordina, revisa y decide.
-- **Implementador preferido:** DeepSeek V4.1 Flash de AMD Token Lab, con ID de
-  proveedor/modelo `tokenlab/DeepSeek-V4.1-Flash`, autorizado por el usuario.
-- **Revisor:** Hy4 Free.
-- No usar otro proveedor o modelo de pago sin permiso explícito. No se afirma que
-  AMD Token Lab sea gratuito: el coste de catálogo figura como desconocido.
+- **Implementador principal:** DeepSeek V4.1 Flash Free, ID de proveedor/modelo
+  `opencode/deepseek-v4.1-flash-free`.
+- **Fallback de implementación:** Hy4 Free, ID `opencode/hy4-flash-free`, solo
+  para la tarea afectada y decidido por quien orquesta.
+- **Revisor preferido:** Hy4 Free, ID `opencode/hy4-flash-free`.
+- **Último recurso autorizado:** si los modelos gratuitos de OpenCode agotan
+  cuota o no están disponibles, se puede usar `tokenlab/DeepSeek-V4.1-Flash`
+  (AMD Token Lab). El usuario autorizó explícitamente este retroceso; solo se
+  usa cuando Free falla, no por preferencia. El proveedor tuvo saturaciones
+  previas. Se desconoce su coste de catálogo: no se afirma que sea gratuito.
+- No usar otro proveedor o modelo de pago sin permiso explícito.
 - La configuración vive en `opencode.jsonc`; no se cambia el modelo global de
-  OpenCode ni el agente por defecto desde este repositorio.
+  OpenCode ni el agente por defecto desde este repositorio. `opencode.jsonc` no
+  admite un campo de fallback documentado: el implementador queda fijado en
+  DeepSeek Free y el revisor en Hy4 Free; el orden de preferencia (DeepSeek Free
+  → Hy4 Free → AMD como último recurso) es una pauta de orquestación, no una
+  clave de configuración que haya que añadir.
 
 ## Aviso
 

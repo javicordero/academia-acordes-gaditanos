@@ -7,10 +7,18 @@ cancionero no se modifica.
 ## Estado
 
 - Esquema inicial versionado en `supabase/migrations/20261117120000_initial_academy.sql`.
+  El encabezado del archivo describe el estado cuando se escribió; no se ha
+  vuelto a tocar después de su aplicación autorizada para conservar el mismo
+  contenido (y SHA) que se pegó en el editor SQL. El estado remoto actual se
+  describe en este documento, no en ese comentario histórico.
 - Pruebas de RLS en `supabase/tests/0001_academy_rls.psql`.
 - Runner portable de la suite: `scripts/test-sql.mjs` (`npm run test:sql`).
-- **No** se ha creado ningún proyecto Supabase en la nube, no se ha aplicado la
-  migración a una base remota y no hay Auth, pagos, vídeo ni panel admin activos.
+- La migración se ha aplicado una sola vez, con autorización explícita del
+  usuario, al proyecto Supabase de desarrollo `academia-acordes-gaditanos-dev`
+  mediante el editor SQL del panel. No se creó ningún proyecto nuevo, no se
+  cargaron datos semilla y no hay Auth configurado, pagos, vídeo ni panel admin
+  activos. La comprobación remota fue por consultas al catálogo (tablas, RLS,
+  políticas, grants y funciones), no con la suite de pruebas.
 - La migración se ha ejecutado y la suite se ha pasado en PostgreSQL 17 local con
   un sustituto mínimo de `auth.uid()` y de los roles de Supabase. Esa prueba
   valida la lógica SQL/RLS, **no** sustituye a una ejecución con el stack local de
@@ -19,6 +27,43 @@ cancionero no se modifica.
   (PGlite en memoria, mismo límite: solo lógica SQL/RLS). La ejecución contra
   Supabase local con Docker, CLI y `psql` queda como verificación posterior, no
   realizada.
+
+## Autenticación de la aplicación (estado real)
+
+- El cliente Angular usa `@supabase/supabase-js` 2.119.0. La URL y la
+  publishable key se leen de `src/environments/environment.local.ts`, copia
+  ignorada de la plantilla `environment.local.example.ts` creada por
+  `npm run config:init`. No hay `.env` ni secretos en el navegador; sin esos
+  valores la interfaz muestra que la autenticación está pendiente de
+  configuración y no simula cuentas.
+- Flujo PKCE: `flowType: 'pkce'` y `detectSessionInUrl: false`. `/auth/callback`
+  admite tanto `code` (mediante `exchangeCodeForSession`) como `token_hash` con
+  su tipo OT (mediante `verifyOtp`), según entregue la plantilla de correo. El
+  enlace se retira de la barra de direcciones y no se registra en logs. El
+  destino de recuperación es
+  `/auth/actualizar-contrasena` y el de confirmación
+  `/auth/cuenta-confirmada`. Los `returnUrl` se limitan a rutas internas.
+- El servicio de sesión mantiene sesión, estado de inicialización y errores en
+  signals. Los guards esperan la restauración de sesión; el guard de `/admin`
+  espera además la consulta de rol. El callback de `onAuthStateChange` solo
+  actualiza ese estado ligero: la consulta a `user_roles` se programa con
+  `setTimeout(0)` fuera del callback, se cancela al cambiar de sesión o al
+  destruir el servicio y una respuesta obsoleta nunca sobrescribe el rol actual.
+- El rol admin se determina con un `select` de la propia fila en
+  `public.user_roles` (`user_id = auth.uid()` y `role = 'admin'`), nunca con
+  `user_metadata` ni `app_metadata`. Esa comprobación de la interfaz no sustituye
+  a RLS: una sesión sin rol recibe un 404/denegación en la API según la tabla.
+- El trigger `private.handle_new_user()` inserta solo `public.profiles(id)`; no
+  copia correos ni metadatos y no concede roles. Por eso el registro no solicita
+  nombre visible: `display_name` se podrá actualizar por el propio usuario
+  cuando exista esa pantalla, con la política `profiles_update_own`.
+- No se ha creado ningún usuario admin ni insertado ninguna fila en
+  `public.user_roles` en este bloque. El aprovisionamiento admin debe hacerlo
+  desde servidor una persona autorizada, cuando se decida.
+- No se han configurado Site URL, Redirect URLs, SMTP ni plantillas de correo en
+  la nube, y no se ha comprobado envío real de correos, GoTrue ni PostgREST. Las
+  pruebas unitarias usan mocks del SDK; no demuestran la integración remota. Los
+  límites de tasa y de envío del proveedor pueden afectar a la recuperación.
 
 ## Principios
 
@@ -146,7 +191,8 @@ Notas:
 ## Panel de administración (requisito confirmado, no construido)
 
 El producto tendrá un panel propio para que el profesor/admin cargue y mantenga
-el curso piloto. En este bloque **no** se crea UI ni se implementan subidas.
+el curso piloto. En este bloque se crea la ruta lazy protegida y una página base
+que no ofrece CRUD ni subidas.
 
 Alcance previsto:
 
@@ -247,9 +293,11 @@ La suite comprueba, entre otros casos:
 - grants preservados: `authenticated` no escribe pedidos, líneas ni derechos, y
   `service_role` conserva sus grants de servidor sobre `private` y comercio.
 
-**No se ha ejecutado `supabase db reset` ni `supabase db push` en este bloque.**
-Aplicar la migración a un proyecto remoto exige una decisión y revisión
-posteriores. No se deben usar credenciales reales en pruebas locales.
+**No se ha ejecutado `supabase db reset` ni `supabase db push`.** La aplicación
+remota autorizada se hizo pegando el contenido exacto de la migración en el
+editor SQL del panel y se verificó después por catálogo. Aplicar cualquier
+migración posterior a un proyecto remoto sigue exigiendo decisión y revisión. No
+se deben usar credenciales reales en pruebas locales.
 
 ## Fuera de alcance y pendientes
 
@@ -263,7 +311,8 @@ posteriores. No se deben usar credenciales reales en pruebas locales.
 - Retirada o archivo de un curso: el estado `archived` oculta el catálogo y las
   lecciones. Qué ocurre con derechos ya comprados, progreso y comunicaciones al
   alumno sigue pendiente de decisión; no se promete disponibilidad perpetua.
-- Panel `/admin`: requisito confirmado, implementación pendiente.
+- Panel `/admin`: requisito confirmado; existe la base de la ruta, pero el CRUD
+  editorial, los borradores, la vista previa y las subidas siguen pendientes.
 - Portada y presentación del profesor: la portada debe presentarlo, pero
   estructura, textos, nombre, foto, credenciales y testimonios quedan para la
   fase de diseño definitivo. No se inventan datos ni se construye la landing
