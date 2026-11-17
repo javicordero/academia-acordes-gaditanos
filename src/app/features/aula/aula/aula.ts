@@ -3,6 +3,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AulaData, AulaRepository } from '../aula-repository';
+import { VIDEO_DEMO_ENABLED, VideoPlaybackService } from '../video-playback';
 
 @Component({
   selector: 'app-aula',
@@ -14,8 +15,11 @@ export class Aula {
   private readonly route = inject(ActivatedRoute);
   readonly auth = inject(AuthService);
   private readonly repository = inject(AulaRepository);
+  private readonly playback = inject(VideoPlaybackService);
+  readonly videoDemoEnabled = inject(VIDEO_DEMO_ENABLED);
   private readonly injector = inject(Injector);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('aulaHeading');
+  private readonly videoFrame = viewChild<ElementRef<HTMLIFrameElement>>('videoFrame');
   private focusedLessonKey: string | null = null;
   private loadedKey: string | null = null;
   private readonly params = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
@@ -23,6 +27,9 @@ export class Aula {
   private destroyed = false;
   readonly state = signal<'loading' | 'unconfigured' | 'error' | 'denied' | 'ready'>('loading');
   readonly data = signal<AulaData | null>(null);
+  readonly videoSource = signal<import('../video-playback').PlaybackSource | null>(null);
+  readonly videoRequested = signal(false);
+  private readonly videoLessonId = computed(() => this.data()?.lesson.id ?? null);
   readonly saving = signal(false);
   readonly saveError = signal(false);
   readonly courseSlug = computed(() => this.params().get('courseSlug') ?? '');
@@ -60,6 +67,18 @@ export class Aula {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.request++; });
+    effect((onCleanup) => {
+      const id = this.videoLessonId();
+      let active = true;
+      onCleanup(() => { active = false; });
+      this.videoSource.set(null);
+      if (!id) return;
+      Promise.resolve(this.playback.sourceForLesson(id)).then(source => {
+        if (active) this.videoSource.set(source);
+      }).catch(() => {
+        if (active) this.videoSource.set(null);
+      });
+    });
     effect(() => {
       const status = this.auth.status();
       const key = this.loadKey();
@@ -68,12 +87,14 @@ export class Aula {
       // Auth aún no inicializada: nunca cachear un id nulo que después no se
       // actualizaría cuando llegue la sesión real.
       if (status === 'loading') {
+        this.videoRequested.set(false);
         this.loadedKey = null;
         this.data.set(null);
         this.state.set('loading');
         return;
       }
       if (status === 'unconfigured') {
+        this.videoRequested.set(false);
         this.loadedKey = null;
         this.data.set(null);
         this.state.set('unconfigured');
@@ -92,6 +113,7 @@ export class Aula {
       // Ruta o usuario distinto: retirar de inmediato el contenido autorizado
       // al usuario anterior antes de volver a preguntar a RLS.
       this.data.set(null);
+      this.videoRequested.set(false);
       this.saving.set(false);
       this.saveError.set(false);
       if (this.auth.error() && !session) { this.state.set('error'); return; }
@@ -116,6 +138,16 @@ export class Aula {
     if (key === this.focusedLessonKey) return;
     this.focusedLessonKey = key;
     afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  // El botón se sustituye por el iframe al cargar el vídeo: mover el foco al
+  // reproductor para que no se pierda en el DOM. Solo lo invoca el clic del
+  // usuario; ni un refresco de sesión ni el guardado de progreso lo llaman,
+  // de modo que no roban el foco. El aviso de terceros se mantiene visible.
+  loadVideo(): void {
+    if (this.videoRequested()) return;
+    this.videoRequested.set(true);
+    afterNextRender(() => this.videoFrame()?.nativeElement.focus(), { injector: this.injector });
   }
 
   // El reintento manual fuerza una recarga aunque la clave efectiva no cambie.

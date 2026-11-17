@@ -123,6 +123,35 @@ npm run config:init
   PKCE con `detectSessionInUrl: false`; `/auth/callback` gestiona tanto `code`
   como `token_hash` del correo, sin guardarlos en logs ni en la URL final.
 
+## Vídeo de prueba local
+
+`npm run config:init` crea también `src/environments/video-demo.local.ts`,
+ignorado por Git y vacío por defecto. Para una lección que ya devuelve RLS,
+edita el mapa con su ID de lección y la URL HTTPS de un vídeo propio no listado:
+
+```ts
+export const videoDemo: Readonly<Record<string, string>> = {
+  'ID-DE-LECCION': 'https://youtu.be/ID_DEL_VIDEO',
+};
+```
+
+Sustituye ambos marcadores; el ID de YouTube debe tener 11 caracteres. También
+se acepta una URL `youtube.com/watch?v=...`, `www.youtube.com/watch?v=...`,
+un embed de `www.youtube-nocookie.com` o el ID directamente. No subas el archivo
+local ni pongas secretos. Es configuración compilada y visible en el navegador,
+no almacenamiento privado. En desarrollo, después de cargar la lección
+autorizada, se avisa y YouTube se carga solo al pulsar el botón. Su enlace puede
+compartirse: **no protege contenido de pago**. En producción la demo está
+deshabilitada aunque el archivo tenga valores. No hay reproducción privada,
+firmas ni garantía de privacidad por usar `youtube-nocookie.com`.
+
+Antes del lanzamiento se evaluará Mux con pocos vídeos y condiciones PAYG
+vigentes; Bunny es una alternativa, no una elección definitiva. No se contrata
+ninguno ahora. Mux Free se está evaluando para un piloto de hasta 10 vídeos; no
+hay proveedor definitivo ni costes futuros garantizados. No se implanta Mux ni
+se contrata ningún servicio en la nube en esta fase. Velocidad, reanudación y bucle A–B quedan para evaluar según el proveedor;
+el progreso continúa siendo manual e independiente del visionado.
+
 Para probar la integración real, una persona autorizada debe configurar en el
 panel de Supabase (no se ha tocado la nube en este bloque):
 
@@ -265,8 +294,8 @@ Todavía no están implementadas ni configuradas:
   proyecto de desarrollo con autorización explícita.
 - Stripe Checkout y webhook firmado e idempotente; ninguna página de éxito
   concede acceso por sí sola. No hay precios ni claves reales.
-- Bunny Stream y emisión de tokens temporales desde servidor tras comprobar el
-  derecho de acceso.
+- Proveedor definitivo de vídeo privado y emisión de acceso temporal desde
+  servidor tras comprobar el derecho de acceso.
 - Panel `/admin`: reordenación, precios, vista previa, subida segura de
   vídeo/recursos y respuestas a preguntas (estas últimas junto al foro) siguen
   pendientes. La gestión de bloques y lecciones no tiene verificación E2E real.

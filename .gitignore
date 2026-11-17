@@ -18,6 +18,7 @@ yarn-error.log
 
 # Configuración local ignorada (se crea con npm run config:init)
 /src/environments/environment.local.ts
+/src/environments/video-demo.local.ts
 
 # Documentación privada (el repositorio será público)
 /docs/plan-maestro.md

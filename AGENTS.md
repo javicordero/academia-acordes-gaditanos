@@ -11,7 +11,7 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 - **Angular 22.2**, standalone, strict, routing, SCSS y npm. Node.js 24 LTS (`>=24.15.0`). No usar pnpm, yarn ni Corepack. No reinstalar ni cambiar el CLI global: el proyecto usa el `ng` local (`npm run ng` o `npx ng`).
 - **Supabase** para PostgreSQL, Auth, RLS y Edge Functions. Los permisos se comprueban en base de datos/servidor; Angular nunca es la única barrera. El `service_role` solo vive en servidor. Las migraciones se versionan en `supabase/migrations/` y las pruebas de RLS en `supabase/tests/`; no aplicar a una base remota sin revisión y permiso.
 - **Stripe**: el acceso se concede por un webhook firmado, verificado e idempotente. La página de éxito no concede acceso. Precios e importes se calculan en servidor.
-- **Bunny Stream**: los tokens de reproducción son temporales y se emiten en una Edge Function tras comprobar el derecho de acceso. Ninguna clave de firma en el cliente.
+- **Vídeo provisional**: YouTube solo para pruebas locales de desarrollo, nunca como protección de pago. Antes del lanzamiento evaluar Mux con pocos vídeos y condiciones PAYG; Bunny es alternativa, no elección cerrada. La futura reproducción privada exige autorización y credenciales exclusivamente en servidor; no contratar ahora.
 - **Sin SSR por ahora**: Angular CSR estático. No introducirlo sin una decisión SEO concreta.
 - Sin AdSense ni GTM en la academia. La analítica, si se añade, usa una propiedad propia y consentimiento.
 
@@ -24,7 +24,7 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 - No confiar en ocultar rutas de Angular: toda autorización real va en RLS/Edge Functions.
 - El esquema `private` no se expone a la API: IDs de Bunny, rutas de Storage, precios de proveedor, datos personales y eventos de comercio viven ahí. No guardar IDs de vídeo ni rutas de recursos en filas públicas.
 - Pedidos, precios, derechos de acceso (`entitlements`) y roles se escriben solo desde servidor. El rol admin no se puede autoasignar desde una cuenta de alumno.
-- Los archivos y vídeos serán privados; las URLs firmadas y los tokens se emiten en servidor tras comprobar el derecho. Ninguna clave de Bunny o Stripe en el cliente.
+- Los archivos y vídeos de pago serán privados; las URLs firmadas y los tokens se emiten en servidor tras comprobar el derecho. La demo YouTube es compartible y no protege contenido de pago. Ninguna clave de proveedor o Stripe en el cliente.
 - No prometer protección absoluta de vídeo, corrección automática de audio ni capacidades no verificadas.
 
 ## Producto
@@ -32,7 +32,7 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 - No inventar precios, duración del acceso, visibilidad del foro, política de reembolsos, número de cursos ni otras decisiones abiertas del plan.
 - Compra individual por curso, sin suscripción. El acceso no tiene caducidad programada, pero es revocable desde servidor (reembolso, contracargo u operación de soporte según la política que se apruebe). No prometer disponibilidad perpetua.
 - El progreso es manual. La lección de muestra se marca por lección; el resto exige derecho activo.
-- Panel de administración propio: requisito confirmado. Ruta `/admin` lazy en el futuro, con CRUD editorial de cursos, bloques y orden, lecciones, borradores y vista previa, metadatos de vídeo y documentos anexos. La subida a Bunny y los archivos privados van por servidor. No crear UI ni subidas reales hasta que toque.
+- Panel de administración propio: requisito confirmado. Ruta `/admin` lazy en el futuro, con CRUD editorial de cursos, bloques y orden, lecciones, borradores y vista previa, metadatos de vídeo y documentos anexos. La subida de vídeo y los archivos privados van por servidor. No crear UI ni subidas reales hasta que toque.
 - Foro y dudas por lección: fase posterior, misma cuenta. Las preguntas usarán un único servicio de conversación; no crear un sistema de comentarios paralelo.
 - La portada debe presentar al profesor, pero estructura, textos, nombre, foto, bio, credenciales y testimonios quedan para el diseño definitivo. No inventarlos ni construir la landing ahora; la raíz sigue provisional.
 - El estilo visual actual es provisional; no invertir en acabado hasta el rediseño, pero mantener accesibilidad, responsive y tokens separados de los estilos de componente.

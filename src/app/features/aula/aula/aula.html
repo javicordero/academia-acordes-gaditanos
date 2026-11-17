@@ -36,7 +36,23 @@
             <h2>{{ aula.lesson.title }}</h2>
             @if (aula.lesson.summary) { <p class="text">{{ aula.lesson.summary }}</p> }
             <h3>Vídeo</h3>
-            <p>Reproducción pendiente de integrar.</p>
+            @if (videoSource(); as video) {
+              <p>{{ video.notice }}</p>
+              @if (videoRequested()) {
+                <iframe #videoFrame class="video" [src]="video.embedUrl" [title]="'Vídeo de prueba: ' + aula.lesson.title"
+                  tabindex="0" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"
+                  sandbox="allow-scripts allow-same-origin allow-presentation"
+                  allow="fullscreen; encrypted-media" allowfullscreen></iframe>
+              } @else {
+                <button type="button" (click)="loadVideo()">Cargar vídeo de prueba en YouTube</button>
+              }
+            } @else {
+              @if (videoDemoEnabled) {
+                <p>No hay vídeo de prueba configurado para esta lección en desarrollo; la reproducción definitiva está pendiente de integrar.</p>
+              } @else {
+                <p>La demo de vídeo no está disponible en producción; la reproducción definitiva está pendiente de integrar.</p>
+              }
+            }
             @if (aula.lesson.content_md) {
               <h3>Contenido</h3>
               <p class="text">{{ aula.lesson.content_md }}</p>

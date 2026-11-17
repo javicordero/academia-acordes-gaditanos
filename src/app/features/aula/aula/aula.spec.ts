@@ -7,6 +7,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { AulaData, AulaRepository } from '../aula-repository';
 import { AULA_ROUTES } from '../aula.routes';
 import { Aula } from './aula';
+import { VIDEO_DEMO_CONFIG, VIDEO_DEMO_ENABLED } from '../video-playback';
 
 const lesson = { id: 'l', section_id: 's', slug: 'uno', title: 'Lección', summary: null, content_md: '<script>texto</script>' };
 const data: AulaData = { course: { id: 'c', title: 'Curso' }, lesson, sections: [{id: 's', title: 'Bloque'}], lessons: [lesson], canTrack: true, completed: false };
@@ -46,6 +47,125 @@ describe('Aula', () => {
     await component.toggleProgress();
     expect(save).toHaveBeenCalledWith('u', 'l', true);
     expect(component.data()?.completed).toBe(true);
+  });
+
+  it('solo carga YouTube tras acción y descarta el reproductor al cambiar de lección', async () => {
+    setup(vi.fn((_course: string, slug: string) =>
+      Promise.resolve({ ...twoLessons, lesson: slug === 'dos' ? secondLesson : firstLesson })));
+    TestBed.configureTestingModule({ providers: [
+      { provide: VIDEO_DEMO_ENABLED, useValue: true },
+      { provide: VIDEO_DEMO_CONFIG, useValue: { l1: 'Abc_123-xyz' } },
+    ] });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('iframe, img')).toBeNull();
+    expect(harness.routeNativeElement?.textContent).toContain('el enlace puede compartirse');
+    const button = [...harness.routeNativeElement!.querySelectorAll('button')]
+      .find(b => b.textContent?.includes('Cargar vídeo'))!;
+    button.click();
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('iframe')?.getAttribute('src'))
+      .toBe('https://www.youtube-nocookie.com/embed/Abc_123-xyz');
+    await harness.navigateByUrl('/aula/curso/dos', Aula);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('iframe')).toBeNull();
+  });
+
+  it('mueve el foco al reproductor y conserva el aviso al cargar el vídeo', async () => {
+    setup(vi.fn().mockResolvedValue(data));
+    TestBed.configureTestingModule({ providers: [
+      { provide: VIDEO_DEMO_ENABLED, useValue: true },
+      { provide: VIDEO_DEMO_CONFIG, useValue: { l: 'Abc_123-xyz' } },
+    ] });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    const button = [...harness.routeNativeElement!.querySelectorAll('button')]
+      .find(b => b.textContent?.includes('Cargar vídeo'))!;
+    button.focus();
+    expect(document.activeElement).toBe(button);
+
+    button.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    const iframe = harness.routeNativeElement?.querySelector<HTMLIFrameElement>('iframe')!;
+    expect(iframe).not.toBeNull();
+    expect(document.activeElement).toBe(iframe);
+    expect(iframe.getAttribute('tabindex')).toBe('0');
+    expect(iframe.getAttribute('title')).toContain('Vídeo de prueba');
+    expect(harness.routeNativeElement?.textContent).toContain('el enlace puede compartirse');
+  });
+
+  it('no roba el foco del vídeo al refrescar la sesión ni al guardar progreso', async () => {
+    const load = vi.fn().mockResolvedValue(data);
+    const { session } = setup(load);
+    TestBed.configureTestingModule({ providers: [
+      { provide: VIDEO_DEMO_ENABLED, useValue: true },
+      { provide: VIDEO_DEMO_CONFIG, useValue: { l: 'Abc_123-xyz' } },
+    ] });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    const loadVideoButton = [...harness.routeNativeElement!.querySelectorAll('button')]
+      .find(b => b.textContent?.includes('Cargar vídeo'))!;
+    loadVideoButton.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const iframe = harness.routeNativeElement?.querySelector('iframe')!;
+    expect(document.activeElement).toBe(iframe);
+
+    // TOKEN_REFRESHED del mismo usuario: ni recarga ni mueve el foco.
+    session.set({ user: { id: 'u' } });
+    harness.detectChanges();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(iframe);
+
+    // Guardar progreso tampoco mueve el foco del reproductor.
+    harness.routeNativeElement?.querySelector<HTMLButtonElement>('button')!.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(document.activeElement).toBe(iframe);
+  });
+
+  it('en desarrollo sin configuración muestra un mensaje honesto, no el de producción', async () => {
+    setup(vi.fn().mockResolvedValue(data));
+    TestBed.configureTestingModule({ providers: [
+      { provide: VIDEO_DEMO_ENABLED, useValue: true },
+      { provide: VIDEO_DEMO_CONFIG, useValue: {} },
+    ] });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    const text = harness.routeNativeElement?.textContent ?? '';
+    expect(text).toContain('vídeo de prueba configurado para esta lección en desarrollo');
+    expect(text).not.toContain('no está disponible en producción');
+    expect(harness.routeNativeElement?.querySelector('iframe')).toBeNull();
+  });
+
+  it('en producción muestra que la demo no está disponible aunque haya configuración', async () => {
+    setup(vi.fn().mockResolvedValue(data));
+    TestBed.configureTestingModule({ providers: [
+      { provide: VIDEO_DEMO_ENABLED, useValue: false },
+      { provide: VIDEO_DEMO_CONFIG, useValue: { l: 'Abc_123-xyz' } },
+    ] });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    const text = harness.routeNativeElement?.textContent ?? '';
+    expect(text).toContain('no está disponible en producción');
+    expect(harness.routeNativeElement?.querySelector('iframe')).toBeNull();
   });
 
   it('no permite progreso anónimo y muestra error al fallar el guardado', async () => {

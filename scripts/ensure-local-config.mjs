@@ -19,3 +19,11 @@ try {
       'Rellena la URL y la publishable key de Supabase para activar Auth.',
   );
 }
+
+const videoTarget = join(environmentsDirectory, 'video-demo.local.ts');
+try {
+  await access(videoTarget, constants.F_OK);
+} catch {
+  await copyFile(join(environmentsDirectory, 'video-demo.local.example.ts'), videoTarget);
+  console.log('[config] Creada configuración local vacía de vídeos de prueba.');
+}

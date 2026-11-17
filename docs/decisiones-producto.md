@@ -9,6 +9,14 @@ temario o biografía.
 
 ## Confirmado por el usuario
 
+- **Vídeo provisional:** desarrollar ahora con YouTube solo como demo local, sin
+  contratar servicios, pagar ni aportar tarjeta. Un enlace no listado puede
+  compartirse y no protege contenidos de pago. Antes de lanzar, evaluar Mux con
+  pocos vídeos y las condiciones PAYG vigentes; Bunny sigue como alternativa,
+  sin elección definitiva ni garantía de gratuidad o condiciones futuras. Mux
+  Free se está evaluando para un piloto de hasta 10 vídeos; no hay proveedor
+  definitivo ni costes futuros garantizados. No se implanta Mux ni se contrata
+  ningún servicio en la nube ahora.
 - **Validación manual:** el usuario ha probado la creación de un curso y de
   bloques, y la estructura inicial resulta funcional para ese uso manual.
   Esta comprobación se refiere a esa operación concreta de alta de curso y

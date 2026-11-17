@@ -66,6 +66,10 @@ cancionero no se modifica.
 
 ## Aula (estado real)
 
+- El reproductor de prueba usa un contrato inyectable y configuración local
+  ignorada, solo en desarrollo. No almacena IDs en `public.lessons`. YouTube
+  es externo y compartible, no protege el pago; no se carga antes de pulsar.
+  La futura fuente privada requiere autorización y firma en servidor.
 - Ruta lazy `/aula/:courseSlug/:lessonSlug`, sin guard global de sesión. La
   lección de muestra se abre sin sesión; el resto depende de lo que RLS devuelva.
   La ruta de Angular no garantiza compra ni acceso: la barrera es RLS.
@@ -325,7 +329,7 @@ se deben usar credenciales reales en pruebas locales.
   cuenta; no hay tablas ni sistema de comentarios paralelo.
 - Packs, cupones, cuestionario inicial, rutas de aprendizaje, eventos y
   ejercicios: sin tablas en esta migración.
-- Reproductor, capítulos, reanudación y emisión de tokens de Bunny: pendientes.
+- Reproducción privada, capítulos, reanudación y emisión de tokens: pendientes.
 - Stripe Checkout, webhook firmado, conciliación, devoluciones e impuestos:
   pendientes; la política de reembolsos y retirada sigue abierta.
 - Retirada o archivo de un curso: el estado `archived` oculta el catálogo y las
