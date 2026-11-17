@@ -16,8 +16,8 @@ cancionero no se modifica.
 - La migración se ha aplicado una sola vez, con autorización explícita del
   usuario, al proyecto Supabase de desarrollo `academia-acordes-gaditanos-dev`
   mediante el editor SQL del panel. No se creó ningún proyecto nuevo, no se
-  cargaron datos semilla y no hay Auth configurado, pagos, vídeo ni panel admin
-  activos. La comprobación remota fue por consultas al catálogo (tablas, RLS,
+  cargaron datos semilla ni se activaron pagos o vídeo. La comprobación inicial
+  remota fue por consultas al catálogo (tablas, RLS,
   políticas, grants y funciones), no con la suite de pruebas.
 - La migración se ha ejecutado y la suite se ha pasado en PostgreSQL 17 local con
   un sustituto mínimo de `auth.uid()` y de los roles de Supabase. Esa prueba
@@ -60,10 +60,9 @@ cancionero no se modifica.
 - No se ha creado ningún usuario admin ni insertado ninguna fila en
   `public.user_roles` en este bloque. El aprovisionamiento admin debe hacerlo
   desde servidor una persona autorizada, cuando se decida.
-- No se han configurado Site URL, Redirect URLs, SMTP ni plantillas de correo en
-  la nube, y no se ha comprobado envío real de correos, GoTrue ni PostgREST. Las
-  pruebas unitarias usan mocks del SDK; no demuestran la integración remota. Los
-  límites de tasa y de envío del proveedor pueden afectar a la recuperación.
+- Se han probado registro, confirmación, acceso y panel de cursos con una cuenta
+  real. Las pruebas unitarias usan mocks del SDK y no demuestran la integración
+  remota de la nueva estructura. Los límites de envío pueden afectar al correo.
 
 ## Principios
 
@@ -190,15 +189,18 @@ Notas:
 
 ## Panel de administración
 
-La ruta lazy protegida permite listar, crear, editar, publicar y archivar cursos
-mediante RLS. La prueba de extremo a extremo con una cuenta admin real sigue
-pendiente. No hay borrado de cursos ni gestión de precios o subidas.
+La ruta lazy protegida permite gestionar cursos, bloques y lecciones mediante
+RLS. Los nuevos elementos se añaden al final; la reordenación está pendiente y
+no se ofrece borrado destructivo. Las lecciones tienen estado de publicación;
+los bloques de cursos publicados son visibles. El contenido Markdown se guarda
+como texto. La estructura solo se ha probado con mocks, no en PostgREST real.
+No hay gestión de precios ni subidas.
 
 Alcance previsto:
 
 - Ruta Angular `/admin` con carga diferida (lazy), separada del aula.
-- Gestión editorial de bloques/módulos, orden, lecciones y marca de muestra
-  gratuita: pendiente.
+- Reordenación editorial de bloques y lecciones: pendiente; requiere una operación
+  atómica en servidor por las restricciones de unicidad de posición.
 - Vista previa de borradores antes de publicar. Los borradores no son públicos.
 - Metadatos de vídeo (ID de Bunny, duración, estado) y documentos anexos.
 - Respuestas a preguntas de alumnos, **unificadas con el foro** cuando se
@@ -311,7 +313,7 @@ se deben usar credenciales reales en pruebas locales.
 - Retirada o archivo de un curso: el estado `archived` oculta el catálogo y las
   lecciones. Qué ocurre con derechos ya comprados, progreso y comunicaciones al
   alumno sigue pendiente de decisión; no se promete disponibilidad perpetua.
-- Panel `/admin`: gestión de cursos implementada; bloques, lecciones, precios,
+- Panel `/admin`: cursos, bloques y lecciones implementados; orden, precios,
   vista previa, subidas y verificación E2E con admin real siguen pendientes.
 - Portada y presentación del profesor: la portada debe presentarlo, pero
   estructura, textos, nombre, foto, credenciales y testimonios quedan para la

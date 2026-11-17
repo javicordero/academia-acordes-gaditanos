@@ -1,11 +1,13 @@
 <section class="page">
   <p class="eyebrow">Administración</p>
   <h1>Panel de administración</h1>
-  @if (editor(); as selected) {
+  @if (structure(); as selectedCourse) {
+    <app-structure [course]="selectedCourse" (closed)="closeStructure()" />
+  } @else if (editor(); as selected) {
     <app-course-editor [course]="selected === 'new' ? null : selected" (cancelled)="closeEditor()" (saved)="saved()" />
   } @else {
     <h2 #coursesHeading tabindex="-1">Cursos</h2>
-    <p>Gestiona los datos editoriales de los cursos. Los bloques y las lecciones se incorporarán más adelante.</p>
+    <p>Gestiona los datos editoriales y la estructura de los cursos.</p>
     <button class="button" type="button" (click)="editor.set('new')">Crear curso</button>
     @if (loading()) {
       <p role="status">Cargando cursos…</p>
@@ -20,6 +22,7 @@
           <li>
             <strong>{{ course.title }}</strong> — {{ course.status === 'draft' ? 'Borrador' : course.status === 'published' ? 'Publicado' : 'Archivado' }}
             <button type="button" (click)="editor.set(course)" [attr.aria-label]="'Editar ' + course.title">Editar</button>
+            <button type="button" (click)="structure.set(course)" [attr.aria-label]="'Estructura de ' + course.title">Estructura</button>
           </li>
         }
       </ul>

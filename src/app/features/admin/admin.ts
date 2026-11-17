@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, inject, signal, viewChild } from '@angular/core';
 import { Course, CoursesRepository } from './courses-repository';
 import { CourseEditor } from './course-editor/course-editor';
+import { Structure } from './structure/structure';
 
 @Component({
   selector: 'app-admin',
-  imports: [CourseEditor],
+  imports: [CourseEditor, Structure],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './admin.html',
 })
@@ -16,6 +17,7 @@ export class Admin {
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly editor = signal<Course | 'new' | null>(null);
+  readonly structure = signal<Course | null>(null);
   private loadVersion = 0;
 
   constructor() { void this.load(); }
@@ -40,4 +42,9 @@ export class Admin {
   }
 
   saved(): void { this.closeEditor(); void this.load(); }
+
+  closeStructure(): void {
+    this.structure.set(null);
+    afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
+  }
 }

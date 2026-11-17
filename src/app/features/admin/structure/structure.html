@@ -1,0 +1,65 @@
+<h2 #heading tabindex="-1">Estructura: {{ course().title }}</h2>
+<button type="button" [disabled]="saving()" (click)="closed.emit()">Volver a cursos</button>
+<p>Los nuevos bloques y lecciones se añaden al final. La reorganización queda pendiente.</p>
+<p>Los bloques son visibles en cursos publicados. Las lecciones se pueden mantener como borrador; no se eliminan desde este panel.</p>
+@if (error()) { <p class="feedback feedback--error" role="alert">{{ error() }}</p> }
+@if (loading()) {
+  <p role="status">Cargando estructura…</p>
+} @else if (loadFailed()) {
+  <button type="button" (click)="load()">Reintentar</button>
+} @else {
+  <button type="button" [disabled]="saving()" (click)="load()">Recargar estructura</button>
+  <button type="button" [disabled]="saving()" (click)="editSection()">Añadir bloque</button>
+  @if (sectionEditor()) {
+    <form (ngSubmit)="saveSection()" novalidate aria-labelledby="section-editor-heading">
+      <h3 id="section-editor-heading">{{ sectionEditor() === 'new' ? 'Nuevo bloque' : 'Editar bloque' }}</h3>
+      <label for="section-title">Título del bloque</label>
+      <input #sectionInput id="section-title" name="sectionTitle" [(ngModel)]="sectionTitle" (ngModelChange)="clearField('sectionTitle')" required maxlength="120" [attr.aria-invalid]="invalid().sectionTitle" [attr.aria-describedby]="invalid().sectionTitle ? 'section-title-error' : null">
+      @if (invalid().sectionTitle) { <p id="section-title-error" role="alert">El título debe tener entre 1 y 120 caracteres.</p> }
+      <label for="section-summary">Resumen del bloque</label>
+      <textarea id="section-summary" name="sectionSummary" [(ngModel)]="sectionSummary"></textarea>
+      <button type="submit" [disabled]="saving()">Guardar bloque</button>
+      <button type="button" [disabled]="saving()" (click)="cancelEditor()">Cancelar</button>
+    </form>
+  }
+  @if (lessonEditor(); as editing) {
+    <form (ngSubmit)="saveLesson()" novalidate aria-labelledby="lesson-editor-heading">
+      <h3 id="lesson-editor-heading">{{ editing.lesson ? 'Editar lección' : 'Nueva lección' }} · {{ editing.section.title }}</h3>
+      <label for="lesson-title">Título de la lección</label>
+      <input #lessonInput id="lesson-title" name="lessonTitle" [(ngModel)]="lessonTitle" (ngModelChange)="clearField('lessonTitle')" required maxlength="160" [attr.aria-invalid]="invalid().lessonTitle" [attr.aria-describedby]="invalid().lessonTitle ? 'lesson-title-error' : null">
+      @if (invalid().lessonTitle) { <p id="lesson-title-error" role="alert">El título debe tener entre 1 y 160 caracteres.</p> }
+      <label for="lesson-slug">Identificador (minúsculas, números y guiones)</label>
+      <input id="lesson-slug" name="slug" [(ngModel)]="slug" (ngModelChange)="clearField('slug')" required [attr.aria-invalid]="invalid().slug" [attr.aria-describedby]="invalid().slug ? 'lesson-slug-error' : null">
+      @if (invalid().slug) { <p id="lesson-slug-error" role="alert">Usa minúsculas sin tildes, números y guiones intermedios.</p> }
+      <label for="lesson-summary">Resumen de la lección</label>
+      <textarea id="lesson-summary" name="lessonSummary" [(ngModel)]="lessonSummary"></textarea>
+      <label for="lesson-content">Contenido Markdown (texto)</label>
+      <textarea id="lesson-content" name="content" [(ngModel)]="content"></textarea>
+      <label for="lesson-duration">Duración en segundos (opcional)</label>
+      <input id="lesson-duration" name="duration" type="text" inputmode="numeric" [(ngModel)]="duration" (ngModelChange)="clearField('duration')" [attr.aria-invalid]="invalid().duration" [attr.aria-describedby]="invalid().duration ? 'lesson-duration-error' : null">
+      @if (invalid().duration) { <p id="lesson-duration-error" role="alert">Introduce un entero no negativo de hasta 2147483647 segundos.</p> }
+      <label><input name="preview" type="checkbox" [(ngModel)]="preview"> Lección de muestra gratuita</label>
+      <label><input name="published" type="checkbox" [(ngModel)]="published"> Lección publicada</label>
+      <button type="submit" [disabled]="saving()">Guardar lección</button>
+      <button type="button" [disabled]="saving()" (click)="cancelEditor()">Cancelar</button>
+    </form>
+  }
+  @if (!sections().length) { <p>No hay bloques en este curso.</p> }
+  @for (section of sections(); track section.id) {
+    <section>
+      <h3>{{ section.title }}</h3>
+      @if (section.summary) { <p>{{ section.summary }}</p> }
+      <button type="button" [disabled]="saving()" (click)="editSection(section)" [attr.aria-label]="'Editar bloque ' + section.title">Editar bloque</button>
+      <button type="button" [disabled]="saving()" (click)="editLesson(section)" [attr.aria-label]="'Añadir lección a ' + section.title">Añadir lección</button>
+      <ul>
+        @for (lesson of lessons(); track lesson.id) {
+          @if (lesson.section_id === section.id) {
+            <li>{{ lesson.title }} — {{ lesson.is_published ? 'Publicada' : 'Borrador' }}{{ lesson.is_free_preview ? ' · Muestra' : '' }}
+              <button type="button" [disabled]="saving()" (click)="editLesson(section, lesson)" [attr.aria-label]="'Editar lección ' + lesson.title">Editar</button>
+            </li>
+          }
+        }
+      </ul>
+    </section>
+  }
+}

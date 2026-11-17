@@ -167,8 +167,8 @@ RLS y servidor siguen decidiendo.
   lecciones, muestra gratuita, precios, pedidos, derechos de acceso y progreso.
 - RLS inicial y pruebas de autorización en `supabase/tests/`. La migración
   inicial sí se ha aplicado, con autorización explícita, al proyecto de
-  desarrollo `academia-acordes-gaditanos-dev`, verificada por catálogo; Auth,
-  datos semilla y pagos siguen pendientes.
+   desarrollo `academia-acordes-gaditanos-dev`, verificada por catálogo; pagos y
+   datos semilla siguen pendientes.
 - Pruebas del shell y de las rutas (render, títulos y 404), además de pruebas
   unitarias con mocks del SDK para sesión, roles, guards, formularios, callback
   PKCE y seguridad de `returnUrl`.
@@ -189,7 +189,7 @@ El detalle está en [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
 - Los IDs de vídeo, rutas de recursos, precios de proveedor y eventos de comercio
   viven en el esquema `private`, no expuesto a la API.
 - El rol admin se guarda en una tabla server-only y no se puede autoasignar.
-- El panel editorial `/admin` dispone de gestión de cursos mediante RLS, sin
+- El panel editorial `/admin` dispone de gestión de cursos, bloques y lecciones mediante RLS, sin
   subidas ni datos de ejemplo. El foro y las dudas por lección se posponen y compartirán un único
   servicio de conversación, no comentarios paralelos.
 - El registro no pide nombre visible: el trigger actual crea `public.profiles`
@@ -201,17 +201,16 @@ El detalle está en [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
 
 ## Panel de administración
 
-La ruta `/admin` es lazy y exige sesión y rol `admin`. Permite listar, crear,
-editar, publicar y archivar cursos mediante el cliente Supabase y RLS; no borra
-cursos ni gestiona precios. Bloques, lecciones, vista previa y subidas quedan
-pendientes. No se incluyen datos de ejemplo ni credenciales de servidor.
+La ruta `/admin` es lazy y exige sesión y rol `admin`. Permite gestionar cursos,
+bloques y lecciones mediante el cliente Supabase y RLS. Las lecciones pueden
+guardarse como borrador o publicarse y marcarse como muestra. Los elementos se
+añaden al final: reordenar está pendiente y no se ofrecen borrados destructivos.
+Los bloques de un curso publicado son visibles. No gestiona precios, vista previa
+ni subidas. El Markdown se guarda como texto, sin representación HTML.
 
-La integración aún no se ha verificado de extremo a extremo con una cuenta
-administradora real; el registro se está diagnosticando por separado.
-
-No se ha creado ninguna cuenta admin ni concedido ningún rol en esta tarea. El
-siguiente paso, cuando se decida, es aprovisionar el rol desde servidor por una
-persona autorizada; la aplicación no permite autoasignárselo.
+El acceso y la gestión de cursos se han probado con una cuenta administradora
+real; la nueva gestión de estructura solo se ha probado localmente con mocks.
+La aplicación no permite autoasignar el rol admin.
 
 ## Estructura
 
@@ -252,10 +251,8 @@ AGENTS.md                             # instrucciones para agentes
 
 Todavía no están implementadas ni configuradas:
 
-- Auth real en la nube: hace falta la configuración local y, por parte de una
-  persona autorizada, Site URL, Redirect URLs, proveedor de correo y plantillas.
-  El cliente Angular ya está implementado y probado solo con mocks; no se ha
-  comprobado el envío de correos ni PostgREST real.
+- La integración de estructura no se ha comprobado en PostgREST real; las
+  pruebas automatizadas del cliente usan mocks.
 - Edge Functions, datos semilla y despliegue del frontend. El esquema y la RLS
   inicial están versionados y la migración inicial se aplicó una vez al
   proyecto de desarrollo con autorización explícita.
@@ -263,9 +260,9 @@ Todavía no están implementadas ni configuradas:
   concede acceso por sí sola. No hay precios ni claves reales.
 - Bunny Stream y emisión de tokens temporales desde servidor tras comprobar el
   derecho de acceso.
-- Panel `/admin`: bloques, lecciones, precios, vista previa, subida segura de
+- Panel `/admin`: reordenación, precios, vista previa, subida segura de
   vídeo/recursos y respuestas a preguntas (estas últimas junto al foro) siguen
-  pendientes. La gestión de cursos está implementada sin verificación E2E real.
+  pendientes. La gestión de bloques y lecciones no tiene verificación E2E real.
 - Catálogo real de cursos, lecciones, materiales, progreso y ejercicios.
 - Foro, dudas por lección, moderación y notificaciones.
 - Portada con presentación del profesor; estructura y contenido pendientes de la
