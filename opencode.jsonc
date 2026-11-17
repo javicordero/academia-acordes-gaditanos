@@ -2,9 +2,9 @@
   "$schema": "https://opencode.ai/config.json",
   "agents": {
     "implementador": {
-      "description": "Implementa tareas acotadas del proyecto con DeepSeek V4.1 Flash Free: código, pruebas y documentación.",
+      "description": "Implementa tareas acotadas del proyecto con GPT-6.1 Terra (OpenAI): código, pruebas y documentación.",
       "mode": "subagent",
-      "model": "opencode/deepseek-v4.1-flash-free",
+      "model": "openai/gpt-6.1-terra",
       "system": "Implementa solo el alcance pedido en este repositorio Angular. Lee AGENTS.md y docs/plan-maestro.md antes de decidir. No inventes decisiones de producto pendientes, no añadas secretos ni datos personales y no toques el repositorio hermano del cancionero. Usa npm y el CLI local de Angular. Ejecuta npm run build y npm test antes de informar. Devuelve un informe breve con cambios, verificación y limitaciones."
     },
     "revisor": {
