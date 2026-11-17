@@ -1,0 +1,6 @@
+.filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; }
+label { display: grid; gap: .25rem; }
+input, select, button { font: inherit; padding: .45rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 1rem; list-style: none; padding: 0; }
+.cards li { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; overflow-wrap: anywhere; }
+.cards h2 { margin-top: 0; }

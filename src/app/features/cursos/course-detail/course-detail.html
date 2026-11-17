@@ -1,0 +1,31 @@
+<p><a routerLink="/cursos">Volver a cursos</a></p>
+@switch (state()) {
+  @case ('loading') { <p role="status">Cargando curso…</p> }
+  @case ('unavailable') { <p>La ficha necesita configurar la conexión con Supabase.</p> }
+  @case ('error') { <p role="alert">No se ha podido cargar el curso.</p><button type="button" (click)="load()">Reintentar</button> }
+  @case ('missing') { <h1>Curso no encontrado</h1><p>No hay un curso publicado con esta dirección.</p> }
+  @case ('ready') {
+    @if (detail(); as data) {
+      <h1>{{ data.course.title }}</h1>
+      <p>Nivel: {{ levels[data.course.level] }}</p>
+      @if (data.course.summary) { <p>{{ data.course.summary }}</p> }
+      @if (data.course.description) { <p class="description">{{ data.course.description }}</p> }
+      <p>La compra y el aula todavía no están disponibles.</p>
+      <h2>Bloques y lecciones accesibles</h2>
+      <p>Solo se muestran las lecciones publicadas que permite consultar tu acceso; esta lista puede no ser el programa completo.</p>
+      @for (section of data.sections; track section.id) {
+        <section>
+          <h3>{{ section.title }}</h3>
+          @if (section.summary) { <p>{{ section.summary }}</p> }
+          <ul>
+            @for (lesson of data.lessons; track lesson.id) {
+              @if (lesson.section_id === section.id) {
+                <li>{{ lesson.title }} @if (lesson.is_free_preview) { <span>(muestra)</span> }</li>
+              }
+            }
+          </ul>
+        </section>
+      }
+    }
+  }
+}

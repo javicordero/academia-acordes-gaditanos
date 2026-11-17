@@ -5,8 +5,12 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { Session } from '@supabase/supabase-js';
 import { routes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
+import { PublicCoursesRepository } from './features/cursos/public-courses-repository';
 
 const session = { user: { id: 'user-1' } } as unknown as Session;
+
+// Dato ficticio de prueba: no corresponde a ningún curso real.
+const testSlug = 'curso-de-prueba';
 
 describe('Routes', () => {
   let harness: RouterTestingHarness;
@@ -22,6 +26,29 @@ describe('Routes', () => {
             whenRoleResolved: () => Promise.resolve(),
             session: () => session,
             isAdmin: () => false,
+          },
+        },
+        {
+          provide: PublicCoursesRepository,
+          useValue: {
+            list: () => Promise.resolve([]),
+            detail: (slug: string) =>
+              Promise.resolve(
+                slug === testSlug
+                  ? {
+                      course: {
+                        id: 'id-de-prueba',
+                        slug: testSlug,
+                        title: 'Curso de prueba',
+                        summary: null,
+                        description: null,
+                        level: 'iniciacion',
+                      },
+                      sections: [],
+                      lessons: [],
+                    }
+                  : null,
+              ),
           },
         },
       ],
@@ -47,6 +74,18 @@ describe('Routes', () => {
 
     expect(h1?.textContent?.trim()).toBe(heading);
     expect(TestBed.inject(Title).getTitle()).toBe(title);
+  });
+
+  it('carga la ficha en /cursos/:slug con su título', async () => {
+    await harness.navigateByUrl(`/cursos/${testSlug}`);
+    await harness.fixture.whenStable();
+
+    const h1 = harness.routeNativeElement?.querySelector('h1');
+
+    expect(h1?.textContent?.trim()).toBe('Curso de prueba');
+    expect(TestBed.inject(Title).getTitle()).toBe(
+      'Curso · Academia Acordes Gaditanos',
+    );
   });
 
   it('muestra la página 404 para una ruta desconocida', async () => {

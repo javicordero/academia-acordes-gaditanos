@@ -14,8 +14,8 @@ export const routes: Routes = [
   },
   {
     path: 'cursos',
-    title: 'Cursos · Academia Acordes Gaditanos',
-    loadComponent: () => import('./features/cursos/cursos').then((m) => m.Cursos),
+    loadChildren: () =>
+      import('./features/cursos/cursos.routes').then((m) => m.cursosRoutes),
   },
   {
     path: 'mis-cursos',
