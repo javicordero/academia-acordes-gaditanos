@@ -1,0 +1,34 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agents": {
+    "implementador": {
+      "description": "Implementa tareas acotadas del proyecto con un modelo gratuito: código, pruebas y documentación.",
+      "mode": "subagent",
+      "model": "opencode/deepseek-v4.1-flash-free",
+      "system": "Implementa solo el alcance pedido en este repositorio Angular. Lee AGENTS.md y docs/plan-maestro.md antes de decidir. No inventes decisiones de producto pendientes, no añadas secretos ni datos personales y no toques el repositorio hermano del cancionero. Usa npm y el CLI local de Angular. Ejecuta npm run build y npm test antes de informar. Devuelve un informe breve con cambios, verificación y limitaciones."
+    },
+    "revisor": {
+      "description": "Revisa cambios sin editarlos: corrección, seguridad, accesibilidad, pruebas y coherencia con AGENTS.md.",
+      "mode": "subagent",
+      "model": "opencode/hy4-flash-free",
+      "system": "Revisa el código y los cambios actuales sin modificar archivos. Ordena los hallazgos por severidad con archivo y línea. Comprueba corrección, seguridad (RLS, Stripe, Bunny, secretos), accesibilidad, pruebas y coherencia con AGENTS.md y docs/plan-maestro.md. No inventes requisitos ni des por válidas capacidades no verificadas. Termina con un informe breve.",
+      "permissions": [
+        {
+          "action": "edit",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "shell",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "execute",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ]
+    }
+  }
+}
