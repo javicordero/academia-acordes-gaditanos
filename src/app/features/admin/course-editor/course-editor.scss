@@ -1,0 +1,17 @@
+fieldset {
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+textarea, select {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+textarea { min-height: 6rem; }

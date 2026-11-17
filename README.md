@@ -3,7 +3,7 @@
 Base técnica de la academia online de guitarra para el Carnaval de Cádiz. Esta
 fase levanta el proyecto Angular y su shell navegable, con **autenticación real
 de Supabase** (registro, acceso, salida, confirmación y recuperación por correo)
-y una base honesta de `/admin`. Incluye el modelo de datos y permisos inicial,
+y gestión editorial de cursos en `/admin`. Incluye el modelo de datos y permisos inicial,
 versionado y probado en local. La migración inicial se aplicó al proyecto de
 desarrollo con autorización explícita; siguen pendientes Auth configurado en la
 nube, datos semilla, pagos, vídeo y comunidad.
@@ -144,7 +144,7 @@ panel de Supabase (no se ha tocado la nube en este bloque):
 | `/auth/actualizar-contrasena` | Establecer la nueva contraseña con sesión vigente. |
 | `/auth/cuenta-confirmada` | Fin del enlace de confirmación. |
 | `/sin-acceso` | Destino para sesiones sin rol admin. |
-| `/admin` | Base del panel; sin CRUD todavía. |
+| `/admin` | Listar, crear, editar, publicar y archivar cursos. |
 
 `/mis-cursos` y `/auth/actualizar-contrasena` exigen sesión; `/admin` exige
 además el rol `admin` leído de una consulta propia a `public.user_roles`, nunca
@@ -162,7 +162,7 @@ RLS y servidor siguen decidiendo.
   publishable key locales.
 - Registro, acceso, salida, confirmación por correo y recuperación de
   contraseña con Supabase Auth; cliente singleton y estado de sesión con
-  signals; guards de sesión y admin; base de `/admin` sin CRUD.
+  signals; guards de sesión y admin; gestión de cursos en `/admin`.
 - Modelo SQL inicial de la academia en `supabase/migrations/`: cursos, bloques,
   lecciones, muestra gratuita, precios, pedidos, derechos de acceso y progreso.
 - RLS inicial y pruebas de autorización en `supabase/tests/`. La migración
@@ -189,9 +189,8 @@ El detalle está en [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
 - Los IDs de vídeo, rutas de recursos, precios de proveedor y eventos de comercio
   viven en el esquema `private`, no expuesto a la API.
 - El rol admin se guarda en una tabla server-only y no se puede autoasignar.
-- El panel editorial `/admin` es un requisito confirmado. Ahora existe una
-  ruta lazy protegida con una base honesta, **sin CRUD, subidas ni datos de
-  ejemplo**. El foro y las dudas por lección se posponen y compartirán un único
+- El panel editorial `/admin` dispone de gestión de cursos mediante RLS, sin
+  subidas ni datos de ejemplo. El foro y las dudas por lección se posponen y compartirán un único
   servicio de conversación, no comentarios paralelos.
 - El registro no pide nombre visible: el trigger actual crea `public.profiles`
   solo con el identificador y no copia metadatos; `display_name` es de
@@ -200,16 +199,15 @@ El detalle está en [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
   para el diseño definitivo. No se inventan nombre, foto, bio, credenciales ni
   testimonios; la ruta raíz sigue provisional.
 
-## Panel de administración (base)
+## Panel de administración
 
-La ruta `/admin` es lazy y solo se abre con sesión y rol `admin` comprobado
-contra `public.user_roles`. La página actual se limita a explicar ese estado y
-a hacer constar que no hay CRUD implementado. El panel propio permitirá cargar y
-mantener el curso piloto: cursos, bloques/módulos y su orden, lecciones,
-publicación y vista previa de borradores, metadatos de vídeo y documentos
-anexos. El CRUD editorial público usará RLS de admin; la subida a Bunny y los
-archivos privados se gestionarán desde servidor, sin credenciales en el
-navegador. No hay UI de edición ni subidas implementadas todavía.
+La ruta `/admin` es lazy y exige sesión y rol `admin`. Permite listar, crear,
+editar, publicar y archivar cursos mediante el cliente Supabase y RLS; no borra
+cursos ni gestiona precios. Bloques, lecciones, vista previa y subidas quedan
+pendientes. No se incluyen datos de ejemplo ni credenciales de servidor.
+
+La integración aún no se ha verificado de extremo a extremo con una cuenta
+administradora real; el registro se está diagnosticando por separado.
 
 No se ha creado ninguna cuenta admin ni concedido ningún rol en esta tarea. El
 siguiente paso, cuando se decida, es aprovisionar el rol desde servidor por una
@@ -233,7 +231,7 @@ src/
       comunidad/
       not-found/
       auth/                           # login, registro, recuperación, callback...
-      admin/                          # base del panel, sin CRUD
+      admin/                          # gestión editorial de cursos
   styles.scss                         # estilos globales
 src/environments/
   environment.local.example.ts        # plantilla versionada
@@ -265,9 +263,9 @@ Todavía no están implementadas ni configuradas:
   concede acceso por sí sola. No hay precios ni claves reales.
 - Bunny Stream y emisión de tokens temporales desde servidor tras comprobar el
   derecho de acceso.
-- Panel `/admin`: CRUD editorial, borradores, vista previa, subida segura de
-  vídeo/recursos y respuestas a preguntas (estas últimas junto al foro). La base
-  de la ruta ya existe; el resto sigue pendiente.
+- Panel `/admin`: bloques, lecciones, precios, vista previa, subida segura de
+  vídeo/recursos y respuestas a preguntas (estas últimas junto al foro) siguen
+  pendientes. La gestión de cursos está implementada sin verificación E2E real.
 - Catálogo real de cursos, lecciones, materiales, progreso y ejercicios.
 - Foro, dudas por lección, moderación y notificaciones.
 - Portada con presentación del profesor; estructura y contenido pendientes de la
@@ -305,23 +303,28 @@ están en `UPSTREAM.md`.
 Modelos autorizados para el flujo de agentes del proyecto:
 
 - **Sol** coordina, revisa y decide.
-- **Implementador principal:** DeepSeek V4.1 Flash Free, ID de proveedor/modelo
-  `opencode/deepseek-v4.1-flash-free`.
-- **Fallback de implementación:** Hy4 Free, ID `opencode/hy4-flash-free`, solo
-  para la tarea afectada y decidido por quien orquesta.
-- **Revisor preferido:** Hy4 Free, ID `opencode/hy4-flash-free`.
-- **Último recurso autorizado:** si los modelos gratuitos de OpenCode agotan
-  cuota o no están disponibles, se puede usar `tokenlab/DeepSeek-V4.1-Flash`
-  (AMD Token Lab). El usuario autorizó explícitamente este retroceso; solo se
-  usa cuando Free falla, no por preferencia. El proveedor tuvo saturaciones
-  previas. Se desconoce su coste de catálogo: no se afirma que sea gratuito.
+- **Implementador principal:** GPT-6.1 Terra (OpenAI), ID de proveedor/modelo
+  `openai/gpt-6.1-terra` (sin variante). Autorizado para implementación y
+  reparaciones normales o complejas. Se desconoce su coste de catálogo: no se
+  afirma que sea gratuito ni más barato.
+- **Tareas MUY sencillas/operativas:** se reservan a los modelos gratuitos de
+  OpenCode, en este orden: DeepSeek V4.1 Flash Free
+  (`opencode/deepseek-v4.1-flash-free`) y, si agota cuota o no está disponible,
+  Hy4 Free (`opencode/hy4-flash-free`) como última opción, decidido por quien
+  orquesta y limitado a la tarea afectada. Si los gratuitos están bloqueados por
+  cuota, informar antes de usar Terra en trabajo que se había asignado a los
+  gratuitos; Terra está autorizado de forma general y puede usarse según la
+  tarea, sin introducir nuevos proveedores.
+- **Revisor preferido:** Hy4 Free, ID `opencode/hy4-flash-free` (sin cambios).
+- **Fallback AMD retirado:** `tokenlab/DeepSeek-V4.1-Flash` (AMD Token Lab) ya no
+  forma parte del orden de preferencia vigente; no reintroducirlo ni usarlo
+  automáticamente sin que se pida expresamente.
 - No usar otro proveedor o modelo de pago sin permiso explícito.
 - La configuración vive en `opencode.jsonc`; no se cambia el modelo global de
   OpenCode ni el agente por defecto desde este repositorio. `opencode.jsonc` no
   admite un campo de fallback documentado: el implementador queda fijado en
-  DeepSeek Free y el revisor en Hy4 Free; el orden de preferencia (DeepSeek Free
-  → Hy4 Free → AMD como último recurso) es una pauta de orquestación, no una
-  clave de configuración que haya que añadir.
+  Terra y el revisor en Hy4 Free; el orden de preferencia descrito arriba es una
+  pauta de orquestación, no una clave de configuración que haya que añadir.
 
 ## Aviso
 

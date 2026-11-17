@@ -1,0 +1,42 @@
+<h2 #heading tabindex="-1">{{ course() ? 'Editar curso' : 'Crear curso' }}</h2>
+<p>Al publicar, el curso será visible en el catálogo según las políticas de acceso.</p>
+<form (submit)="$event.preventDefault(); save()" novalidate>
+  <fieldset [disabled]="saving()">
+    <legend>Datos del curso</legend>
+    <div class="form-field">
+      <label for="course-title">Título</label>
+      <input id="course-title" [formField]="fields.title" [attr.aria-invalid]="fields.title().touched() && fields.title().invalid()" [attr.aria-describedby]="fields.title().touched() && fields.title().invalid() ? 'title-error' : null">
+      @if (fields.title().touched() && fields.title().invalid()) { <p id="title-error" class="field-error">{{ fields.title().errors()[0].message }}</p> }
+    </div>
+    <div class="form-field">
+      <label for="course-slug">Identificador (slug)</label>
+      <input id="course-slug" [formField]="fields.slug" [attr.aria-invalid]="fields.slug().touched() && fields.slug().invalid()" [attr.aria-describedby]="fields.slug().touched() && fields.slug().invalid() ? 'slug-error' : null">
+      @if (fields.slug().touched() && fields.slug().invalid()) { <p id="slug-error" class="field-error">{{ fields.slug().errors()[0].message }}</p> }
+    </div>
+    <div class="form-field"><label for="course-summary">Resumen</label><textarea id="course-summary" [formField]="fields.summary"></textarea></div>
+    <div class="form-field"><label for="course-description">Descripción</label><textarea id="course-description" [formField]="fields.description"></textarea></div>
+    <div class="form-field">
+      <label for="course-level">Nivel</label>
+      <select id="course-level" [formField]="fields.level">
+        <option value="iniciacion">Iniciación</option><option value="basico">Básico</option><option value="intermedio">Intermedio</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="course-status">Estado</label>
+      <select id="course-status" [formField]="fields.status">
+        <option value="draft">Borrador</option><option value="published">Publicado</option><option value="archived">Archivado</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label for="course-order">Orden</label>
+      <input id="course-order" inputmode="numeric" [formField]="fields.sort_order" [attr.aria-invalid]="fields.sort_order().touched() && fields.sort_order().invalid()" [attr.aria-describedby]="fields.sort_order().touched() && fields.sort_order().invalid() ? 'order-error' : null">
+      @if (fields.sort_order().touched() && fields.sort_order().invalid()) { <p id="order-error" class="field-error">{{ fields.sort_order().errors()[0].message }}</p> }
+    </div>
+    @if (error()) { <p class="feedback feedback--error" role="alert">No se ha podido guardar el curso. Comprueba los datos, la conexión y tus permisos.</p> }
+    <div class="form-actions">
+      <button class="button" type="submit">Guardar</button>
+      <button type="button" (click)="cancelled.emit()">Volver a cursos</button>
+    </div>
+  </fieldset>
+  @if (saving()) { <p role="status">Guardando…</p> }
+</form>

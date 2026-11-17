@@ -188,17 +188,17 @@ Notas:
 - **Un derecho activo por usuario y curso.** Un índice único parcial lo impide;
   el histórico de derechos revocados se conserva.
 
-## Panel de administración (requisito confirmado, no construido)
+## Panel de administración
 
-El producto tendrá un panel propio para que el profesor/admin cargue y mantenga
-el curso piloto. En este bloque se crea la ruta lazy protegida y una página base
-que no ofrece CRUD ni subidas.
+La ruta lazy protegida permite listar, crear, editar, publicar y archivar cursos
+mediante RLS. La prueba de extremo a extremo con una cuenta admin real sigue
+pendiente. No hay borrado de cursos ni gestión de precios o subidas.
 
 Alcance previsto:
 
 - Ruta Angular `/admin` con carga diferida (lazy), separada del aula.
-- CRUD editorial de cursos, bloques/módulos, orden, lecciones, publicación y
-  marca de muestra gratuita.
+- Gestión editorial de bloques/módulos, orden, lecciones y marca de muestra
+  gratuita: pendiente.
 - Vista previa de borradores antes de publicar. Los borradores no son públicos.
 - Metadatos de vídeo (ID de Bunny, duración, estado) y documentos anexos.
 - Respuestas a preguntas de alumnos, **unificadas con el foro** cuando se
@@ -311,8 +311,8 @@ se deben usar credenciales reales en pruebas locales.
 - Retirada o archivo de un curso: el estado `archived` oculta el catálogo y las
   lecciones. Qué ocurre con derechos ya comprados, progreso y comunicaciones al
   alumno sigue pendiente de decisión; no se promete disponibilidad perpetua.
-- Panel `/admin`: requisito confirmado; existe la base de la ruta, pero el CRUD
-  editorial, los borradores, la vista previa y las subidas siguen pendientes.
+- Panel `/admin`: gestión de cursos implementada; bloques, lecciones, precios,
+  vista previa, subidas y verificación E2E con admin real siguen pendientes.
 - Portada y presentación del profesor: la portada debe presentarlo, pero
   estructura, textos, nombre, foto, credenciales y testimonios quedan para la
   fase de diseño definitivo. No se inventan datos ni se construye la landing
