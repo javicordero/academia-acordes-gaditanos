@@ -11,7 +11,7 @@ function setup(authenticated = true, allowed = true) {
   const io = {
     getUser: vi.fn(async (_token: string) => authenticated ? 'verified-user' : null),
     resources: vi.fn(async (_user: string, _lesson: string) => allowed ? { course_id: course, items: [row] } : null),
-    sign: vi.fn(async (_path: string, _ttl: number) => 'https://storage.example.test/signed'),
+    sign: vi.fn(async (_path: string, _ttl: number, _filename: string) => 'https://storage.example.test/signed'),
     reserve: vi.fn(async (_user: string, _lesson: string, _id: string, _title: string, _fileName: string, _size: number, _mime: string): Promise<{course_id: string} | null> => ({ course_id: course })),
     signUpload: vi.fn(async (p: string) => ({ path: p, token: 'upload-token', signedUrl: 'https://storage.example.test/upload' })),
     uploadReservation: vi.fn(async (_user: string, _lesson: string, _id: string): Promise<{course_id: string; bucket: string; path: string} | null> => ({ course_id: course, bucket: 'lesson-pdfs', path })),
@@ -120,7 +120,24 @@ describe('lesson resources', () => {
     expect(io.resources).toHaveBeenCalledWith('verified-user', lesson);
     const signed = await handler(request(download));
     expect(await signed.json()).toEqual({ downloadUrl: 'https://storage.example.test/signed' });
-    expect(io.sign).toHaveBeenCalledWith(path, 60);
+    expect(io.sign).toHaveBeenCalledWith(path, 60, 'PDF ficticio.pdf');
+  });
+  it('deriva el nombre seguro exclusivamente del título recuperado', async () => {
+    const { handler, io } = setup();
+    for (const [title, filename] of [
+      ['Lección de Cádiz', 'Lección de Cádiz.pdf'],
+      ['Acordes.PDF', 'Acordes.pdf'],
+      ['  uno/\r\n dos\\:*?"<>|  ', 'uno    dos.pdf'],
+      [' /\\:*?"<>| ', 'material.pdf'],
+      ['.pdf', 'material.pdf'],
+      ['CON', '_CON.pdf'],
+      ['á'.repeat(130), `${'á'.repeat(116)}.pdf`],
+    ]) {
+      io.resources.mockResolvedValueOnce({ course_id: course, items: [{ ...row, title }] });
+      expect((await handler(request(download))).status).toBe(200);
+      expect(io.sign).toHaveBeenLastCalledWith(path, 60, filename);
+    }
+    expect((await handler(request({ ...download, filename: 'ajeno.pdf' }))).status).toBe(400);
   });
   it('deniega recurso ajeno y rutas o bucket incorrectos', async () => {
     const { handler, io } = setup();
@@ -196,7 +213,7 @@ it('descarta cambios de objeto entre inspecciones y errores de Storage sin publi
 
 it('adaptador delega JWT en Auth y firma adjunto con SDK simulado', async () => {
   const getUser = vi.fn(async (_jwt: string) => ({ data: { user: { id: 'verified' } }, error: null }));
-  const sign = vi.fn(async (_path: string, _ttl: number, _options: {download: boolean}) =>
+  const sign = vi.fn(async (_path: string, _ttl: number, _options: {download: string}) =>
     ({ data: { signedUrl: 'signed' }, error: null }));
   const upload = vi.fn(async (p: string) => ({ data: { signedUrl: 'signed-upload', token: 'token', path: p }, error: null }));
   const info = vi.fn(async (_p: string): Promise<{data: {id: string; name: string; bucketId: string; size: number; contentType: string; etag: string} | null; error: null}> =>
@@ -210,9 +227,9 @@ it('adaptador delega JWT en Auth y firma adjunto con SDK simulado', async () => 
   expect(getUser).toHaveBeenCalledWith('token');
   await adapter.resources('verified', lesson);
   expect(rpc).toHaveBeenCalledWith('server_lesson_pdf_resources', { p_user_id: 'verified', p_lesson_id: lesson });
-  expect(await adapter.sign(path, 60)).toBe('signed');
+  expect(await adapter.sign(path, 60, 'Lección de Cádiz.pdf')).toBe('signed');
   expect(from).toHaveBeenCalledWith('lesson-pdfs');
-  expect(sign).toHaveBeenCalledWith(path, 60, { download: true });
+  expect(sign).toHaveBeenCalledWith(path, 60, { download: 'Lección de Cádiz.pdf' });
   await adapter.reserve('verified', lesson, resource, 'PDF', 'file.pdf', 1, 'application/pdf');
   expect(rpc).toHaveBeenCalledWith('server_prepare_lesson_pdf', expect.objectContaining({ p_user_id: 'verified', p_resource_id: resource }));
   expect(await adapter.signUpload(path)).toEqual({ signedUrl: 'signed-upload', token: 'token', path });

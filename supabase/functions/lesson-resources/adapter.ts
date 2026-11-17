@@ -5,7 +5,7 @@ export function createDependencies(client: {
   auth: { getUser(token: string): PromiseLike<{ data: { user: { id: string } | null }; error: unknown }> };
   rpc(name: string, args: any): PromiseLike<{ data: any; error: unknown }>;
   storage: { from(bucket: string): {
-    createSignedUrl(path: string, ttl: number, options: { download: boolean }): PromiseLike<{ data: { signedUrl: string } | null; error: unknown }>;
+    createSignedUrl(path: string, ttl: number, options: { download: string }): PromiseLike<{ data: { signedUrl: string } | null; error: unknown }>;
     createSignedUploadUrl(path: string): PromiseLike<{ data: { signedUrl: string; token: string; path: string } | null; error: unknown }>;
     info(path: string): PromiseLike<{ data: { id: string; name: string; bucketId: string; size?: number; contentType?: string; etag?: string; version?: string } | null; error: { status?: number; code?: string } | null }>;
     download(path: string): PromiseLike<{ data: Blob | null; error: unknown }>;
@@ -22,8 +22,8 @@ export function createDependencies(client: {
       if (error) throw error;
       return data;
     },
-    async sign(path, ttl) {
-      const { data, error } = await client.storage.from(BUCKET).createSignedUrl(path, ttl, { download: true });
+    async sign(path, ttl, filename) {
+      const { data, error } = await client.storage.from(BUCKET).createSignedUrl(path, ttl, { download: filename });
       if (error || !data?.signedUrl) throw error ?? new Error('Firma no disponible');
       return data.signedUrl;
     },

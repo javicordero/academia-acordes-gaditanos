@@ -5,12 +5,24 @@ type Item = { id: string; title: string; kind: string; bucket: string; path: str
 export interface Dependencies {
   getUser(token: string): Promise<string | null>;
   resources(user: string, lesson: string): Promise<{ course_id: string; items: Item[] } | null>;
-  sign(path: string, ttl: number): Promise<string>;
+  sign(path: string, ttl: number, filename: string): Promise<string>;
   reserve(user: string, lesson: string, id: string, title: string, fileName: string, fileSize: number, mimeType: string): Promise<{ course_id: string } | null>;
   signUpload(path: string): Promise<{ signedUrl: string; token: string; path: string }>;
   uploadReservation(user: string, lesson: string, id: string): Promise<{ course_id: string; bucket: string; path: string } | null>;
   inspectUpload(path: string): Promise<{ size: number; identity: string } | null>;
   finalizeUpload(user: string, lesson: string, id: string, size: number, identity: string): Promise<boolean>;
+}
+
+function downloadFilename(title: unknown): string {
+  const clean = typeof title === 'string'
+    ? title.replace(/[\x00-\x1f\x7f/\\<>:"|?*]/g, ' ').trim().replace(/\.pdf$/i, '').trim()
+    : '';
+  let base = [...clean].slice(0, 116).join('').replace(/[. ]+$/g, '').trim();
+  if (!base || /^\.+$/.test(base)) base = 'material';
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(base)) {
+    base = `_${[...base].slice(0, 115).join('')}`.replace(/[. ]+$/g, '');
+  }
+  return `${base}.pdf`;
 }
 
 export function makeHandler(io: Dependencies, origins = ['http://localhost:4200']) {
@@ -97,7 +109,7 @@ export function makeHandler(io: Dependencies, origins = ['http://localhost:4200'
       });
       const item = items.find(row => row.id === body.resourceId);
       if (!item) return reply(403, { error: 'Acceso denegado' });
-      const downloadUrl = await io.sign(item.path, TTL_SECONDS);
+      const downloadUrl = await io.sign(item.path, TTL_SECONDS, downloadFilename(item.title));
       return reply(200, { downloadUrl });
     } catch {
       return reply(500, { error: 'No se pudo completar la operación' });
