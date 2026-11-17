@@ -5,10 +5,11 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { LessonMaterials } from '../../aula/lesson-materials/lesson-materials';
 import { PlaybackSource, VIDEO_DEMO_ENABLED, VideoPlaybackService } from '../../aula/video-playback';
 import { PreviewRepository } from './preview-repository';
+import { ClassroomNav } from '../../aula/classroom-nav';
 
 @Component({
   selector: 'app-admin-preview',
-  imports: [RouterLink, LessonMaterials],
+  imports: [RouterLink, LessonMaterials, ClassroomNav],
   templateUrl: './preview.html',
   styleUrls: ['../../aula/aula/aula.scss', './preview.scss'],
 })
@@ -29,6 +30,7 @@ export class Preview {
   readonly videoRequested = signal(false);
   readonly courseId = computed(() => this.params().get('courseId') ?? '');
   readonly lessonId = computed(() => this.params().get('lessonId'));
+  private readonly userId = computed(() => this.auth.session()?.user.id ?? null);
   readonly index = computed(() => this.data()?.lessons.findIndex(l => l.id === this.data()?.lesson?.id) ?? -1);
   readonly previous = computed(() => this.data()?.lessons[this.index() - 1]);
   readonly next = computed(() => this.index() < 0 ? undefined : this.data()?.lessons[this.index() + 1]);
@@ -37,7 +39,7 @@ export class Preview {
     inject(DestroyRef).onDestroy(() => this.generation++);
     effect(() => {
       const course = this.courseId(), lesson = this.lessonId();
-      const user = this.auth.session()?.user.id;
+      const user = this.userId();
       const admin = this.auth.isAdmin();
       const generation = ++this.generation;
       this.data.set(null); this.video.set(null); this.videoRequested.set(false);

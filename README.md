@@ -28,6 +28,10 @@ Para revisar una lección guardada sin publicarla, entra con una cuenta
 administradora en `/admin`, abre la estructura del curso y pulsa «Vista previa
 del aula» o «Ver en el aula» junto a la lección. La vista previa no registra
 progreso ni concede compras o matrículas; el acceso a borradores depende de RLS.
+El prototipo del aula comparte el índice de bloques entre la vista de alumno y
+la administrativa. Los materiales son los ya autorizados; las dudas solo
+reservan un espacio visual y todavía no permiten publicar. El futuro foro y las
+dudas compartirán una única conversación asociada a la lección.
 
 > **Documentación privada:** el repositorio será público. `docs/plan-maestro.md`
 > se aporta localmente y **no se publica**; está incluido en `.gitignore` junto

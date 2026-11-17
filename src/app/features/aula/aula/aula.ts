@@ -5,10 +5,11 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { AulaData, AulaRepository } from '../aula-repository';
 import { VIDEO_DEMO_ENABLED, VideoPlaybackService } from '../video-playback';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
+import { ClassroomNav } from '../classroom-nav';
 
 @Component({
   selector: 'app-aula',
-  imports: [RouterLink, LessonMaterials],
+  imports: [RouterLink, LessonMaterials, ClassroomNav],
   templateUrl: './aula.html',
   styleUrl: './aula.scss',
 })

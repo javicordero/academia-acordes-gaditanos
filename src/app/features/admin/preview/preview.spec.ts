@@ -32,9 +32,11 @@ describe('Vista previa administrativa', () => {
   const load = vi.fn();
   const path = (id?: string) => `/admin/vista-previa/${courseId}${id ? '/' + id : ''}`;
   let harness: RouterTestingHarness;
+  let session: ReturnType<typeof signal<{ user: { id: string } } | null>>;
 
   beforeEach(async () => {
     load.mockReset();
+    session = signal<{ user: { id: string } } | null>({ user: { id: 'admin' } });
     load.mockImplementation(async (_course: string, id: string | null) =>
       ({ course, sections, lessons, lesson: id ? lessons.find(l => l.id === id) ?? null : first }));
     TestBed.configureTestingModule({ providers: [
@@ -42,7 +44,7 @@ describe('Vista previa administrativa', () => {
         { path: 'admin/vista-previa/:courseId/:lessonId', component: Preview },
         { path: 'admin/vista-previa/:courseId', component: Preview },
       ]),
-      { provide: AuthService, useValue: { session: signal({ user: { id: 'admin' } }), isAdmin: signal(true) } },
+      { provide: AuthService, useValue: { session, isAdmin: signal(true) } },
       { provide: PreviewRepository, useValue: { load } },
       { provide: VideoPlaybackService, useValue: { sourceForLesson: () => null } },
     ] });
@@ -105,5 +107,25 @@ describe('Vista previa administrativa', () => {
     await harness.fixture.whenStable();
     expect(harness.routeNativeElement?.querySelector('article h2')?.textContent).toContain('Segunda');
     expect(document.activeElement?.id).toBe('preview-heading');
+  });
+
+  it('resuelve la primera lección tras una carga asíncrona y no recarga al refrescar la misma sesión', async () => {
+    let resolve!: (value: { course: typeof course; sections: typeof sections; lessons: typeof lessons; lesson: typeof first }) => void;
+    load.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    const component = await harness.navigateByUrl(path(), Preview);
+    harness.detectChanges();
+    expect(component.state()).toBe('loading');
+    session.set({ user: { id: 'admin' } });
+    harness.detectChanges();
+    expect(load).toHaveBeenCalledTimes(1);
+    resolve({ course, sections, lessons, lesson: first });
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(component.state()).toBe('ready');
+    expect(harness.routeNativeElement?.querySelector('[aria-current="page"]')?.textContent).toContain('Primera');
+    session.set({ user: { id: 'admin' } });
+    harness.detectChanges();
+    expect(component.state()).toBe('ready');
+    expect(load).toHaveBeenCalledTimes(1);
   });
 });

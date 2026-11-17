@@ -230,7 +230,7 @@ describe('Aula', () => {
     await harness.fixture.whenStable();
     harness.detectChanges();
 
-    const button = harness.routeNativeElement?.querySelector<HTMLButtonElement>('button')!;
+    const button = harness.routeNativeElement?.querySelector<HTMLButtonElement>('.progress-button')!;
     button.focus();
     expect(document.activeElement).toBe(button);
 
@@ -252,7 +252,7 @@ describe('Aula', () => {
     await harness.fixture.whenStable();
     harness.detectChanges();
 
-    const button = harness.routeNativeElement?.querySelector<HTMLButtonElement>('button')!;
+    const button = harness.routeNativeElement?.querySelector<HTMLButtonElement>('.progress-button')!;
     button.focus();
     expect(document.activeElement?.tagName).toBe('BUTTON');
 

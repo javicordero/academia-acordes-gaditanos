@@ -16,27 +16,13 @@
     }
     @case ('ready') {
       @if (data(); as aula) {
-        <p><a [routerLink]="['/cursos', courseSlug()]">Volver al curso</a></p>
         <div class="layout">
-          <nav aria-label="Lecciones disponibles">
-            <h2>Lecciones disponibles</h2>
-            @for (section of aula.sections; track section.id) {
-              <h3>{{ section.title }}</h3>
-              <ul>
-                @for (lesson of aula.lessons; track lesson.id) {
-                  @if (lesson.section_id === section.id) {
-                    <li><a [routerLink]="['/aula', courseSlug(), lesson.slug]"
-                      [attr.aria-current]="lesson.id === aula.lesson.id ? 'page' : null">{{ lesson.title }}</a></li>
-                  }
-                }
-              </ul>
-            }
-          </nav>
+          <app-classroom-nav [title]="aula.course.title" [sections]="aula.sections" [lessons]="aula.lessons"
+            [activeId]="aula.lesson.id" [courseId]="aula.course.id" [courseSlug]="courseSlug()" />
           <article>
-            <h2>{{ aula.lesson.title }}</h2>
-            @if (aula.lesson.summary) { <p class="text">{{ aula.lesson.summary }}</p> }
-            <h3>Vídeo</h3>
+            <div class="video-stage">
             @if (videoSource(); as video) {
+              <strong>Vídeo de ejemplo</strong>
               <p>{{ video.notice }}</p>
               @if (videoRequested()) {
                 <iframe #videoFrame class="video" [src]="video.embedUrl" [title]="'Vídeo de prueba: ' + aula.lesson.title"
@@ -53,6 +39,9 @@
                 <p>La demo de vídeo no está disponible en producción; la reproducción definitiva está pendiente de integrar.</p>
               }
             }
+            </div>
+            <h2>{{ aula.lesson.title }}</h2>
+            @if (aula.lesson.summary) { <p class="text">{{ aula.lesson.summary }}</p> }
             @if (aula.lesson.content_md) {
               <h3>Contenido</h3>
               <p class="text">{{ aula.lesson.content_md }}</p>
@@ -60,7 +49,7 @@
             <h3>Progreso manual</h3>
             @if (aula.canTrack) {
               <p role="status">{{ aula.completed ? 'Completada' : 'Pendiente' }}</p>
-              <button type="button" [disabled]="saving()" (click)="toggleProgress()">
+              <button class="progress-button" type="button" [disabled]="saving()" (click)="toggleProgress()">
                 {{ aula.completed ? 'Marcar como pendiente' : 'Marcar como completada' }}
               </button>
               @if (saveError()) { <p role="alert">No se pudo guardar el progreso. Inténtalo de nuevo.</p> }
@@ -70,7 +59,9 @@
             } @else {
               <p>Guardar progreso requiere un derecho activo al curso; la muestra y el rol de administración por sí solos no lo permiten.</p>
             }
+            <h3>Materiales de esta lección</h3>
             <app-lesson-materials [lessonId]="aula.lesson.id" [courseId]="aula.course.id" [returnUrl]="returnUrl()" />
+            <section><h3>Dudas y comentarios de esta lección</h3><p>Esta función está pendiente de implementación.</p></section>
             <nav aria-label="Navegación entre lecciones">
               @if (previous(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Anterior: {{ item.title }}</a> }
               @if (next(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Siguiente: {{ item.title }}</a> }

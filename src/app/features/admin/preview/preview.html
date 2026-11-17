@@ -8,27 +8,14 @@
     @case ('error') { <p role="alert">No se pudo cargar la vista previa. Comprueba la conexión y vuelve a intentarlo.</p> }
     @case ('ready') {
       @if (data(); as aula) {
-        <h2>{{ aula.course.title }}</h2>
         @if (aula.lesson; as lesson) {
           <div class="layout">
-            <nav aria-label="Lecciones del curso">
-              <h2>Lecciones</h2>
-              @for (section of aula.sections; track section.id) {
-                <h3>{{ section.title }}</h3>
-                <ul>
-                  @for (item of aula.lessons; track item.id) {
-                    @if (item.section_id === section.id) {
-                      <li><a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]" [attr.aria-current]="item.id === lesson.id ? 'page' : null">{{ item.title }}</a></li>
-                    }
-                  }
-                </ul>
-              }
-            </nav>
+            <app-classroom-nav [title]="aula.course.title" [sections]="aula.sections" [lessons]="aula.lessons"
+              [activeId]="lesson.id" [courseId]="courseId()" [admin]="true" />
             <article>
-              <h2>{{ lesson.title }}</h2>
-              @if (lesson.summary) { <p class="text">{{ lesson.summary }}</p> }
-              <h3>Vídeo</h3>
+              <div class="video-stage">
               @if (video(); as source) {
+                <strong>Vídeo de ejemplo</strong>
                 <p>{{ source.notice }}</p>
                 @if (videoRequested()) {
                   <iframe #frame class="video" [src]="source.embedUrl" [title]="'Vídeo de prueba: ' + lesson.title" tabindex="0" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation" allow="fullscreen; encrypted-media" allowfullscreen></iframe>
@@ -40,18 +27,23 @@
               } @else {
                 <p>La demo de vídeo no está disponible en producción; la reproducción definitiva está pendiente.</p>
               }
+              </div>
+              <h2>{{ lesson.title }}</h2>
+              @if (lesson.summary) { <p class="text">{{ lesson.summary }}</p> }
               @if (lesson.content_md) { <h3>Contenido</h3><p class="text">{{ lesson.content_md }}</p> }
               @else { <p>Esta lección no tiene contenido escrito.</p> }
               <h3>Progreso manual</h3>
               <p>En la vista previa no se guarda progreso de alumno.</p>
+              <h3>Materiales de esta lección</h3>
               <app-lesson-materials [lessonId]="lesson.id" [courseId]="courseId()" [returnUrl]="'/admin/vista-previa/' + courseId() + '/' + lesson.id" />
+              <section><h3>Dudas y comentarios de esta lección</h3><p>Esta función está pendiente de implementación.</p></section>
               <nav aria-label="Navegación entre lecciones">
                 @if (previous(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]">Anterior: {{ item.title }}</a> }
                 @if (next(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]">Siguiente: {{ item.title }}</a> }
               </nav>
             </article>
           </div>
-        } @else { <p>Añade una lección para abrir la vista previa del aula.</p> }
+        } @else { <h2>{{ aula.course.title }}</h2><p>Añade una lección para abrir la vista previa del aula.</p> }
       }
     }
   }
