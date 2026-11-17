@@ -6,15 +6,15 @@ cancionero no se modifica.
 
 ## Estado
 
-- Recursos PDF: migración **solo local y pendiente de revisión y despliegue**
+- Recursos PDF: aplicada manualmente en desarrollo el 17 de noviembre de 2026
   `20261117130000_private_pdf_storage.sql`. Prevé el bucket privado
   `lesson-pdfs`, con máximo orientativo de 10 MiB por objeto y MIME
   `application/pdf`, y una política restrictiva que deniega acceso directo a
-  `anon` y `authenticated` incluso ante políticas permisivas amplias. No se ha
-  creado el bucket remoto. La migración falla si ya existe ese identificador.
-- Listado y descarga PDF tienen implementación **local**, sin despliegue ni
-  pruebas E2E reales, en `supabase/functions/lesson-resources`. No existen
-  todavía subida, finalización ni interfaz. La nueva migración
+  `anon` y `authenticated` incluso ante políticas permisivas amplias. El
+  catálogo remoto confirmó la configuración y la política restrictiva.
+- Listado y descarga PDF están desplegados en desarrollo, sin pruebas E2E reales,
+  desde `supabase/functions/lesson-resources`. No están desplegadas la subida,
+  finalización ni su interfaz. La migración aplicada manualmente
   `20261117140000_lesson_pdf_read_rpc.sql` añade un puente invocable solo por
   `service_role`: el esquema `private` sigue sin exponerse. La función usa
   `getUser(jwt)` y pasa el ID verificado al puente, que comprueba publicación y
@@ -39,25 +39,30 @@ cancionero no se modifica.
   `http://localhost:4200`; `LESSON_RESOURCES_ALLOWED_ORIGINS` permite fijar
   orígenes exactos separados por comas en servidor tras revisión.
 - Runtime requiere `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` solo en servidor.
-  No se desactiva `verify_jwt`: según la documentación oficial actual debe
-  mantenerse para funciones de usuario. La clave publishable va en `apikey` y
-  el JWT de sesión en `Authorization`; el gateway también puede aceptar claves
-  API, por lo que **no sustituye** al `getUser(jwt)` obligatorio del handler.
-  Validar OPTIONS, gateway, Auth, PostgREST, RLS, firmas y configuración de
-  orígenes en Supabase real antes de desplegar. Referencia:
+  En esta función de desarrollo `verify_jwt` está desactivado en el gateway
+  porque este verifica solo JWT con el secreto heredado; el handler exige y
+  verifica el JWT mediante `Auth.getUser` antes de consultar el puente. La clave
+  publishable va en `apikey` y el JWT de sesión en `Authorization`. En la nube se
+  comprobaron POST sin token y token inválido (401), GET (405), origen ajeno
+  (403) y OPTIONS desde localhost:4200 (204). Siguen pendientes Auth con sesión
+  válida, PostgREST, RLS, firmas y descarga real. Referencia:
   https://supabase.com/docs/guides/functions/auth-headers
 - `npm run test:functions` ejecuta Vitest en Node con mocks, separado de
   `npm test` de Angular. `npm run test:sql` usa PGlite simulado. Ninguno valida
-  Deno, el gateway, Auth, PostgREST ni Storage reales: todos son requisitos de
-  revisión antes de cualquier despliegue, aún no autorizado.
+  Deno ni Auth, PostgREST o Storage reales. El despliegue fue aceptado por el
+  panel y las respuestas negativas anteriores ejecutaron el handler; no se ha
+  ejecutado una comprobación de tipos Deno independiente.
 - Storage Free tiene una cuota orientativa de 1 GB por proyecto; verificar
   límites y consumo vigentes antes de activar. No se autoriza coste de pago.
   Faltan límites de frecuencia, seguimiento de cuota, limpieza de objetos
   huérfanos y política de recuperación. No hay rate limiting implementado.
-- La migración inicial ya fue aplicada por editor SQL sin registro CLI: antes de
-  cualquier despliegue futuro hay que reconciliar el historial sin volver a
-  ejecutar esa migración, revisar las políticas Storage existentes y probar en
-  Supabase real. No se ha ejecutado ninguna operación remota en este bloque.
+- Las dos migraciones PDF se aplicaron una vez mediante editor SQL, con SHA-256
+  del contenido del editor contrastado con el archivo local:
+  `20261117130000`: `aa9fdc310cb417289fe4e5c53ec75d233af126c0b7f9b74138764c491fe98d69`;
+  `20261117140000`: `7be8045948c9792243d00330568a4f766eda41589c7fef7e17243ef17b987576`.
+  La RPC concede EXECUTE a `service_role`, no a PUBLIC, anon ni authenticated.
+  El historial CLI no refleja las migraciones manuales, incluida la inicial:
+  no ejecutar `db push` hasta conciliarlo mediante el procedimiento oficial.
 - Esquema inicial versionado en `supabase/migrations/20261117120000_initial_academy.sql`.
   El encabezado del archivo describe el estado cuando se escribió; no se ha
   vuelto a tocar después de su aplicación autorizada para conservar el mismo
@@ -372,8 +377,8 @@ La suite comprueba, entre otros casos:
   `service_role` conserva sus grants de servidor sobre `private` y comercio.
 
 **No se ha ejecutado `supabase db reset` ni `supabase db push`.** La aplicación
-remota autorizada se hizo pegando el contenido exacto de la migración en el
-editor SQL del panel y se verificó después por catálogo. Aplicar cualquier
+remota autorizada se hizo mediante el editor SQL del panel y se verificó después
+por catálogo. Aplicar cualquier
 migración posterior a un proyecto remoto sigue exigiendo decisión y revisión. No
 se deben usar credenciales reales en pruebas locales.
 
@@ -397,3 +402,8 @@ se deben usar credenciales reales en pruebas locales.
   ahora; la ruta raíz sigue provisional.
 - Conservación y anonimización de pedidos al borrar una cuenta, auditoría de
   acciones admin, límites de abuso y copias de seguridad: pendientes de decisión.
+# Preparación local de PDFs
+
+El flujo local `prepare-upload` → subida firmada sin sobrescritura → `finalize-upload` y su interfaz de administración y alumno están implementados y revisados; siguen pendientes de despliegue y la prueba completa con un PDF real. La migración local `20261117170000_admin_pdf_drafts.sql` permite a administradores consultar recursos finalizados de borradores; los alumnos siguen limitados a cursos y lecciones publicados y con derecho activo. La finalización comprueba tamaño, MIME y cabecera `%PDF-`, que no garantiza un PDF seguro ni constituye un antivirus: solo documentos propios de administradores, servidos como adjunto. Si falla la firma o no se sube el objeto queda una reserva pendiente no consumible que requiere futura limpieza manual. Reservas anteriores sin propietario no se pueden finalizar automáticamente. El tamaño y MIME declarados por el cliente no son prueba del contenido.
+
+Se usa `info()` y `download()` del SDK Storage 2.119; el segundo descarga el objeto completo tras comprobar su tamaño y depende del límite del bucket. La comprobación de metadatos y la publicación no forman una transacción con Storage: evitar operaciones privilegiadas concurrentes que sustituyan o eliminen objetos. Fuentes: [info](https://supabase.com/docs/reference/javascript/file-buckets-info) y [download](https://supabase.com/docs/reference/javascript/file-buckets-download).

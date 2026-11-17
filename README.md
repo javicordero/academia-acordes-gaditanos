@@ -11,9 +11,12 @@ nube, datos semilla, pagos, vídeo y comunidad.
 El plan de producto completo está en `docs/plan-maestro.md`. Es una propuesta
 viva: las decisiones pendientes no se dan por cerradas.
 
-Para PDFs privados hay migraciones y una función de listado y descarga solo
-locales, pendientes de revisión y pruebas reales; no se ha creado el bucket ni
-existen subida ni interfaz. Detalles en `docs/arquitectura-datos.md`.
+Para PDFs privados se aplicaron las dos migraciones y se desplegó la función de
+listado y descarga en desarrollo. Se verificaron el bucket, la política, los
+grants y respuestas HTTP negativas. La subida, finalización e interfaz de PDFs
+están implementadas y revisadas; la prueba completa con un PDF real sigue
+pendiente. El historial CLI no está conciliado: no ejecutar `db push`.
+Detalles en `docs/arquitectura-datos.md`.
 `npm run test:functions` ejecuta por separado los tests Node con mocks de las
 funciones Edge; no sustituye la comprobación del runtime Deno ni Supabase real.
 

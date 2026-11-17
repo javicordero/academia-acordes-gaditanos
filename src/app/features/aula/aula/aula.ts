@@ -4,10 +4,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AulaData, AulaRepository } from '../aula-repository';
 import { VIDEO_DEMO_ENABLED, VideoPlaybackService } from '../video-playback';
+import { LessonMaterials } from '../lesson-materials/lesson-materials';
 
 @Component({
   selector: 'app-aula',
-  imports: [RouterLink],
+  imports: [RouterLink, LessonMaterials],
   templateUrl: './aula.html',
   styleUrl: './aula.scss',
 })

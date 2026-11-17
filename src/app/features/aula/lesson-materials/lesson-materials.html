@@ -1,0 +1,33 @@
+﻿<section aria-labelledby="materials-heading">
+  <h3 id="materials-heading">Materiales PDF</h3>
+  @switch (state()) {
+    @case ('loading') { <p role="status">Consultando materiales…</p> }
+    @case ('unconfigured') { <p>Los materiales están pendientes de configuración.</p> }
+    @case ('anonymous') {
+      <p>Inicia sesión para consultar los materiales.</p>
+      <a routerLink="/auth/login" [queryParams]="{ returnUrl: returnUrl() }">Iniciar sesión</a>
+    }
+    @case ('error') { <p role="alert">No se puede acceder a los materiales. Comprueba tu sesión y conexión.</p> }
+    @case ('ready') {
+      @if (!items().length) { <p>No hay materiales disponibles para esta lección.</p> }
+      @else {
+        <p>Los enlaces preparados caducan en un máximo de 60 segundos y pueden compartirse hasta entonces.</p>
+        <ul>
+          @for (item of items(); track item.id) {
+            <li>
+              <span>{{ item.title }}</span>
+              <button type="button" [disabled]="pending()[item.id]" (click)="prepare(item)"
+                [attr.aria-label]="'Preparar descarga de ' + item.title">Preparar descarga</button>
+              <span role="status" aria-live="polite" aria-atomic="true">
+                @if (pending()[item.id]) { Preparando… }
+                @else if (links()[item.id]) { Enlace listo para descargar: {{ item.title }} }
+              </span>
+              @if (links()[item.id]; as link) { <a [href]="link" rel="noopener" download>Descargar PDF: {{ item.title }}</a> }
+              @if (errors()[item.id]) { <span role="alert">No se pudo preparar la descarga. Inténtalo de nuevo.</span> }
+            </li>
+          }
+        </ul>
+      }
+    }
+  }
+</section>

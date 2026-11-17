@@ -70,6 +70,7 @@
             } @else {
               <p>Guardar progreso requiere un derecho activo al curso; la muestra y el rol de administración por sí solos no lo permiten.</p>
             }
+            <app-lesson-materials [lessonId]="aula.lesson.id" [courseId]="aula.course.id" [returnUrl]="returnUrl()" />
             <nav aria-label="Navegación entre lecciones">
               @if (previous(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Anterior: {{ item.title }}</a> }
               @if (next(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Siguiente: {{ item.title }}</a> }
