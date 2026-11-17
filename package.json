@@ -12,6 +12,7 @@
     "watch": "ng build --watch --configuration development",
     "pretest": "npm run config:init",
     "test": "ng test --watch=false",
+    "test:functions": "vitest run --config vitest.functions.config.mts",
     "test:sql": "node scripts/test-sql.mjs"
   },
   "private": true,

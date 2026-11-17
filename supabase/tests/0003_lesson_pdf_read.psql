@@ -1,0 +1,70 @@
+\set ON_ERROR_STOP on
+begin;
+insert into auth.users (id) values
+('00000000-0000-0000-0000-00000000000a'),
+('00000000-0000-0000-0000-00000000000b'),
+('00000000-0000-0000-0000-00000000000d');
+insert into public.user_roles (user_id, role) values ('00000000-0000-0000-0000-00000000000d', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values
+('10000000-0000-0000-0000-000000000001', 'one', 'One', 'published', now()),
+('10000000-0000-0000-0000-000000000002', 'two', 'Two', 'published', now());
+insert into public.course_sections (id, course_id, title, position) values
+('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Section', 1),
+('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'Section', 1);
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published) values
+('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'one', 'One', 1, true),
+('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', 'two', 'Two', 1, true);
+insert into public.entitlements (user_id, course_id) values
+('00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001');
+insert into private.lesson_resources (id, lesson_id, kind, title, storage_bucket, storage_path) values
+('40000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'pdf', 'PDF',
+'lesson-pdfs', '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000001/40000000-0000-0000-0000-000000000001/file.pdf'),
+('40000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', 'pdf', 'Incorrecto',
+'lesson-pdfs', '10000000-0000-0000-0000-000000000002/30000000-0000-0000-0000-000000000001/40000000-0000-0000-0000-000000000002/file.pdf');
+insert into private.lesson_resources (id, lesson_id, kind, title, storage_bucket, storage_path, is_downloadable) values
+('40000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001', 'pdf', 'No descargable', 'lesson-pdfs', '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000001/40000000-0000-0000-0000-000000000003/file.pdf', false),
+('40000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000001', 'audio', 'No PDF', 'lesson-pdfs', '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000001/40000000-0000-0000-0000-000000000004/file.pdf', true),
+('40000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000001', 'pdf', 'Bucket incorrecto', 'otro', '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000001/40000000-0000-0000-0000-000000000005/file.pdf', true);
+do $$
+begin
+ if has_function_privilege('anon', 'public.server_lesson_pdf_resources(uuid,uuid)', 'execute')
+ or has_function_privilege('authenticated', 'public.server_lesson_pdf_resources(uuid,uuid)', 'execute')
+ then raise exception 'RPC expuesta'; end if;
+end $$;
+set local role service_role;
+do $$
+begin
+ if jsonb_array_length(public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000001')->'items') <> 1 then raise exception 'Comprador o ruta'; end if;
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000001')->>'course_id' <> '10000000-0000-0000-0000-000000000001' then raise exception 'Curso interno incorrecto'; end if;
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000001')->'items'->0->>'id' <> '40000000-0000-0000-0000-000000000001' then raise exception 'Recurso incorrecto'; end if;
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000b','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Sin compra'; end if;
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000002') is not null then raise exception 'Curso ajeno'; end if;
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001') is null then raise exception 'Admin'; end if;
+end $$;
+reset role;
+-- Claims falsos no conceden rol: solo importa user_roles y el ID ya verificado.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b","user_metadata":{"role":"admin"}}', true);
+set local role service_role;
+do $$
+begin
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000b','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Admin falsificado'; end if;
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001') is null then raise exception 'Admin real denegado'; end if;
+end $$;
+reset role;
+update public.entitlements set revoked_at = now() where user_id = '00000000-0000-0000-0000-00000000000a';
+do $$
+begin
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Revocado'; end if;
+end $$;
+update public.lessons set is_published = false where id = '30000000-0000-0000-0000-000000000001';
+do $$
+begin
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Lección no publicada'; end if;
+end $$;
+update public.lessons set is_published = true where id = '30000000-0000-0000-0000-000000000001';
+update public.courses set status = 'draft' where id = '10000000-0000-0000-0000-000000000001';
+do $$
+begin
+ if public.server_lesson_pdf_resources('00000000-0000-0000-0000-00000000000d','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Curso no publicado'; end if;
+end $$;
+rollback;

@@ -6,6 +6,58 @@ cancionero no se modifica.
 
 ## Estado
 
+- Recursos PDF: migración **solo local y pendiente de revisión y despliegue**
+  `20261117130000_private_pdf_storage.sql`. Prevé el bucket privado
+  `lesson-pdfs`, con máximo orientativo de 10 MiB por objeto y MIME
+  `application/pdf`, y una política restrictiva que deniega acceso directo a
+  `anon` y `authenticated` incluso ante políticas permisivas amplias. No se ha
+  creado el bucket remoto. La migración falla si ya existe ese identificador.
+- Listado y descarga PDF tienen implementación **local**, sin despliegue ni
+  pruebas E2E reales, en `supabase/functions/lesson-resources`. No existen
+  todavía subida, finalización ni interfaz. La nueva migración
+  `20261117140000_lesson_pdf_read_rpc.sql` añade un puente invocable solo por
+  `service_role`: el esquema `private` sigue sin exponerse. La función usa
+  `getUser(jwt)` y pasa el ID verificado al puente, que comprueba publicación y
+  rol admin en base de datos o derecho activo para el curso antes de leer
+  metadatos. `private.lesson_resources` ya contiene UUID, lección, título,
+  tipo, bucket, ruta, descarga y posición; no tiene borrado lógico.
+  Solo se devuelven PDF descargables con bucket y ruta canónicos.
+  Una muestra no concede acceso gratuito a sus recursos automáticamente.
+  El diseño previsto usa rutas sin datos personales
+  `course-uuid/lesson-uuid/resource-uuid/file.pdf`; una URL firmada puede
+  contener la ruta y es compartible hasta su caducidad, por lo que no es un
+  secreto permanente ni protección absoluta.
+- Contrato: POST JSON con `operation: "list"` y `lessonId`, o
+  `operation: "download"`, `lessonId` y `resourceId` UUID. Lista devuelve solo
+  `id`, `title`, `kind`; descarga devuelve `downloadUrl` firmada como adjunto
+  por 60 segundos (UUID en minúsculas obligatorios). El puente entrega
+  internamente el UUID del curso y el handler comprueba que coincida con el
+  primer segmento de la ruta; no lo añade al DTO. El objeto firmado no comprueba
+  que el archivo exista; una URL
+  emitida sigue usable hasta caducar incluso tras revocación. No se comprueba
+  físicamente su contenido MIME. CORS admite por defecto solo
+  `http://localhost:4200`; `LESSON_RESOURCES_ALLOWED_ORIGINS` permite fijar
+  orígenes exactos separados por comas en servidor tras revisión.
+- Runtime requiere `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` solo en servidor.
+  No se desactiva `verify_jwt`: según la documentación oficial actual debe
+  mantenerse para funciones de usuario. La clave publishable va en `apikey` y
+  el JWT de sesión en `Authorization`; el gateway también puede aceptar claves
+  API, por lo que **no sustituye** al `getUser(jwt)` obligatorio del handler.
+  Validar OPTIONS, gateway, Auth, PostgREST, RLS, firmas y configuración de
+  orígenes en Supabase real antes de desplegar. Referencia:
+  https://supabase.com/docs/guides/functions/auth-headers
+- `npm run test:functions` ejecuta Vitest en Node con mocks, separado de
+  `npm test` de Angular. `npm run test:sql` usa PGlite simulado. Ninguno valida
+  Deno, el gateway, Auth, PostgREST ni Storage reales: todos son requisitos de
+  revisión antes de cualquier despliegue, aún no autorizado.
+- Storage Free tiene una cuota orientativa de 1 GB por proyecto; verificar
+  límites y consumo vigentes antes de activar. No se autoriza coste de pago.
+  Faltan límites de frecuencia, seguimiento de cuota, limpieza de objetos
+  huérfanos y política de recuperación. No hay rate limiting implementado.
+- La migración inicial ya fue aplicada por editor SQL sin registro CLI: antes de
+  cualquier despliegue futuro hay que reconciliar el historial sin volver a
+  ejecutar esa migración, revisar las políticas Storage existentes y probar en
+  Supabase real. No se ha ejecutado ninguna operación remota en este bloque.
 - Esquema inicial versionado en `supabase/migrations/20261117120000_initial_academy.sql`.
   El encabezado del archivo describe el estado cuando se escribió; no se ha
   vuelto a tocar después de su aplicación autorizada para conservar el mismo
@@ -272,11 +324,13 @@ npm run test:sql
 `supabase/tests/*.psql`. No lee `.env`, no hace red y cierra la base en `finally`;
 cualquier error termina con código 1. Solo admite los metacomandos
 de psql de una lista blanca exacta (`\set ON_ERROR_STOP on`); otro metacomando
-falla en vez de ignorarse.
+	falla en vez de ignorarse.
 
 > **LIMITADO A LÓGICA SQL/RLS, NO A SUPABASE/AUTH/POSTGREST REALES.** El
 > bootstrap no reproduce GoTrue, los grants por defecto del servidor, el
 > esquema `auth` completo ni los `request.jwt.claims` emitidos por PostgREST.
+> Las tablas `storage.buckets` y `storage.objects` son sustitutos mínimos:
+> no implementan Storage, firmas, validación MIME ni sus grants reales.
 > Verde aquí no garantiza el mismo resultado en Supabase.
 
 ### Verificación posterior contra Supabase local

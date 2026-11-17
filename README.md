@@ -11,6 +11,12 @@ nube, datos semilla, pagos, vídeo y comunidad.
 El plan de producto completo está en `docs/plan-maestro.md`. Es una propuesta
 viva: las decisiones pendientes no se dan por cerradas.
 
+Para PDFs privados hay migraciones y una función de listado y descarga solo
+locales, pendientes de revisión y pruebas reales; no se ha creado el bucket ni
+existen subida ni interfaz. Detalles en `docs/arquitectura-datos.md`.
+`npm run test:functions` ejecuta por separado los tests Node con mocks de las
+funciones Edge; no sustituye la comprobación del runtime Deno ni Supabase real.
+
 > **Documentación privada:** el repositorio será público. `docs/plan-maestro.md`
 > se aporta localmente y **no se publica**; está incluido en `.gitignore` junto
 > con `docs/privado/`, reservado para notas internas. El resto de `docs/` puede
@@ -79,6 +85,7 @@ npm run config:init   # crea src/environments/environment.local.ts si falta
 npm start             # servidor de desarrollo en http://localhost:4200
 npm run build         # build de producción en dist/
 npm test              # pruebas una sola vez, sin watch
+npm run test:functions # tests Node de las Edge Functions con mocks
 npm run test:sql      # suite SQL/RLS sobre PGlite en memoria (sin Docker ni psql)
 ```
 
