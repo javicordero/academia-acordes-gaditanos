@@ -1,0 +1,66 @@
+<section aria-labelledby="aula-heading">
+  <h1 #aulaHeading id="aula-heading" tabindex="-1">Aula</h1>
+  @switch (state()) {
+    @case ('loading') { <p role="status">Cargando lección…</p> }
+    @case ('unconfigured') { <p>El aula está pendiente de configuración.</p> }
+    @case ('error') {
+      <p role="alert">No se pudo cargar el aula. Comprueba tu conexión y vuelve a intentarlo.</p>
+      <button type="button" (click)="retry()">Reintentar</button>
+    }
+    @case ('denied') {
+      <p>Esta lección no está disponible o no tienes acceso.</p>
+      @if (!auth.session()) {
+        <a routerLink="/auth/login" [queryParams]="{ returnUrl: returnUrl() }">Iniciar sesión</a>
+      }
+      <a [routerLink]="['/cursos', courseSlug()]">Volver al curso</a>
+    }
+    @case ('ready') {
+      @if (data(); as aula) {
+        <p><a [routerLink]="['/cursos', courseSlug()]">Volver al curso</a></p>
+        <div class="layout">
+          <nav aria-label="Lecciones disponibles">
+            <h2>Lecciones disponibles</h2>
+            @for (section of aula.sections; track section.id) {
+              <h3>{{ section.title }}</h3>
+              <ul>
+                @for (lesson of aula.lessons; track lesson.id) {
+                  @if (lesson.section_id === section.id) {
+                    <li><a [routerLink]="['/aula', courseSlug(), lesson.slug]"
+                      [attr.aria-current]="lesson.id === aula.lesson.id ? 'page' : null">{{ lesson.title }}</a></li>
+                  }
+                }
+              </ul>
+            }
+          </nav>
+          <article>
+            <h2>{{ aula.lesson.title }}</h2>
+            @if (aula.lesson.summary) { <p class="text">{{ aula.lesson.summary }}</p> }
+            <h3>Vídeo</h3>
+            <p>Reproducción pendiente de integrar.</p>
+            @if (aula.lesson.content_md) {
+              <h3>Contenido</h3>
+              <p class="text">{{ aula.lesson.content_md }}</p>
+            } @else { <p>Esta lección no tiene contenido escrito.</p> }
+            <h3>Progreso manual</h3>
+            @if (aula.canTrack) {
+              <p role="status">{{ aula.completed ? 'Completada' : 'Pendiente' }}</p>
+              <button type="button" [disabled]="saving()" (click)="toggleProgress()">
+                {{ aula.completed ? 'Marcar como pendiente' : 'Marcar como completada' }}
+              </button>
+              @if (saveError()) { <p role="alert">No se pudo guardar el progreso. Inténtalo de nuevo.</p> }
+            } @else if (!auth.session()) {
+              <p>Inicia sesión para consultar si puedes guardar progreso. La muestra por sí sola no lo permite.</p>
+              <a routerLink="/auth/login" [queryParams]="{ returnUrl: returnUrl() }">Iniciar sesión</a>
+            } @else {
+              <p>Guardar progreso requiere un derecho activo al curso; la muestra y el rol de administración por sí solos no lo permiten.</p>
+            }
+            <nav aria-label="Navegación entre lecciones">
+              @if (previous(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Anterior: {{ item.title }}</a> }
+              @if (next(); as item) { <a [routerLink]="['/aula', courseSlug(), item.slug]">Siguiente: {{ item.title }}</a> }
+            </nav>
+          </article>
+        </div>
+      }
+    }
+  }
+</section>

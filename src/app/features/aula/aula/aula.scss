@@ -1,0 +1,7 @@
+.layout { display: grid; gap: 2rem; }
+.text { white-space: pre-wrap; overflow-wrap: anywhere; }
+nav a { display: inline-block; margin-block: .25rem; }
+nav[aria-label="Navegación entre lecciones"] { display: flex; gap: 1rem; flex-wrap: wrap; margin-block: 1rem; }
+@media (min-width: 48rem) {
+  .layout { grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr); }
+}

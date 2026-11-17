@@ -18,6 +18,11 @@ export const routes: Routes = [
       import('./features/cursos/cursos.routes').then((m) => m.cursosRoutes),
   },
   {
+    path: 'aula',
+    loadChildren: () =>
+      import('./features/aula/aula.routes').then((m) => m.AULA_ROUTES),
+  },
+  {
     path: 'mis-cursos',
     title: 'Mis cursos · Academia Acordes Gaditanos',
     canActivate: [authGuard],

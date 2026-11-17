@@ -10,7 +10,7 @@
       <p>Nivel: {{ levels[data.course.level] }}</p>
       @if (data.course.summary) { <p>{{ data.course.summary }}</p> }
       @if (data.course.description) { <p class="description">{{ data.course.description }}</p> }
-      <p>La compra y el aula todavía no están disponibles.</p>
+      <p>La compra todavía no está disponible. Las lecciones a las que tienes acceso se abren en el aula.</p>
       <h2>Bloques y lecciones accesibles</h2>
       <p>Solo se muestran las lecciones publicadas que permite consultar tu acceso; esta lista puede no ser el programa completo.</p>
       @for (section of data.sections; track section.id) {
@@ -20,7 +20,10 @@
           <ul>
             @for (lesson of data.lessons; track lesson.id) {
               @if (lesson.section_id === section.id) {
-                <li>{{ lesson.title }} @if (lesson.is_free_preview) { <span>(muestra)</span> }</li>
+                <li>
+                  <a [routerLink]="['/aula', data.course.slug, lesson.slug]">{{ lesson.title }}</a>
+                  @if (lesson.is_free_preview) { <span>(muestra)</span> }
+                </li>
               }
             }
           </ul>

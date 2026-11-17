@@ -57,7 +57,7 @@ describe('PublicCoursesRepository', () => {
 
     expect(detail).not.toBeNull();
     expect(from).toHaveBeenCalledWith('lessons');
-    expect(lessonsQuery.select).toHaveBeenCalledWith('id,section_id,title,is_free_preview');
+    expect(lessonsQuery.select).toHaveBeenCalledWith('id,section_id,slug,title,is_free_preview');
     expect(lessonsQuery.eq).toHaveBeenCalledWith('course_id', 'curso-1');
     expect(lessonsQuery.eq).toHaveBeenCalledWith('is_published', true);
   });

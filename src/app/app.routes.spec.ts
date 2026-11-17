@@ -1,16 +1,20 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { Session } from '@supabase/supabase-js';
+import { vi } from 'vitest';
 import { routes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
+import { AulaRepository } from './features/aula/aula-repository';
 import { PublicCoursesRepository } from './features/cursos/public-courses-repository';
 
 const session = { user: { id: 'user-1' } } as unknown as Session;
 
 // Dato ficticio de prueba: no corresponde a ningún curso real.
 const testSlug = 'curso-de-prueba';
+const aulaLoad = vi.fn().mockResolvedValue(null);
 
 describe('Routes', () => {
   let harness: RouterTestingHarness;
@@ -26,6 +30,15 @@ describe('Routes', () => {
             whenRoleResolved: () => Promise.resolve(),
             session: () => session,
             isAdmin: () => false,
+            status: signal('authenticated'),
+            error: signal(null),
+          },
+        },
+        {
+          provide: AulaRepository,
+          useValue: {
+            load: aulaLoad,
+            save: () => Promise.resolve(),
           },
         },
         {
@@ -85,6 +98,20 @@ describe('Routes', () => {
     expect(h1?.textContent?.trim()).toBe('Curso de prueba');
     expect(TestBed.inject(Title).getTitle()).toBe(
       'Curso · Academia Acordes Gaditanos',
+    );
+  });
+
+  it('carga el aula en /aula/:courseSlug/:lessonSlug sin guard de sesión', async () => {
+    await harness.navigateByUrl('/aula/curso-de-prueba/leccion-de-prueba');
+    await harness.fixture.whenStable();
+
+    const h1 = harness.routeNativeElement?.querySelector('h1');
+
+    expect(h1?.textContent?.trim()).toBe('Aula');
+    expect(aulaLoad).toHaveBeenCalledWith(
+      'curso-de-prueba',
+      'leccion-de-prueba',
+      'user-1',
     );
   });
 

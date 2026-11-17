@@ -155,7 +155,7 @@ RLS y servidor siguen decidiendo.
 ## Alcance de esta fase
 
 - Shell responsive y accesible en español: cabecera, navegación, contenido y pie.
-- Rutas lazy: `/cursos`, `/mis-cursos`, `/comunidad` y comodín 404.
+- Rutas lazy: `/cursos`, `/aula`, `/mis-cursos`, `/comunidad` y comodín 404.
 - Redirección de `/` a `/cursos`.
 - Páginas placeholder honestas: no hay matrículas ni compras simuladas. La
   autenticación es real pero queda inactiva hasta configurar la URL y la
@@ -163,6 +163,12 @@ RLS y servidor siguen decidiendo.
 - Registro, acceso, salida, confirmación por correo y recuperación de
   contraseña con Supabase Auth; cliente singleton y estado de sesión con
   signals; guards de sesión y admin; gestión de cursos en `/admin`.
+- Ruta lazy `/aula/:courseSlug/:lessonSlug` sin guard global de sesión: las
+  lecciones visibles y el progreso los decide RLS, no la ruta de Angular. La
+  ficha pública de curso enlaza solo las lecciones accesibles devueltas por RLS
+  (muestra, compradas o visibles para admin) con el slug real del curso y de la
+  lección. La lección de muestra es accesible sin sesión; guardar progreso
+  requiere un derecho activo incluso para admin y para la muestra.
 - Modelo SQL inicial de la academia en `supabase/migrations/`: cursos, bloques,
   lecciones, muestra gratuita, precios, pedidos, derechos de acceso y progreso.
 - RLS inicial y pruebas de autorización en `supabase/tests/`. La migración
@@ -226,6 +232,7 @@ src/
       supabase/                       # cliente singleton inyectable
     features/
       cursos/
+      aula/                           # vista de lección y progreso manual
       mis-cursos/
       comunidad/
       not-found/

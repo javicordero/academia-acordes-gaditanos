@@ -64,6 +64,21 @@ cancionero no se modifica.
   real. Las pruebas unitarias usan mocks del SDK y no demuestran la integración
   remota de la nueva estructura. Los límites de envío pueden afectar al correo.
 
+## Aula (estado real)
+
+- Ruta lazy `/aula/:courseSlug/:lessonSlug`, sin guard global de sesión. La
+  lección de muestra se abre sin sesión; el resto depende de lo que RLS devuelva.
+  La ruta de Angular no garantiza compra ni acceso: la barrera es RLS.
+- La ficha pública del curso (`/cursos/:slug`) solo enlaza las lecciones que
+  devuelve RLS para ese curso (publicadas y de muestra, con derecho activo o
+  visibles para admin), con el `slug` del curso y el `slug` de la lección.
+  `slug` es una columna pública de `public.lessons`, ya seleccionable bajo la
+  política de lectura; no se exponen columnas de `private`, precios ni metadatos
+  de vídeo.
+- La carga del aula y del catálogo se ha probado solo con mocks del SDK en Vitest
+  y con la lógica SQL/RLS en PGlite. No se ha comprobado con Auth, PostgREST ni
+  RLS reales de Supabase; las pruebas no usan derechos ni roles reales.
+
 ## Principios
 
 1. **La base de datos decide.** Angular puede ocultar botones, pero la
@@ -177,9 +192,12 @@ Notas:
   admin— quedan sin `SELECT` sobre `private.commerce_events`,
   `private.course_price_refs` y `private.profile_private`; las pruebas lo
   verifican por denegación de privilegio, no por filtrado de filas.
-- **Una lección de muestra no genera progreso.** Se puede ver sin compra, pero
-  `lesson_progress` exige derecho activo. Si el producto quiere registrar
-  progreso en muestras, es una decisión posterior.
+- **Una lección de muestra no genera progreso; el rol admin tampoco.** Se puede
+  ver sin compra (y el admin ve también borradores), pero `lesson_progress`
+  exige un derecho vigente según `private.can_track_lesson_progress`: ni la
+  marca de muestra ni el rol admin bastan por sí solos, como confirman la SQL y
+  sus pruebas. Si el producto quiere registrar progreso en muestras, es una
+  decisión posterior.
 - **Borrado del propio progreso:** el alumno puede borrar sus filas aunque el
   derecho se haya revocado; es un dato propio y no revela contenido del curso.
 - **Derecho revocado:** deja de conceder acceso de inmediato. La fila se conserva

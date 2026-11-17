@@ -11,7 +11,7 @@ export interface PublicCourse {
   level: PublicLevel;
 }
 export interface PublicSection { id: string; title: string; summary: string | null; }
-export interface PublicLesson { id: string; section_id: string; title: string; is_free_preview: boolean; }
+export interface PublicLesson { id: string; section_id: string; slug: string; title: string; is_free_preview: boolean; }
 export interface CourseDetail { course: PublicCourse; sections: PublicSection[]; lessons: PublicLesson[]; }
 
 export const levelLabels: Record<PublicLevel, string> = {
@@ -40,7 +40,7 @@ export class PublicCoursesRepository {
     const [sections, lessons] = await Promise.all([
       this.client.from('course_sections').select('id,title,summary')
         .eq('course_id', course.id).order('position').returns<PublicSection[]>(),
-      this.client.from('lessons').select('id,section_id,title,is_free_preview')
+      this.client.from('lessons').select('id,section_id,slug,title,is_free_preview')
         .eq('course_id', course.id).eq('is_published', true).order('position').returns<PublicLesson[]>(),
     ]);
     if (sections.error || lessons.error) throw new Error('failed');
