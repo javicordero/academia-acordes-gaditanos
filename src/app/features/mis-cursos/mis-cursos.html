@@ -1,24 +1,41 @@
-<article class="page" aria-labelledby="mis-cursos-title">
-  <p class="eyebrow">Área de alumno</p>
+﻿<article aria-labelledby="mis-cursos-title">
   <h1 id="mis-cursos-title">Mis cursos</h1>
-  <p class="lead">
-    Aquí verás los cursos que hayas comprado, tu progreso y por dónde
-    continuar.
-  </p>
-
-  <section class="callout" aria-labelledby="mis-cursos-estado">
-    <h2 id="mis-cursos-estado">Área todavía no disponible</h2>
-    <p>
-      La autenticación, las matrículas y el progreso aún no están conectados.
-      Esta página no concede acceso a ningún contenido ni contiene datos de
-      alumno.
-    </p>
-  </section>
-
-  <h2>Qué encontrará el alumno</h2>
-  <ul class="feature-list">
-    <li>Sus cursos con el porcentaje completado.</li>
-    <li>La última lección vista y un acceso rápido para continuar.</li>
-    <li>Materiales y ejercicios de los cursos adquiridos.</li>
-  </ul>
+  <p>Tus cursos y tu progreso manual.</p>
+  @if (auth.status() === 'loading' || (auth.status() === 'authenticated' && library.isLoading())) {
+    <p role="status">Cargando tus cursos…</p>
+  } @else if (auth.status() === 'unconfigured') {
+    <p>La conexión aún no está configurada.</p>
+  } @else if (auth.status() !== 'authenticated') {
+    <p>Inicia sesión para consultar tus cursos.</p>
+    <a routerLink="/auth/login">Iniciar sesión</a>
+  } @else if (library.error()) {
+    <p role="alert">No se han podido cargar tus cursos.</p>
+    <button type="button" (click)="library.reload()">Reintentar</button>
+  } @else if (library.hasValue()) {
+    @if (library.value().unavailable) {
+      <p>Algunos cursos con acceso activo no están disponibles en este momento.</p>
+    }
+    @if (library.value().courses.length === 0) {
+      <p>No tienes cursos disponibles en tu biblioteca.</p>
+      <a routerLink="/cursos">Ver catálogo</a>
+    } @else {
+      <ul class="cards">
+        @for (course of library.value().courses; track course.id) {
+          <li>
+            <h2>{{ course.title }}</h2>
+            <p>Nivel: {{ levels[course.level] }}</p>
+            @if (course.summary) { <p>{{ course.summary }}</p> }
+            @if (course.total) {
+              <p>Progreso: {{ course.completed }}/{{ course.total }} lecciones completadas ({{ course.percent }} %)</p>
+              <progress [value]="course.completed" [max]="course.total" [attr.aria-label]="'Progreso de ' + course.title"></progress>
+            } @else { <p>0/0 · Sin lecciones publicadas</p> }
+            <div class="links">
+              @if (course.resume) { <a [routerLink]="['/aula', course.slug, course.resume]">Continuar <span class="visually-hidden">{{ course.title }}</span></a> }
+              <a [routerLink]="['/cursos', course.slug]">Ver curso <span class="visually-hidden">{{ course.title }}</span></a>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  }
 </article>
