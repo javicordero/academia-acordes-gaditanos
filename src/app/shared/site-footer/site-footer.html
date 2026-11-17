@@ -1,0 +1,42 @@
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <div class="site-footer__group">
+      <h2 class="site-footer__title" id="footer-redes">Acordes Gaditanos</h2>
+      <ul class="site-footer__list" aria-labelledby="footer-redes">
+        @for (link of brandLinks; track link.href) {
+          <li>
+            <a
+              class="site-footer__link"
+              [href]="link.href"
+              target="_blank"
+              rel="noopener noreferrer"
+              >{{ link.label }}<span class="visually-hidden"> (se abre en una pestaña nueva)</span></a
+            >
+          </li>
+        }
+      </ul>
+    </div>
+
+    <div class="site-footer__group">
+      <h2 class="site-footer__title" id="footer-autoria">Autoría</h2>
+      <p>Desarrollado por Javier Cordero Toscano</p>
+      <ul class="site-footer__list" aria-labelledby="footer-autoria">
+        @for (link of authorLinks; track link.href) {
+          <li>
+            <a
+              class="site-footer__link"
+              [href]="link.href"
+              target="_blank"
+              rel="noopener noreferrer"
+              >{{ link.label }}<span class="visually-hidden"> (se abre en una pestaña nueva)</span></a
+            >
+          </li>
+        }
+      </ul>
+    </div>
+
+    <p class="site-footer__meta">
+      © {{ currentYear }} Academia Acordes Gaditanos · Proyecto en construcción.
+    </p>
+  </div>
+</footer>

@@ -45,14 +45,16 @@ describe('App shell', () => {
     ]);
   });
 
-  it('incluye un pie que aclara el estado del proyecto', async () => {
+  it('incluye el pie de página compartido con el estado del proyecto', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
 
     const element = fixture.nativeElement as HTMLElement;
-    const footer = element.querySelector<HTMLElement>('.site-footer');
+    const footer = element.querySelector<HTMLElement>('app-site-footer');
+    const siteFooter = element.querySelector<HTMLElement>('.site-footer');
 
-    expect(footer?.textContent).toContain('Proyecto en construcción');
-    expect(footer?.textContent).toContain('Todavía no hay cuentas, pagos ni cursos');
+    expect(footer).not.toBeNull();
+    expect(siteFooter).not.toBeNull();
+    expect(siteFooter?.textContent).toContain('Proyecto en construcción');
   });
 });
