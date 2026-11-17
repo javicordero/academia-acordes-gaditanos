@@ -13,8 +13,7 @@ describe('StructureRepository', () => {
   const remove = vi.fn();
   const query = { select, eq, order, single, insert, update, delete: remove };
   const from = vi.fn(() => query);
-  const values = { title: 'Lección', slug: 'leccion', summary: null, content_md: null,
-    duration_seconds: null, is_free_preview: false, is_published: false, content_type: 'pdf' as const };
+  const values = { title: 'Lección', is_free_preview: false, is_published: false, content_type: 'pdf' as const };
   let repo: StructureRepository;
   beforeEach(() => {
     vi.clearAllMocks();
@@ -29,12 +28,13 @@ describe('StructureRepository', () => {
     expect(order).toHaveBeenCalledWith('position');
     await repo.saveSection('course', { title: 'Bloque', summary: null }, 2);
     expect(insert).toHaveBeenCalledWith({ title: 'Bloque', summary: null, course_id: 'course', position: 2 });
-    await repo.saveLesson('course', 'section', values, 3);
-    expect(insert).toHaveBeenCalledWith({ ...values, course_id: 'course', section_id: 'section', position: 3 });
+    await repo.saveLesson('course', 'section', values, 3, undefined, 'leccion');
+    expect(insert).toHaveBeenCalledWith({ ...values, slug: 'leccion', course_id: 'course', section_id: 'section', position: 3 });
     expect(remove).not.toHaveBeenCalled();
   });
   it('actualiza sin cambiar curso, bloque ni posición', async () => {
-    const existing: Lesson = { ...values, id: 'lesson', course_id: 'course', section_id: 'section', position: 3 };
+    const existing: Lesson = { ...values, slug: 'anterior', summary: ' resumen ', content_md: ' texto ', duration_seconds: 45,
+      id: 'lesson', course_id: 'course', section_id: 'section', position: 3 };
     await repo.saveLesson('course', 'section', values, 9, existing);
     expect(update).toHaveBeenCalledWith(values);
     expect(eq).toHaveBeenCalledWith('id', 'lesson');
@@ -45,6 +45,8 @@ describe('StructureRepository', () => {
     order.mockResolvedValue({ data: null, error: { message: 'private' } });
     await expect(repo.list('course')).rejects.toThrow('list_failed');
     single.mockResolvedValue({ data: null, error: { message: 'private' } });
-    await expect(repo.saveLesson('course', 'section', values, 0)).rejects.toThrow('save_failed');
+    await expect(repo.saveLesson('course', 'section', values, 0, undefined, 'leccion')).rejects.toThrow('save_failed');
+    single.mockResolvedValue({ data: null, error: { code: '23505' } });
+    await expect(repo.saveLesson('course', 'section', values, 0, undefined, 'leccion')).rejects.toThrow('save_conflict');
   });
 });

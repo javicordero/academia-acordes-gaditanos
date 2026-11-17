@@ -39,6 +39,13 @@ PDF»; si todavía no hay ninguno disponible, el aula lo indica. PDF y texto no
 cargan el reproductor de vídeo. El progreso sigue siendo manual y sujeto al
 derecho activo; la vista previa administrativa no lo guarda.
 
+El formulario rápido genera la ruta de nuevas lecciones a partir del título y
+conserva la ruta y el contenido previo al editar. La edición extensa de texto
+queda para una fase posterior. La duración corresponde al vídeo, no a una
+lección PDF o de texto: no se introduce manualmente ni se muestra a partir de
+valores antiguos. Obtenerla de metadatos reales del proveedor está pendiente;
+el iframe provisional no la facilita automáticamente.
+
 > **Documentación privada:** el repositorio será público. `docs/plan-maestro.md`
 > se aporta localmente y **no se publica**; está incluido en `.gitignore` junto
 > con `docs/privado/`, reservado para notas internas. El resto de `docs/` puede

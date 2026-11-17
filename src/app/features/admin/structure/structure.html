@@ -33,22 +33,12 @@
       <label for="lesson-title">Título de la lección</label>
       <input #lessonInput id="lesson-title" name="lessonTitle" [(ngModel)]="lessonTitle" (ngModelChange)="clearField('lessonTitle')" required maxlength="160" [attr.aria-invalid]="invalid().lessonTitle" [attr.aria-describedby]="invalid().lessonTitle ? 'lesson-title-error' : null">
       @if (invalid().lessonTitle) { <p id="lesson-title-error" role="alert">El título debe tener entre 1 y 160 caracteres.</p> }
-      <label for="lesson-slug">Identificador (minúsculas, números y guiones)</label>
-      <input id="lesson-slug" name="slug" [(ngModel)]="slug" (ngModelChange)="clearField('slug')" required [attr.aria-invalid]="invalid().slug" [attr.aria-describedby]="invalid().slug ? 'lesson-slug-error' : null">
-      @if (invalid().slug) { <p id="lesson-slug-error" role="alert">Usa minúsculas sin tildes, números y guiones intermedios.</p> }
       <label for="lesson-type">Tipo de lección</label>
       <select id="lesson-type" name="contentType" [(ngModel)]="contentType" (ngModelChange)="clearField('contentType')" required [attr.aria-invalid]="invalid().contentType" [attr.aria-describedby]="invalid().contentType ? 'lesson-type-error' : null">
         <option value="video">Vídeo</option><option value="pdf">PDF</option><option value="text">Texto</option>
       </select>
       @if (invalid().contentType) { <p id="lesson-type-error" role="alert">Selecciona un tipo de lección válido.</p> }
       @if (contentType === 'pdf') { <p>Guarda la lección y añade sus archivos desde Materiales PDF.</p> }
-      <label for="lesson-summary">Resumen de la lección</label>
-      <textarea id="lesson-summary" name="lessonSummary" [(ngModel)]="lessonSummary"></textarea>
-      <label for="lesson-content">Contenido Markdown (texto)</label>
-      <textarea id="lesson-content" name="content" [(ngModel)]="content"></textarea>
-      <label for="lesson-duration">Duración en segundos (opcional)</label>
-      <input id="lesson-duration" name="duration" type="text" inputmode="numeric" [(ngModel)]="duration" (ngModelChange)="clearField('duration')" [attr.aria-invalid]="invalid().duration" [attr.aria-describedby]="invalid().duration ? 'lesson-duration-error' : null">
-      @if (invalid().duration) { <p id="lesson-duration-error" role="alert">Introduce un entero no negativo de hasta 2147483647 segundos.</p> }
       <label><input name="preview" type="checkbox" [(ngModel)]="preview"> Lección de muestra gratuita</label>
       <label><input name="published" type="checkbox" [(ngModel)]="published"> Lección publicada</label>
       <button type="submit" [disabled]="saving()">Guardar lección</button>

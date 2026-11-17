@@ -22,6 +22,29 @@ temario o biografía.
   Esta comprobación se refiere a esa operación concreta de alta de curso y
   bloques; no se extiende a otros flujos.
 
+## Prioridad y referencia funcional acordada (2026-11-17)
+
+- **Prioridad acordada:** completar la **funcionalidad restante antes** de
+  acometer nuevos ajustes de estilo o layout.
+- **Referencia funcional aprobada:** la futura revisión de diseño debe
+  **replicar la posición funcional** ya aprobada, sin copiar HTML, tokens ni
+  branding de la referencia:
+  - **barra de acciones arriba del vídeo:** flechas prev/next y botón de
+    «completar» manual;
+  - **móvil:** un botón de hamburguesa despliega el panel de índice **desde la
+    izquierda**;
+  - **escritorio:** índice a la izquierda, bloque de lecciones ordenadas,
+    vídeo principal y, debajo, materiales / cuerpo / comentarios asociados
+    (estos últimos, de cara al futuro).
+- **Estética:** identidad propia; no copiar branding ni assets de la
+  referencia.
+- **No por interpretación:** los requisitos de layout no se deciden por
+  interpretación del agente; se mantienen las condiciones de accesibilidad.
+- **Alcance:** no implementar estos cambios de layout ahora. El modelo
+  editorial y el diseño final siguen **provisionales** hasta una revisión
+  futura; se conservan cursos, identificadores, contenido, progreso, derechos
+  y pagos.
+
 ## Carácter provisional del modelo
 
 - La organización **cursos → bloques → lecciones** y el modelo pedagógico /

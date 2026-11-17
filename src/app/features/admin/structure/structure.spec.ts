@@ -54,30 +54,55 @@ describe('Structure', () => {
     expect(fixture.nativeElement.textContent).toContain('No se ha podido cargar');
     expect(fixture.nativeElement.textContent).not.toContain('Añadir bloque');
   });
-  it('valida y normaliza antes de guardar al final sin mover lecciones', async () => {
+  it('genera identificadores normalizados y únicos en todo el curso', async () => {
     const fixture = await setup(); const component = fixture.componentInstance;
+    component.lessons.set([
+      { id: 'l', course_id: 'course', section_id: 'otro', slug: 'titulo-ano', title: 'Otro',
+        summary: null, content_md: null, duration_seconds: null, position: 0, is_free_preview: false, is_published: false, content_type: 'text' },
+    ]);
     component.editLesson(section);
-    component.lessonTitle = '  Título  '; component.slug = ' mala ruta ';
+    component.lessonTitle = '  Título -- Año  ';
     await component.saveLesson();
-    expect(repo.saveLesson).not.toHaveBeenCalled();
-    component.slug = ' leccion '; component.duration = '45'; component.content = ' texto ';
+    expect(repo.saveLesson).toHaveBeenCalledWith('course', 'section', {
+      title: 'Título -- Año', content_type: 'video', is_free_preview: false, is_published: false,
+    }, 0, undefined, 'titulo-ano-2');
+    component.editLesson(section); component.lessonTitle = '🎸';
     await component.saveLesson();
-    expect(repo.saveLesson).toHaveBeenCalledWith('course', 'section', expect.objectContaining({
-      title: 'Título', slug: 'leccion', duration_seconds: 45, content_md: 'texto', is_published: false,
-    }), 0, undefined);
+    expect(repo.saveLesson).toHaveBeenLastCalledWith('course', 'section', expect.anything(), 0, undefined, 'leccion');
+  });
+  it('oculta campos técnicos y conserva los datos anteriores al editar', async () => {
+    const lesson = { id: 'l', course_id: 'course', section_id: 'section', slug: 'ruta-antigua',
+      title: 'Anterior', summary: ' resumen ', content_md: ' texto ', duration_seconds: 42, position: 0,
+      is_free_preview: false, is_published: false, content_type: 'text' as const };
+    repo.list.mockResolvedValueOnce({ sections: [section], lessons: [lesson] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    component.editLesson(section, lesson); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#lesson-slug, #lesson-summary, #lesson-content, #lesson-duration')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#lesson-type')).not.toBeNull();
+    component.lessonTitle = 'Nuevo'; await component.saveLesson();
+    expect(repo.saveLesson).toHaveBeenCalledWith('course', 'section',
+      { title: 'Nuevo', content_type: 'text', is_free_preview: false, is_published: false }, 1, lesson, undefined);
+  });
+  it('informa de conflictos sin reintentar ni atribuirles una causa concreta', async () => {
+    const fixture = await setup(); const component = fixture.componentInstance;
+    component.editLesson(section); component.lessonTitle = 'Lección';
+    repo.saveLesson.mockRejectedValueOnce(new Error('save_conflict'));
+    await component.saveLesson();
+    expect(repo.saveLesson).toHaveBeenCalledTimes(1);
+    expect(component.error()).toContain('conflicto');
   });
   it('guarda PDF y texto y rechaza tipos desconocidos', async () => {
     const fixture = await setup(); const component = fixture.componentInstance;
-    component.editLesson(section); component.lessonTitle = 'Lección'; component.slug = 'leccion';
+    component.editLesson(section); component.lessonTitle = 'Lección';
     expect(component.contentType).toBe('video');
     component.contentType = 'audio'; await component.saveLesson();
     expect(repo.saveLesson).not.toHaveBeenCalled();
     expect(component.invalid().contentType).toBe(true);
     component.contentType = 'pdf'; await component.saveLesson();
-    expect(repo.saveLesson).toHaveBeenLastCalledWith('course', 'section', expect.objectContaining({content_type: 'pdf'}), 0, undefined);
-    component.editLesson(section); component.lessonTitle = 'Texto'; component.slug = 'texto'; component.contentType = 'text';
+    expect(repo.saveLesson).toHaveBeenLastCalledWith('course', 'section', expect.objectContaining({content_type: 'pdf'}), 0, undefined, 'leccion');
+    component.editLesson(section); component.lessonTitle = 'Texto'; component.contentType = 'text';
     await component.saveLesson();
-    expect(repo.saveLesson).toHaveBeenLastCalledWith('course', 'section', expect.objectContaining({content_type: 'text'}), 0, undefined);
+    expect(repo.saveLesson).toHaveBeenLastCalledWith('course', 'section', expect.objectContaining({content_type: 'text'}), 0, undefined, 'texto');
   });
   it('guarda bloques al final e informa de error sin especular', async () => {
     const fixture = await setup(); const component = fixture.componentInstance;
@@ -117,19 +142,17 @@ describe('Structure', () => {
     expect(component.loadFailed()).toBe(true);
     expect(component.error()).toContain('cargar');
   });
-  it('valida título y duración individualmente y conserva las marcas', async () => {
+  it('valida el título y conserva las marcas', async () => {
     const fixture = await setup(); const component = fixture.componentInstance;
     component.editLesson(section); component.lessonTitle = 'x'.repeat(161);
-    component.slug = 'leccion'; component.duration = '-1';
     await component.saveLesson(); fixture.detectChanges();
     expect(component.invalid().lessonTitle).toBe(true);
-    expect(component.invalid().duration).toBe(true);
-    expect(fixture.nativeElement.querySelector('#lesson-duration').getAttribute('aria-describedby')).toBe('lesson-duration-error');
+    expect(fixture.nativeElement.querySelector('#lesson-title').getAttribute('aria-describedby')).toBe('lesson-title-error');
     expect(repo.saveLesson).not.toHaveBeenCalled();
-    component.lessonTitle = 'Válido'; component.duration = ''; component.preview = true; component.published = true;
+    component.lessonTitle = 'Válido'; component.preview = true; component.published = true;
     await component.saveLesson();
     expect(repo.saveLesson).toHaveBeenCalledWith('course', 'section',
-      expect.objectContaining({ is_free_preview: true, is_published: true }), 0, undefined);
+      expect.objectContaining({ is_free_preview: true, is_published: true }), 0, undefined, 'valido');
   });
   it('enfoca ambos editores y devuelve foco al encabezado al cancelar o guardar', async () => {
     const fixture = await setup(); const component = fixture.componentInstance;
@@ -139,7 +162,7 @@ describe('Structure', () => {
     expect(document.activeElement?.textContent).toContain('Estructura:');
     component.editLesson(section); fixture.detectChanges(); await fixture.whenStable();
     expect(document.activeElement?.id).toBe('lesson-title');
-    component.lessonTitle = 'Título'; component.slug = 'titulo';
+    component.lessonTitle = 'Título';
     await component.saveLesson(); fixture.detectChanges(); await fixture.whenStable();
     expect(document.activeElement?.textContent).toContain('Estructura:');
   });

@@ -11,7 +11,7 @@ export interface Lesson {
   duration_seconds: number | null; is_free_preview: boolean; is_published: boolean; content_type: LessonContentType;
 }
 export type SectionValues = Pick<Section, 'title' | 'summary'>;
-export type LessonValues = Pick<Lesson, 'slug' | 'title' | 'summary' | 'content_md' | 'duration_seconds' | 'is_free_preview' | 'is_published' | 'content_type'>;
+export type LessonValues = Pick<Lesson, 'title' | 'is_free_preview' | 'is_published' | 'content_type'>;
 
 @Injectable({ providedIn: 'root' })
 export class StructureRepository {
@@ -36,12 +36,14 @@ export class StructureRepository {
     if (error || !data) throw new Error('save_failed');
   }
 
-  async saveLesson(courseId: string, sectionId: string, values: LessonValues, position: number, existing?: Lesson): Promise<void> {
+  async saveLesson(courseId: string, sectionId: string, values: LessonValues, position: number, existing?: Lesson, slug?: string): Promise<void> {
     if (!this.client) throw new Error('unavailable');
+    if (!existing && !slug) throw new Error('missing_slug');
     const query = existing
       ? this.client.from('lessons').update(values).eq('id', existing.id).eq('course_id', courseId).eq('section_id', sectionId)
-      : this.client.from('lessons').insert({ ...values, course_id: courseId, section_id: sectionId, position });
+      : this.client.from('lessons').insert({ ...values, slug, course_id: courseId, section_id: sectionId, position });
     const { data, error } = await query.select('id').single();
+    if (error?.code === '23505') throw new Error('save_conflict');
     if (error || !data) throw new Error('save_failed');
   }
 }
