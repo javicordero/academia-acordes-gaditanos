@@ -4,12 +4,16 @@ import { provideRouter } from '@angular/router';
 import { App } from './app';
 import { routes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
+import { SUPABASE_CONFIG } from '../environments/supabase-config';
 
 describe('App shell', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter(routes)],
+      providers: [
+        provideRouter(routes),
+        { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '' } },
+      ],
     }).compileComponents();
   });
 
