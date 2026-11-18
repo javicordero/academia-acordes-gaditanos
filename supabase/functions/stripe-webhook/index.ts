@@ -14,5 +14,6 @@ Deno.serve(makeHandler(client ? createDependencies(stripe, Stripe.createSubtleCr
   async verify() { throw new Error('Configuración ausente'); },
   async record() { throw new Error('Configuración ausente'); },
   async order() { throw new Error('Configuración ausente'); },
+  async reservation() { throw new Error('Configuración ausente'); },
   async fulfill() { throw new Error('Configuración ausente'); },
 }, { enabled: enabled && !!client, secret, expectedLiveMode: false }));

@@ -1,0 +1,141 @@
+﻿\set ON_ERROR_STOP on
+-- Bind checkout<->pedido y clasificación de la reserva previa al bind.
+-- Sólo lógica SQL/RLS sobre PGlite: no prueba Supabase, Auth ni Stripe reales.
+begin;
+
+do $$ begin
+  if has_function_privilege('anon','public.server_checkout_pending_state(uuid,text,integer,text)','execute')
+  or has_function_privilege('authenticated','public.server_checkout_pending_state(uuid,text,integer,text)','execute')
+  or has_function_privilege('public','public.server_checkout_pending_state(uuid,text,integer,text)','execute')
+  or not has_function_privilege('service_role','public.server_checkout_pending_state(uuid,text,integer,text)','execute')
+  then raise exception 'privileges'; end if;
+end $$;
+set local role anon;
+do $$ begin
+  begin perform public.server_checkout_pending_state(null,null,null,null);
+    raise exception 'access anon';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+  begin perform public.server_checkout_pending_state(null,null,null,null);
+    raise exception 'access authenticated';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+insert into auth.users(id) values
+  ('00000000-0000-0000-0000-000000000017'),
+  ('00000000-0000-0000-0000-000000000018');
+insert into public.courses(id,slug,title,status,published_at) values
+  ('10000000-0000-0000-0000-000000000017','bind17','Bind 17','published',now()),
+  ('10000000-0000-0000-0000-000000000018','bind18','Bind 18','published',now());
+insert into public.course_prices(id,course_id,amount_minor,currency) values
+  ('20000000-0000-0000-0000-000000000017','10000000-0000-0000-0000-000000000017',100,'EUR'),
+  ('20000000-0000-0000-0000-000000000018','10000000-0000-0000-0000-000000000018',100,'EUR');
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values
+  ('20000000-0000-0000-0000-000000000017','stripe','price_bind17'),
+  ('20000000-0000-0000-0000-000000000018','stripe','price_bind18');
+insert into private.checkout_order_config values (true,'fixture17');
+select * from public.reserve_checkout_order(
+  '00000000-0000-0000-0000-000000000017','10000000-0000-0000-0000-000000000017',
+  '30000000-0000-0000-0000-000000000017',900);
+select * from public.reserve_checkout_order(
+  '00000000-0000-0000-0000-000000000018','10000000-0000-0000-0000-000000000018',
+  '30000000-0000-0000-0000-000000000018',900);
+
+do $$
+declare o uuid; o2 uuid;
+begin
+  select order_id into o from private.checkout_attempts
+   where attempt_id='30000000-0000-0000-0000-000000000017';
+  select order_id into o2 from private.checkout_attempts
+   where attempt_id='30000000-0000-0000-0000-000000000018';
+
+  -- Reserva nuestra, abierta y coherente: único caso reintentable.
+  if public.server_checkout_pending_state(o,'cs_test_bind17',100,'EUR') <> 'pending' then
+    raise exception 'open reservation';
+  end if;
+  -- Forma inválida, importe/moneda distintos, pedido ajeno y sesión no emitida
+  -- por Stripe: definitivos. No se concede ni se fija ninguna sesión.
+  if public.server_checkout_pending_state(o,'not_a_session',100,'EUR') <> 'unresolvable'
+  or public.server_checkout_pending_state(o,'cs_test_bind17',99,'EUR') <> 'unresolvable'
+  or public.server_checkout_pending_state(o,'cs_test_bind17',100,'USD') <> 'unresolvable'
+  or public.server_checkout_pending_state(gen_random_uuid(),'cs_test_bind17',100,'EUR') <> 'unresolvable'
+  then raise exception 'negative classification'; end if;
+  -- Límite técnico del parámetro `integer`: el máximo se clasifica sin error;
+  -- un valor superior ni siquiera llega a la RPC (la app lo rechaza antes).
+  if public.server_checkout_pending_state(o,'cs_test_bind17',2147483647,'EUR') <> 'unresolvable' then
+    raise exception 'integer max';
+  end if;
+  begin perform public.server_checkout_pending_state(o,'cs_test_bind17',2147483648::integer,'EUR');
+    raise exception 'integer overflow';
+  exception when numeric_value_out_of_range then null; end;
+  -- La RPC no recibe actor: no hay metadata que pueda elevar acceso. El intend-
+  -- to se deriva del pedido y bind_checkout_session sí exige el actor correcto.
+  begin perform public.bind_checkout_session(
+    '00000000-0000-0000-0000-000000000018',o,'cs_test_bind17');
+    raise exception 'foreign actor bound';
+  exception when raise_exception then if sqlerrm <> 'invalid binding' then raise; end if; end;
+
+  -- Recibo registrado ANTES del bind: sigue sin procesarse y fulfillment falla.
+  perform public.record_stripe_event('evt_bind17','checkout.session.completed',false,
+    repeat('a',64),'cs_test_bind17',o);
+  perform public.record_stripe_event('evt_bind17','checkout.session.completed',false,
+    repeat('a',64),'cs_test_bind17',o);
+  if (select processing_state from private.commerce_events
+      where external_event_id='evt_bind17') <> 'received' then raise exception 'receipt state'; end if;
+  begin perform public.fulfill_paid_event('evt_bind17',o,'cs_test_bind17',
+    '00000000-0000-0000-0000-000000000017',100,'EUR',null);
+    raise exception 'unbound fulfilled';
+  exception when raise_exception then if sqlerrm <> 'order mismatch' then raise; end if; end;
+
+  -- Reserva cerrada: imposible aunque el pedido exista y cuadre.
+  update private.checkout_attempts set closed_at=now()
+   where attempt_id='30000000-0000-0000-0000-000000000018';
+  if public.server_checkout_pending_state(o2,'cs_test_bind18',100,'EUR') <> 'unresolvable' then
+    raise exception 'closed reservation';
+  end if;
+  begin perform public.bind_checkout_session(
+    '00000000-0000-0000-0000-000000000018',o2,'cs_test_bind18');
+    raise exception 'closed bound';
+  exception when raise_exception then if sqlerrm <> 'invalid binding' then raise; end if; end;
+
+  -- Bind del mismo actor y sesión: la reserva deja de ser reintentable.
+  if public.bind_checkout_session(
+    '00000000-0000-0000-0000-000000000017',o,'cs_test_bind17') <> 'bound' then raise exception 'bind'; end if;
+  if public.server_checkout_pending_state(o,'cs_test_bind17',100,'EUR') <> 'unresolvable'
+  or public.server_checkout_pending_state(o,'cs_test_other',100,'EUR') <> 'unresolvable' then
+    raise exception 'bound reservation';
+  end if;
+  if public.bind_checkout_session(
+    '00000000-0000-0000-0000-000000000017',o,'cs_test_bind17') <> 'already_bound' then
+    raise exception 'already_bound';
+  end if;
+  begin perform public.bind_checkout_session(
+    '00000000-0000-0000-0000-000000000017',o,'cs_test_other');
+    raise exception 'session replacement';
+  exception when raise_exception then if sqlerrm <> 'binding conflict' then raise; end if; end;
+
+  -- El mismo evento registrado antes del bind puede procesarse una sola vez.
+  if public.fulfill_paid_event('evt_bind17',o,'cs_test_bind17',
+    '00000000-0000-0000-0000-000000000017',100,'EUR',null) <> 'fulfilled' then
+    raise exception 'postbind fulfillment';
+  end if;
+  perform public.record_stripe_event('evt_bind18','checkout.session.async_payment_succeeded',false,
+    repeat('b',64),'cs_test_bind17',o);
+  if public.fulfill_paid_event('evt_bind18',o,'cs_test_bind17',
+    '00000000-0000-0000-0000-000000000017',100,'EUR',null) <> 'already_paid' then
+    raise exception 'second event';
+  end if;
+  if public.fulfill_paid_event('evt_bind17',o,'cs_test_bind17',
+    '00000000-0000-0000-0000-000000000017',100,'EUR',null) <> 'already_processed' then
+    raise exception 'replay';
+  end if;
+  if (select count(*) from public.entitlements where order_id=o) <> 1 then
+    raise exception 'duplicate entitlement';
+  end if;
+end $$;
+
+rollback;

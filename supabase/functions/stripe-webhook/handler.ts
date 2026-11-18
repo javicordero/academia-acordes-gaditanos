@@ -7,9 +7,16 @@ export type Recorded = 'created' | 'received_unprocessed' | 'processed';
 export const RECORDED: readonly Recorded[] = ['created', 'received_unprocessed', 'processed'];
 
 // Datos mínimos del pedido leídos de la BD a partir de metadata.order_id.
-// `known=false` significa que la consulta terminó pero no hay pedido elegible;
-// un fallo de consulta se lanza y el handler responde 503.
+// `known=false` significa que la consulta terminó pero no hay pedido elegible
+// con esa sesión vinculada; un fallo de consulta se lanza y el handler responde 503.
 export type OrderLookup = { known: boolean; userId: string | null; amountMinor: number | null; currency: string | null };
+// Estado de una reserva NUESTRA aún no vinculada. Sólo decide si el evento se
+// puede reintentar; nunca concede ni completa el derecho ni fija la sesión.
+//  pending        pedido de Stripe con intento abierto, snapshot coherente y
+//                 hechos monetarios del evento iguales a los de la BD.
+//  unresolvable   no existe, es ajeno, está cerrado/caducado/y vinculado a otra
+//                 sesión o los hechos del evento no pueden casar nunca.
+export type Reservation = 'pending' | 'unresolvable';
 export type Fulfillment =
   | 'fulfilled' | 'already_paid' | 'already_entitled' | 'already_processed'
   | 'requires_manual_review' | 'missing_order' | 'receipt_bound_to_other_user';
@@ -25,6 +32,8 @@ export type Dependencies = {
   verify(body: Uint8Array, signature: string, secret: string): Promise<any>;
   record(event: EventRecord): Promise<Recorded>;
   order(orderId: string, sessionId: string): Promise<OrderLookup>;
+  /** Clasificación de la reserva previa al bind; opcional: sin ella se ACK. */
+  reservation?(orderId: string, sessionId: string, amountMinor: number, currency: string): Promise<Reservation | null>;
   fulfill(facts: Facts): Promise<Fulfillment>;
 };
 export type Config = { enabled: boolean; secret?: string; expectedLiveMode: boolean; now?: () => number };
@@ -36,9 +45,12 @@ const blocked = new Set<Fulfillment>(['requires_manual_review', 'missing_order',
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const sessionId = /^cs_(?:test|live)_[A-Za-z0-9]+$/;
 const money = /^[A-Za-z]{3}$/;
+// Límite técnico del esquema (columnas y parámetros `integer`), no una decisión
+// de producto: un importe mayor nunca debe llegar a la RPC ni a fulfillment.
+export const SQL_INT_MAX = 2147483647;
 const response = (status: number, headers?: Record<string, string>) => new Response(null, { status, headers });
 const nonNegative = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= SQL_INT_MAX;
 const object = (value: unknown): Record<string, any> | null =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : null;
 // Log mínimo y estructurado: id de evento y código fijo. Nunca cuerpo, correo,
@@ -88,18 +100,44 @@ async function fulfillment(
   let found: OrderLookup;
   try { found = await deps.order(orderId, object.id); }
   catch { log(503, eventId, 'order_lookup_error'); return 503; }
-  if (!found.known || typeof found.userId !== 'string' || !uuid.test(found.userId)) {
+  if (!found.known) {
+    // Pre-bind: sólo se reintenta una reserva NUESTRA abierta y coherente. La
+    // clasificación la hace SQL a partir del pedido y de los hechos del evento;
+    // metadata.user_id NO se usa: no identifica al actor ni puedes vincular ni
+    // conceder nada desde el webhook.
+    if (typeof deps.reservation === 'function' && nonNegative(amount) &&
+        typeof currency === 'string' && money.test(currency)) {
+      let state: Reservation | null;
+      try { state = await deps.reservation(orderId, object.id, amount, currency.toUpperCase()); }
+      catch { log(503, eventId, 'reservation_error'); return 503; }
+      if (state === 'pending') { log(503, eventId, 'unbound_session'); return 503; }
+    }
+    log(200, eventId, 'missing_order'); return 200;
+  }
+  if (typeof found.userId !== 'string' || !uuid.test(found.userId)) {
     log(200, eventId, 'missing_order'); return 200;
   }
 
-  // El cuerpo sólo aporta hechos comprobables; si faltan, se toman de la BD.
-  // La RPC vuelve a cotejarlos contra el snapshot inmutable del pedido.
-  const amountMinor = amount !== undefined ? amount : found.amountMinor;
-  const value = currency !== undefined ? currency : found.currency;
+  // El importe y la moneda cobrados son EVIDENCIA del evento firmado: se exigen
+  // en el propio payload y jamas se sustituyen por el snapshot (seria tautologia).
+  // El snapshot inmutable sigue siendo la unica fuente con la que los coteja la
+  // RPC de forma atomica, bajo bloqueo, en servidor.
+  const amountMinor = amount;
+  const value = currency;
   if (!nonNegative(amountMinor) || typeof value !== 'string' || !money.test(value)) {
     log(503, eventId, 'facts_invalid'); return 503;
   }
-  if (tax !== undefined && (tax as number) > amountMinor) {
+  // La comparación definitiva con el snapshot la hace la RPC bajo bloqueo.
+  // Este cotejo previo, contra los valores que ya devolvió SQL, evita reintentos
+  // infinitos de un evento firmado cuyos hechos nunca podrán casar: se ack-ea
+  // sin llamar a fulfillment y sin marcar el recibo como procesado.
+  if (!nonNegative(found.amountMinor) || typeof found.currency !== 'string') {
+    log(503, eventId, 'lookup_invalid'); return 503;
+  }
+  if (amountMinor !== found.amountMinor || value.toUpperCase() !== found.currency.toUpperCase()) {
+    log(200, eventId, 'facts_mismatch'); return 200;
+  }
+  if (tax !== undefined && (!nonNegative(tax) || (tax as number) > amountMinor)) {
     log(400, eventId, 'invalid_tax'); return 400;
   }
 
@@ -151,21 +189,33 @@ export function makeHandler(deps: Dependencies, config: Config) {
       log(400, event.id, 'invalid_order_id'); return response(400);
     }
 
+    // Importe y moneda son obligatorios: un evento pagado sin ellos es
+    // malformado y no se ack-ea ni se concede.
     const amount = obj.amount_total;
-    if (amount !== undefined && !nonNegative(amount)) {
+    if (amount === undefined) { log(400, event.id, 'missing_amount'); return response(400); }
+    if (!nonNegative(amount)) {
       log(400, event.id, 'invalid_amount'); return response(400);
     }
     const currency = obj.currency;
-    if (currency !== undefined && (typeof currency !== 'string' || !money.test(currency))) {
+    if (currency === undefined) { log(400, event.id, 'missing_currency'); return response(400); }
+    if (typeof currency !== 'string' || !money.test(currency)) {
       log(400, event.id, 'invalid_currency'); return response(400);
     }
+    // El impuesto es opcional y su política está pendiente: null/ausente se
+    // traduce a NULL en SQL (jamás a 0 ni a una estimación). Los valores
+    // numéricos sí se validan: entero no negativo, dentro de `integer` y sin
+    // superar el total cobrado. subtotal no interviene: amount_total manda.
     const details = object(obj.total_details);
-    const tax = details ? details.amount_tax : undefined;
-    if (tax !== undefined && (!nonNegative(tax) || (amount !== undefined && tax > amount))) {
+    const rawTax = details ? details.amount_tax : undefined;
+    const tax = rawTax === null || rawTax === undefined ? undefined : rawTax;
+    if (tax !== undefined && (!nonNegative(tax) || tax > amount)) {
       log(400, event.id, 'invalid_tax'); return response(400);
     }
 
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', body)), x => x.toString(16).padStart(2, '0')).join('');
+    // 503 reintentable: el evento ya tiene recibo (created) pero la sesion aun
+    // no esta vinculada. Stripe reintenta; el recibo y el hash se conservan, asi
+    // que el mismo evento podra procesarse una sola vez tras el bind.
     const status = await fulfillment(deps, event, obj, orderId, hash, amount, currency, tax);
     return response(status);
   };

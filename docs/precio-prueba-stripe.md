@@ -12,11 +12,15 @@ con la suite SQL sobre PGlite en memoria.
 - Faltan `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`, que se pondrán **a mano**
   como secretos en servidor/Edge Functions; no se versionan ni se ponen en
   clientes ni en `environment.local.ts`.
-- Falta **probar el cobro en modo test con la tarjeta 4242**. Verificada la
-  comprobación operativa del promotor (price activo, pago único, sin recurring,
-  EUR y `unit_amount=100`), no está asumida por la migración.
-- No hay webhook firmado e idempotente operativo: la página de éxito no concede
-  acceso. Ver `docs/checkout-estado.md` para las precondiciones pendientes.
+- Falta **probar el cobro en modo test con la tarjeta 4242**. La observación de UI
+  del price es `unit_amount=100`, EUR y pago único (`prod_VeEc1h7IQd6TOO`); el
+  estado `active` **no quedó confirmado por UI**, así que el handler consulta la
+  API de Stripe en runtime y exige `active`, `one_time`, sin `recurring`, moneda e
+  importe iguales a la BD antes de crear la sesión. Ningún valor se fija desde
+  el cliente ni se asume de la migración.
+- El webhook firmado e idempotente está implementado en código pero **no operativo**:
+  falta el `whsec` remoto y no hay integración E2E. La página de éxito no concede
+  acceso. Ver `docs/checkout-estado.md` y `docs/webhook-estado.md`.
 
 ## Identificador y ubicación
 

@@ -13,7 +13,8 @@ function setup() {
     price: vi.fn().mockResolvedValue({ active: true, currency: 'eur', unit_amount: 100, type: 'one_time', recurring: null }),
     // Mock explícito: la reserva real la hace la RPC reserve_checkout_order.
     reserve: vi.fn().mockResolvedValue({ order_id: order }),
-    create: vi.fn().mockResolvedValue('https://checkout.stripe.com/c/pay/test'),
+    create: vi.fn().mockResolvedValue({ id: 'cs_test_session123', url: 'https://checkout.stripe.com/c/pay/test' }),
+    bind: vi.fn().mockResolvedValue('bound'),
   };
   const config = { origins: ['http://localhost:4200'], appOrigin: 'http://localhost:4200', enabled: true, termsVersion: 'test' };
   const call = (body: unknown = { courseId: course, attemptId: attempt }, token = 'Bearer valid') => makeHandler(io, config)(new Request('http://local', {
@@ -143,5 +144,91 @@ describe('create-checkout', () => {
     expect((await s.call()).status).toBe(409);
     expect((await s.call()).status).toBe(409);
     expect(s.io.reserve).not.toHaveBeenCalled();
+  });
+  it('vincula con usuario de Auth, pedido reservado e id de sesión real', async () => {
+    const s = setup();
+    const res = await s.call();
+    expect(res.status).toBe(200);
+    expect(s.io.bind).toHaveBeenCalledOnce();
+    expect(s.io.bind).toHaveBeenCalledWith(user, order, 'cs_test_session123');
+    // La identidad del bind es la del token, no un campo del cuerpo.
+    expect((s.io.bind as any).mock.calls[0][0]).not.toBe(attempt);
+  });
+  it('nunca devuelve URL antes de que el bind resuelva', async () => {
+    const s = setup();
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const calls: string[] = [];
+    vi.mocked(s.io.bind).mockImplementation(async () => { calls.push('bind'); await gate; return 'bound'; });
+    vi.mocked(s.io.create).mockImplementation(async () => {
+      calls.push('create');
+      return { id: 'cs_test_session123', url: 'https://checkout.stripe.com/c/pay/test' };
+    });
+    const pending = s.call();
+    for (let i = 0; i < 50 && calls.length === 0; i += 1) await new Promise(r => setTimeout(r, 1));
+    expect(calls).toEqual(['create', 'bind']);
+    release();
+    expect((await pending).status).toBe(200);
+  });
+  it('bind fallido (invalid/error) no devuelve URL ni sesión', async () => {
+    for (const bind of [vi.fn().mockRejectedValue(new Error('privado')), vi.fn().mockResolvedValue('invalid')]) {
+      const s = setup();
+      s.io.bind = bind as any;
+      const res = await s.call();
+      expect(res.status).toBe(500);
+      const text = await res.text();
+      expect(text).not.toContain('checkout.stripe.com');
+      expect(text).not.toContain('cs_test_session123');
+    }
+  });
+  it('already_bound de la MISMA sesión es válido; un conflicto con otra no devuelve URL', async () => {
+    const s = setup();
+    vi.mocked(s.io.bind).mockResolvedValueOnce('already_bound');
+    const ok = await s.call();
+    expect(ok.status).toBe(200);
+    await expect(ok.json()).resolves.toEqual({ url: 'https://checkout.stripe.com/c/pay/test' });
+    vi.mocked(s.io.bind).mockResolvedValueOnce('binding_conflict');
+    const res = await s.call();
+    expect(res.status).toBe(500);
+    expect(await res.text()).not.toContain('checkout.stripe.com');
+  });
+  it('el reintento usa la misma clave canónica y la misma snapshot', async () => {
+    const s = setup();
+    vi.mocked(s.io.bind).mockRejectedValue(new Error('caída'));
+    expect((await s.call()).status).toBe(500);
+    vi.mocked(s.io.bind).mockResolvedValue('bound');
+    expect((await s.call()).status).toBe(200);
+    const calls = vi.mocked(s.io.create).mock.calls;
+    expect(calls.length).toBe(2);
+    expect(calls[0][1]).toBe(calls[1][1]);
+    expect(calls[0][1]).toMatch(/^[a-f0-9]{64}$/);
+    expect(calls[0][0]).toEqual(calls[1][0]);
+    expect(calls[0][0].metadata.order_id).toBe(order);
+    expect(calls[0][0].metadata.attempt_id).toBe(attempt);
+  });
+  it('sesión o URL no confiables del proveedor no se propagan', async () => {
+    const badIds = ['pi_algo', 'ch_test_1', 'cs_test_ ok', 'cs_live_'];
+    for (const id of badIds) {
+      const s = setup();
+      vi.mocked(s.io.create).mockResolvedValueOnce({ id, url: 'https://checkout.stripe.com/c/pay/test' });
+      expect((await s.call()).status).toBe(500);
+      expect(s.io.bind).not.toHaveBeenCalled();
+    }
+    // Sesión y URL se validan ANTES de escribir en BD: una URL ajena, HTTP o
+    // nula provoca 500 sin bind y sin filtrar el destino.
+    for (const url of ['https://evil.example/c/pay', 'http://checkout.stripe.com/c/pay', 'not-a-url', null]) {
+      const s = setup();
+      vi.mocked(s.io.create).mockResolvedValue({ id: 'cs_test_session123', url } as any);
+      const res = await s.call();
+      expect(res.status).toBe(500);
+      const text = await res.text();
+      expect(text).not.toContain('evil.example');
+      expect(text).not.toContain('checkout.stripe.com');
+      expect(s.io.bind).not.toHaveBeenCalled();
+    }
+    const missing = setup();
+    delete missing.io.bind;
+    expect((await missing.call()).status).toBe(409);
+    expect(missing.io.create).not.toHaveBeenCalled();
   });
 });

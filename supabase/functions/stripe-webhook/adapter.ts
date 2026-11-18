@@ -1,7 +1,10 @@
-import type { Dependencies, Fulfillment, Recorded } from './handler.ts';
-import { FULFILLMENTS, RECORDED } from './handler.ts';
+import type { Dependencies, Fulfillment, Recorded, Reservation } from './handler.ts';
+import { FULFILLMENTS, RECORDED, SQL_INT_MAX } from './handler.ts';
 
 const currency = /^[A-Z]{3}$/;
+const RESERVATIONS: readonly Reservation[] = ['pending', 'unresolvable'];
+const monetary = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= SQL_INT_MAX;
 const resultOf = <T extends string>(data: unknown, allowed: readonly T[], error: string): T => {
   if (typeof data !== 'string' || !allowed.includes(data as T)) throw new Error(error);
   return data as T;
@@ -33,20 +36,35 @@ export function createDependencies(stripe: any, cryptoProvider: any, client: any
       if (data.length !== 1) throw new Error('Pedido ambiguo');
       const row = data[0] ?? {};
       const { user_id: userId, amount_minor: amountMinor, currency: code } = row;
-      if (typeof userId !== 'string' || !Number.isSafeInteger(amountMinor) ||
-          amountMinor < 0 || typeof code !== 'string' || !currency.test(code.toUpperCase())) {
+      if (typeof userId !== 'string' || !monetary(amountMinor) ||
+          typeof code !== 'string' || !currency.test(code.toUpperCase())) {
         throw new Error('Pedido inválido');
       }
       return { known: true, userId, amountMinor: amountMinor as number, currency: code };
+    },
+    // Clasificación de la reserva antes del bind. No concede ni vincula: sólo
+    // determina si el evento firmado puede reintentarse. No se pasa actor ni
+    // metadata de cliente: la RPC deriva el intento del propio pedido.
+    async reservation(orderId, sessionId, amountMinor, code) {
+      const upper = code.toUpperCase();
+      if (!currency.test(upper) || !monetary(amountMinor) ||
+          typeof sessionId !== 'string' || sessionId.length > 255) {
+        throw new Error('Reserva no disponible');
+      }
+      const { data, error } = await client.rpc('server_checkout_pending_state', {
+        p_order: orderId, p_session: sessionId, p_amount: amountMinor, p_currency: upper,
+      });
+      if (error) throw error;
+      return resultOf<Reservation>(data, RESERVATIONS, 'Estado de reserva desconocido');
     },
     // Única escritura de la concesión: la RPC transaccional ya versionada.
     // Stripe envía la moneda en minúsculas; el guard SQL exige tres mayúsculas.
     // Normalizar aquí no cambia el importe ni relaja el cotejo del snapshot.
     async fulfill(facts) {
       const code = facts.currency.toUpperCase();
-      if (!currency.test(code) || !Number.isSafeInteger(facts.amountMinor) ||
-          facts.amountMinor < 0 || (facts.taxMinor !== null &&
-            (!Number.isSafeInteger(facts.taxMinor) || facts.taxMinor < 0 || facts.taxMinor > facts.amountMinor))) {
+      if (!currency.test(code) || !monetary(facts.amountMinor) ||
+          (facts.taxMinor !== null &&
+            (!monetary(facts.taxMinor) || facts.taxMinor > facts.amountMinor))) {
         throw new Error('Hechos de pago inválidos');
       }
       const { data, error } = await client.rpc('fulfill_paid_event', {

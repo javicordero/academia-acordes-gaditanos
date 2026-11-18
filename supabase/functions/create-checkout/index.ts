@@ -31,13 +31,29 @@ Deno.serve(makeHandler({
     if (error) throw error;
     return data?.[0] ?? null;
   },
+  // La idempotencia de la clave canónica evita duplicar la sesión si el
+  // navegador reintenta la misma petición; un intento nuevo es otra compra.
   async create(input, key) {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment', line_items: [{ price: input.price, quantity: 1 }],
       success_url: input.success, cancel_url: input.cancel, metadata: input.metadata,
       allow_promotion_codes: false, adaptive_pricing: { enabled: false },
     }, { idempotencyKey: key });
-    return session.url;
+    if (typeof session.id !== 'string') throw new Error('Sesión sin id');
+    return { id: session.id, url: session.url ?? null };
+  },
+  // Vincula la sesión al pedido reservado. El actor es el usuario de Auth ya
+  // verificado por el handler (no metadata de cliente) y la RPC revalida
+  // pedido, intento, estado y caducidad bajo bloqueo.
+  async bind(user, order, sessionId) {
+    const { data, error } = await client.rpc('bind_checkout_session', {
+      p_actor: user, p_order: order, p_session: sessionId,
+    });
+    if (error) throw error;
+    if (data !== 'bound' && data !== 'already_bound' && data !== 'binding_conflict') {
+      throw new Error('Enlace no disponible');
+    }
+    return data;
   },
 }, {
   origins, appOrigin,

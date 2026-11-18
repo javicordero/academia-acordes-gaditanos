@@ -3,7 +3,7 @@
 // sin claves reales y sin datos personales.
 import { describe, it, expect, vi } from 'vitest';
 import Stripe from 'stripe';
-import { makeHandler, type Fulfillment, type Recorded } from './handler';
+import { SQL_INT_MAX, makeHandler, type Fulfillment, type Recorded } from './handler';
 import { createDependencies } from './adapter';
 
 const stripe = new Stripe('sk_test_unused');
@@ -22,16 +22,29 @@ const base = {
   } },
 };
 const withObject = (patch: Record<string, unknown>) => ({ ...base, data: { object: { ...base.data.object, ...patch } } });
+const baseFacts = {
+  eventId: 'evt_123', orderId: ORDER, sessionId: 'cs_test_123', userId: USER,
+  amountMinor: 12345, currency: 'eur', taxMinor: 1234 as number | null,
+};
 
-type Options = { recorded?: Recorded; known?: boolean; result?: Fulfillment; failFulfill?: boolean };
+type Options = {
+  recorded?: Recorded; known?: boolean; result?: Fulfillment; failFulfill?: boolean;
+  reservation?: 'pending' | 'unresolvable' | null; failReservation?: boolean;
+  dbAmount?: number; dbCurrency?: string;
+};
 function setup(o: Options = {}) {
   const record = vi.fn().mockResolvedValue(o.recorded ?? 'created');
-  const order = vi.fn().mockResolvedValue({ known: o.known ?? true, userId: USER, amountMinor: 12345, currency: 'EUR' });
+  const order = vi.fn().mockResolvedValue({
+    known: o.known ?? true, userId: USER,
+    amountMinor: o.dbAmount ?? 12345, currency: o.dbCurrency ?? 'EUR',
+  });
+  const reservation = vi.fn().mockResolvedValue(o.reservation === undefined ? 'unresolvable' : o.reservation);
+  if (o.failReservation) reservation.mockRejectedValue(new Error('private diagnostic'));
   const fulfill = vi.fn().mockResolvedValue(o.result ?? 'fulfilled');
   if (o.failFulfill) fulfill.mockRejectedValue(new Error('private diagnostic'));
-  const deps = { verify: vi.fn(verify), record, order, fulfill };
+  const deps = { verify: vi.fn(verify), record, order, reservation, fulfill };
   const handler = makeHandler(deps, { enabled: true, secret, expectedLiveMode: false });
-  return { record, order, fulfill, deps, handler };
+  return { record, order, reservation, fulfill, deps, handler };
 }
 function request(event: unknown = base, timestamp = Math.floor(Date.now() / 1000), change?: (s: string) => string) {
   const payload = JSON.stringify(event);
@@ -99,16 +112,63 @@ describe('webhook Stripe (mocks: no es Supabase/Stripe real)', () => {
     }
   });
 
-  it('importe, moneda o impuesto con forma inválida: 400 sin fulfill', async () => {
+  it('importe y moneda AUSENTES o con forma inválida: 400 sin recibo ni fulfill', async () => {
     for (const patch of [
-      { amount_total: -1 }, { amount_total: 1.5 }, { currency: 'euros' },
-      { total_details: { amount_tax: -1 } }, { total_details: { amount_tax: 12346 } },
+      { amount_total: undefined }, { currency: undefined },
+      { amount_total: -1 }, { amount_total: 1.5 }, { amount_total: '100' },
+      { amount_total: SQL_INT_MAX + 1 }, { currency: 'euros' },
+    ]) {
+      const event = withObject(patch);
+      if (patch.amount_total === undefined) delete (event.data.object as any).amount_total;
+      if (patch.currency === undefined) delete (event.data.object as any).currency;
+      const { handler, record, fulfill } = setup();
+      expect((await handler(request(event))).status).toBe(400);
+      expect(record).not.toHaveBeenCalled();
+      expect(fulfill).not.toHaveBeenCalled();
+    }
+  });
+
+  it('impuesto ausente, null o cero: checkout válido sin estimar impuestos', async () => {
+    for (const [patch, expected] of [
+      [{ total_details: undefined }, null],
+      [{ total_details: null }, null],
+      [{ total_details: {} }, null],
+      [{ total_details: { amount_tax: null } }, null],
+      [{ total_details: { amount_tax: 0 } }, 0],
+      [{ total_details: { amount_tax: 1234, amount_subtotal: 11111 } }, 1234],
+    ] as const) {
+      const event = withObject(patch as Record<string, unknown>);
+      if ((patch as any).total_details === undefined) delete (event.data.object as any).total_details;
+      const { handler, fulfill } = setup();
+      expect((await handler(request(event))).status).toBe(200);
+      expect(fulfill).toHaveBeenCalledWith({
+        eventId: 'evt_123', orderId: ORDER, sessionId: 'cs_test_123', userId: USER,
+        amountMinor: 12345, currency: 'eur', taxMinor: expected,
+      });
+    }
+  });
+
+  it('impuesto malformado o fuera de integer: 400 sin registro ni fulfillment', async () => {
+    for (const patch of [
+      { total_details: { amount_tax: -1 } }, { total_details: { amount_tax: 1.5 } },
+      { total_details: { amount_tax: '1234' } }, { total_details: { amount_tax: 12346 } },
+      { total_details: { amount_tax: SQL_INT_MAX + 1 } },
     ]) {
       const { handler, fulfill, record } = setup();
       expect((await handler(request(withObject(patch)))).status).toBe(400);
       expect(record).not.toHaveBeenCalled();
       expect(fulfill).not.toHaveBeenCalled();
     }
+  });
+
+  it('importe e impuesto en el máximo de integer se aceptan sin recorte', async () => {
+    const ok = setup({ dbAmount: SQL_INT_MAX });
+    const maxEvent = withObject({ amount_total: SQL_INT_MAX, total_details: { amount_tax: SQL_INT_MAX } });
+    expect((await ok.handler(request(maxEvent))).status).toBe(200);
+    expect(ok.fulfill).toHaveBeenCalledWith(expect.objectContaining({
+      amountMinor: SQL_INT_MAX, taxMinor: SQL_INT_MAX, currency: 'eur',
+    }));
+
   });
 
   it('duplicado ya processed: 200 sin segunda llamada a fulfillment', async () => {
@@ -128,13 +188,71 @@ describe('webhook Stripe (mocks: no es Supabase/Stripe real)', () => {
     });
   });
 
-  it('pedido no elegible: 200 ack sin fulfillment', async () => {
+  it('pedido no elegible o reserva imposible: 200 ACK sin fulfillment', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      const { handler, fulfill } = setup({ known: false });
+      const { handler, fulfill, reservation, record } = setup({ known: false });
       expect((await handler(request())).status).toBe(200);
+      expect(reservation).toHaveBeenCalledWith(ORDER, 'cs_test_123', 12345, 'EUR');
       expect(fulfill).not.toHaveBeenCalled();
+      expect(record).toHaveBeenCalledOnce();
       expect(spy).toHaveBeenCalledWith(JSON.stringify({ webhook: 'stripe', status: 200, eventId: 'evt_123', reason: 'missing_order' }));
+
+      const without = setup({ known: false });
+      delete (without.deps as any).reservation;
+      expect((await without.handler(request())).status).toBe(200);
+      expect(without.fulfill).not.toHaveBeenCalled();
+    } finally { spy.mockRestore(); }
+  });
+
+  it('reserva propia sin bind: 503 reintentable, sin concesión ni procesado', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { handler, fulfill, reservation, record } = setup({ known: false, reservation: 'pending' });
+      expect((await handler(request())).status).toBe(503);
+      expect(reservation).toHaveBeenCalledOnce();
+      expect(fulfill).not.toHaveBeenCalled();
+      expect(record).toHaveBeenCalledOnce();
+      expect(spy).toHaveBeenCalledWith(JSON.stringify({ webhook: 'stripe', status: 503, eventId: 'evt_123', reason: 'unbound_session' }));
+    } finally { spy.mockRestore(); }
+  });
+
+  it('mismo evento: pre-bind 503 y, tras bind, received_unprocessed se procesa una vez', async () => {
+    const record = vi.fn()
+      .mockResolvedValueOnce('created')
+      .mockResolvedValueOnce('received_unprocessed');
+    const order = vi.fn()
+      .mockResolvedValueOnce({ known: false, userId: null, amountMinor: null, currency: null })
+      .mockResolvedValueOnce({ known: true, userId: USER, amountMinor: 12345, currency: 'EUR' });
+    const reservation = vi.fn().mockResolvedValue('pending');
+    const fulfill = vi.fn().mockResolvedValue('fulfilled');
+    const deps = { verify: vi.fn(verify), record, order, reservation, fulfill };
+    const handler = makeHandler(deps, { enabled: true, secret, expectedLiveMode: false });
+    expect((await handler(request())).status).toBe(503);
+    expect(reservation).toHaveBeenCalledOnce();
+    expect(fulfill).not.toHaveBeenCalled();
+    expect((await handler(request())).status).toBe(200);
+    expect(record).toHaveBeenCalledTimes(2);
+    expect(reservation).toHaveBeenCalledOnce();
+    expect(fulfill).toHaveBeenCalledOnce();
+  });
+
+  it('error al clasificar la reserva: 503 sin concesión', async () => {
+    const { handler, fulfill } = setup({ known: false, failReservation: true });
+    expect((await handler(request())).status).toBe(503);
+    expect(fulfill).not.toHaveBeenCalled();
+  });
+
+  it('hechos del evento distintos de la BD: ACK sin llamar a fulfillment', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      for (const db of [{ dbAmount: 12344 }, { dbCurrency: 'USD' }]) {
+        const { handler, fulfill, record } = setup(db);
+        expect((await handler(request())).status).toBe(200);
+        expect(record).toHaveBeenCalledOnce();
+        expect(fulfill).not.toHaveBeenCalled();
+      }
+      expect(spy.mock.calls.map(c => JSON.stringify(c)).join('')).toContain('facts_mismatch');
     } finally { spy.mockRestore(); }
   });
 
@@ -178,5 +296,63 @@ describe('webhook Stripe (mocks: no es Supabase/Stripe real)', () => {
     await expect(deps.fulfill(facts)).rejects.toThrow();
     rpc.mockResolvedValueOnce({ data: 'unexpected', error: null });
     await expect(deps.fulfill(facts)).rejects.toThrow();
+  });
+
+  it('adapter acota importes e impuestos al rango integer de SQL', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: 'fulfilled', error: null });
+    const deps = createDependencies(stripe, cryptoProvider, { rpc });
+    const max = { ...baseFacts, amountMinor: SQL_INT_MAX, taxMinor: SQL_INT_MAX };
+    expect(await deps.fulfill(max)).toBe('fulfilled');
+    expect(rpc).toHaveBeenCalledWith('fulfill_paid_event', expect.objectContaining({
+      p_amount_minor: SQL_INT_MAX, p_tax_minor: SQL_INT_MAX,
+    }));
+    await expect(deps.fulfill({ ...baseFacts, amountMinor: SQL_INT_MAX + 1, taxMinor: null })).rejects.toThrow();
+    await expect(deps.fulfill({ ...baseFacts, taxMinor: SQL_INT_MAX + 1 })).rejects.toThrow();
+    await expect(deps.reservation!(ORDER, 'cs_test_123', SQL_INT_MAX + 1, 'EUR')).rejects.toThrow();
+    rpc.mockResolvedValueOnce({ data: 'pending', error: null });
+    expect(await deps.reservation!(ORDER, 'cs_test_123', SQL_INT_MAX, 'EUR')).toBe('pending');
+  });
+
+  it('adapter rechaza importe fuera de integer en la lectura del pedido', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ user_id: USER, amount_minor: SQL_INT_MAX + 1, currency: 'EUR' }], error: null,
+    });
+    const deps = createDependencies(stripe, cryptoProvider, { rpc });
+    await expect(deps.order(ORDER, 'cs_test_123')).rejects.toThrow();
+    rpc.mockResolvedValueOnce({
+      data: [{ user_id: USER, amount_minor: SQL_INT_MAX, currency: 'EUR' }], error: null,
+    });
+    expect(await deps.order(ORDER, 'cs_test_123')).toEqual({
+      known: true, userId: USER, amountMinor: SQL_INT_MAX, currency: 'EUR',
+    });
+  });
+
+  it('adapter consulta el estado de la reserva con campos exactos y los valida', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: 'pending', error: null });
+    const deps = createDependencies(stripe, cryptoProvider, { rpc });
+    expect(await deps.reservation!(ORDER, 'cs_test_123', 12345, 'eur')).toBe('pending');
+    expect(rpc).toHaveBeenCalledWith('server_checkout_pending_state', {
+      p_order: ORDER, p_session: 'cs_test_123', p_amount: 12345, p_currency: 'EUR',
+    });
+    rpc.mockResolvedValueOnce({ data: 'unresolvable', error: null });
+    expect(await deps.reservation!(ORDER, 'cs_test_123', 12345, 'EUR')).toBe('unresolvable');
+    rpc.mockResolvedValueOnce({ data: 'granted', error: null });
+    await expect(deps.reservation!(ORDER, 'cs_test_123', 12345, 'EUR')).rejects.toThrow();
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'db' } });
+    await expect(deps.reservation!(ORDER, 'cs_test_123', 12345, 'EUR')).rejects.toThrow();
+    await expect(deps.reservation!(ORDER, 'cs_test_123', -1, 'EUR')).rejects.toThrow();
+    expect(rpc).toHaveBeenCalledTimes(4);
+  });
+
+  it('adapter cablea todas las dependencias que usa el handler', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+    const deps = createDependencies(stripe, cryptoProvider, { rpc });
+    expect(Object.keys(deps).sort()).toEqual(['fulfill', 'order', 'record', 'reservation', 'verify'].sort());
+    rpc.mockResolvedValueOnce({ data: [], error: null });
+    const { order } = deps;
+    expect(await order(ORDER, 'cs_test_123')).toEqual({ known: false, userId: null, amountMinor: null, currency: null });
+    expect(rpc).toHaveBeenCalledWith('server_checkout_order_for_event', {
+      p_order: ORDER, p_session: 'cs_test_123',
+    });
   });
 });
