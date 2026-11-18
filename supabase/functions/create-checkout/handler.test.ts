@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { RESERVATION_TTL_SECONDS, makeHandler, type Dependencies } from './handler';
+import { RESERVATION_TTL_SECONDS, makeHandler, recoveryAttemptId, type Dependencies } from './handler';
 
 const user = '00000000-0000-0000-0000-000000000001';
 const course = '10000000-0000-0000-0000-000000000001';
 const attempt = '20000000-0000-0000-0000-000000000001';
 const order = '40000000-0000-0000-0000-000000000001';
+const recoveryOrder = '40000000-0000-0000-0000-000000000002';
+const session = 'cs_test_session123';
 // Origen DEV compartido por móvil y escritorio: exige flag TEST explícito.
 const tailscale = 'http://100.108.147.80:4200';
 const offer = { owned: false, slug: 'curso', price_id: '30000000-0000-0000-0000-000000000001', amount_minor: 100, currency: 'EUR', provider_price_id: 'price_fixture' };
@@ -15,8 +17,13 @@ function setup() {
     price: vi.fn().mockResolvedValue({ active: true, currency: 'eur', unit_amount: 100, type: 'one_time', recurring: null }),
     // Mock explícito: la reserva real la hace la RPC reserve_checkout_order.
     reserve: vi.fn().mockResolvedValue({ order_id: order }),
-    create: vi.fn().mockResolvedValue({ id: 'cs_test_session123', url: 'https://checkout.stripe.com/c/pay/test' }),
+    create: vi.fn().mockResolvedValue({ id: session, url: 'https://checkout.stripe.com/c/pay/test' }),
     bind: vi.fn().mockResolvedValue('bound'),
+    // Stripe es la única fuente del estado. Por defecto la sesión sigue abierta.
+    sessionStatus: vi.fn().mockResolvedValue({
+      status: 'open', paymentStatus: 'unpaid',
+      metadata: { user_id: user, course_id: course, attempt_id: attempt, order_id: order },
+    }),
   };
   const config = { origins: ['http://localhost:4200'], appOrigin: 'http://localhost:4200', enabled: true, termsVersion: 'test', allowHttpTestOrigin: false };
   const call = (
@@ -66,7 +73,9 @@ describe('create-checkout', () => {
   });
   it('idempotencia y retorno fijado en servidor', async () => {
     const s = setup();
-    expect(await (await s.call()).json()).toEqual({ url: 'https://checkout.stripe.com/c/pay/test' });
+    expect(await (await s.call()).json()).toEqual({
+      url: 'https://checkout.stripe.com/c/pay/test', sessionId: session, attemptId: attempt,
+    });
     await s.call();
     const calls = vi.mocked(s.io.create).mock.calls;
     expect(calls[0][1]).toBe(calls[1][1]);
@@ -74,7 +83,9 @@ describe('create-checkout', () => {
     expect(success.origin + success.pathname).toBe('http://localhost:4200/mis-cursos');
     expect(success.searchParams.get('checkout')).toBe('success');
     expect(success.searchParams.get('order_id')).toBe(order);
-    expect(calls[0][0].cancel).toBe('http://localhost:4200/cursos/curso');
+    expect(calls[0][0].cancel).toBe('http://localhost:4200/cursos/curso?checkout=cancelled');
+    expect(new URL(calls[0][0].cancel).searchParams.get('checkout')).toBe('cancelled');
+    expect(new URL(calls[0][0].cancel).searchParams.has('order_id')).toBe(false);
     expect(calls[0][0].metadata).not.toHaveProperty('email');
   });
   it('el order_id del retorno sale solo de la reserva, nunca del cliente ni de Stripe', async () => {
@@ -233,7 +244,9 @@ describe('create-checkout', () => {
     vi.mocked(s.io.bind).mockResolvedValueOnce('already_bound');
     const ok = await s.call();
     expect(ok.status).toBe(200);
-    await expect(ok.json()).resolves.toEqual({ url: 'https://checkout.stripe.com/c/pay/test' });
+    await expect(ok.json()).resolves.toEqual({
+      url: 'https://checkout.stripe.com/c/pay/test', sessionId: session, attemptId: attempt,
+    });
     vi.mocked(s.io.bind).mockResolvedValueOnce('binding_conflict');
     const res = await s.call();
     expect(res.status).toBe(500);
@@ -251,6 +264,7 @@ describe('create-checkout', () => {
     expect(calls[0][1]).toMatch(/^[a-f0-9]{64}$/);
     expect(calls[0][0]).toEqual(calls[1][0]);
     expect(calls[0][0].metadata.order_id).toBe(order);
+    expect(calls[0][0].cancel).toBe('http://localhost:4200/cursos/curso?checkout=cancelled');
     expect(calls[0][0].metadata.attempt_id).toBe(attempt);
   });
   it('sesión o URL no confiables del proveedor no se propagan', async () => {
@@ -307,7 +321,7 @@ describe('create-checkout', () => {
     const input = vi.mocked(s.io.create).mock.calls[0][0];
     expect(input.success).toBe(`${tailscale}/mis-cursos?checkout=success&order_id=${order}`);
     expect(new URL(input.success).searchParams.get('order_id')).toBe(order);
-    expect(input.cancel).toBe(`${tailscale}/cursos/curso`);
+    expect(input.cancel).toBe(`${tailscale}/cursos/curso?checkout=cancelled`);
     expect(input.metadata.terms_version).toBe('test');
     expect(input.metadata).not.toHaveProperty('accepted_terms');
     expect(input.metadata).not.toHaveProperty('consent');
@@ -396,5 +410,159 @@ describe('create-checkout', () => {
     vi.mocked(absent.io.reserve).mockResolvedValue({ order_id: order });
     expect((await absent.call()).status).toBe(200);
     expect(absent.io.price).toHaveBeenCalledOnce();
+  });
+
+  it('reintento tras cancelar: sesión open, misma reserva, misma clave y misma sesión', async () => {
+    const s = setup();
+    const body = { courseId: course, attemptId: attempt, sessionId: session };
+    expect((await s.call(body)).status).toBe(200);
+    expect((await s.call(body)).status).toBe(200);
+    expect(s.io.sessionStatus).toHaveBeenCalledTimes(2);
+    expect(s.io.sessionStatus).toHaveBeenCalledWith(session);
+    expect(s.io.reserve).toHaveBeenCalledTimes(2);
+    expect(s.io.reserve).toHaveBeenNthCalledWith(1, user, course, attempt, RESERVATION_TTL_SECONDS);
+    expect(s.io.reserve).toHaveBeenNthCalledWith(2, user, course, attempt, RESERVATION_TTL_SECONDS);
+    const calls = vi.mocked(s.io.create).mock.calls;
+    expect(calls[0][1]).toBe(calls[1][1]);
+    expect(calls[0][0].metadata.order_id).toBe(order);
+    expect(calls[1][0].metadata.order_id).toBe(order);
+  });
+
+  it('expired confirmado por Stripe: intento de recuperación estable, pedido y sesión nuevos', async () => {
+    const s = setup();
+    const freshSession = 'cs_test_recovery456';
+    const body = { courseId: course, attemptId: attempt, sessionId: session };
+    // Primero la sesión abierta: misma reserva y clave canónica del intento A.
+    expect((await s.call(body)).status).toBe(200);
+    const keyA = vi.mocked(s.io.create).mock.calls[0][1];
+
+    vi.mocked(s.io.sessionStatus).mockResolvedValue({
+      status: 'expired', paymentStatus: 'unpaid',
+      metadata: { user_id: user, course_id: course, attempt_id: attempt, order_id: order },
+    });
+    vi.mocked(s.io.reserve).mockImplementation(async (_u, _c, attemptId) => ({
+      order_id: attemptId === attempt ? order : recoveryOrder,
+    }));
+    vi.mocked(s.io.create).mockResolvedValue({
+      id: freshSession, url: 'https://checkout.stripe.com/c/pay/recovery',
+    });
+    const first = await s.call(body);
+    expect(first.status).toBe(200);
+    const firstBody = await first.json() as { url: string; sessionId: string; attemptId: string };
+    expect(firstBody.url).toBe('https://checkout.stripe.com/c/pay/recovery');
+    expect(firstBody.sessionId).toBe(freshSession);
+    expect((await s.call(body)).status).toBe(200);
+
+    const reserves = vi.mocked(s.io.reserve).mock.calls;
+    const attempts = reserves.map((call) => call[2]);
+    expect(firstBody.attemptId).toBe(attempts[1]);
+    expect(attempts[0]).toBe(attempt);
+    expect(attempts[1]).not.toBe(attempt);
+    expect(attempts[2]).toBe(attempts[1]);
+    const calls = vi.mocked(s.io.create).mock.calls;
+    expect(calls[0][1]).toBe(keyA);
+    expect(calls[1][1]).not.toBe(keyA); // clave distinta de la del intento caducado
+    expect(calls[1][1]).toBe(calls[2][1]); // estable ante doble tab/reintento
+    expect(calls[1][0].metadata.attempt_id).toBe(attempts[1]);
+    expect(calls[1][0].metadata.order_id).toBe(recoveryOrder);
+    expect(new URL(calls[1][0].success).searchParams.get('order_id')).toBe(recoveryOrder);
+    expect(calls[1][0].cancel).toBe('http://localhost:4200/cursos/curso?checkout=cancelled');
+    expect(calls[1][0].price).toBe(offer.provider_price_id);
+    expect(s.io.bind).toHaveBeenCalledWith(user, recoveryOrder, freshSession);
+  });
+
+  it('el par intento/sesión guardado permite encadenar otra expiración', async () => {
+    const s = setup();
+    const attemptB = await recoveryAttemptId(user, course, attempt, session);
+    const sessionB = 'cs_test_second';
+    vi.mocked(s.io.sessionStatus).mockResolvedValue({
+      status: 'expired', paymentStatus: 'unpaid',
+      metadata: { user_id: user, course_id: course, attempt_id: attemptB, order_id: recoveryOrder },
+    });
+    vi.mocked(s.io.reserve).mockImplementation(async (_u, _c, attemptId) => ({
+      order_id: attemptId === attemptB ? recoveryOrder : '40000000-0000-0000-0000-000000000003',
+    }));
+    vi.mocked(s.io.create).mockResolvedValue({
+      id: 'cs_test_third', url: 'https://checkout.stripe.com/c/pay/third',
+    });
+
+    const res = await s.call({ courseId: course, attemptId: attemptB, sessionId: sessionB });
+    expect(res.status).toBe(200);
+    const attemptC = await recoveryAttemptId(user, course, attemptB, sessionB);
+    expect((await res.json() as { attemptId: string }).attemptId).toBe(attemptC);
+    expect(s.io.reserve).toHaveBeenCalledWith(user, course, attemptC, RESERVATION_TTL_SECONDS);
+    expect(vi.mocked(s.io.create).mock.calls[0][0].metadata.attempt_id).toBe(attemptC);
+  });
+
+  it('estado no verificable, red caída o sesión completada: nunca abre otro intento', async () => {
+    const cases: Array<{ label: string; status: unknown; code: number }> = [
+      { label: 'red', status: null, code: 422 },
+      { label: 'desconocido', status: {
+        status: 'otro', metadata: { user_id: user, course_id: course, attempt_id: attempt },
+      }, code: 422 },
+      { label: 'sin metadata', status: { status: 'expired' }, code: 409 },
+      { label: 'pagada', status: { status: 'complete', paymentStatus: 'paid', metadata: {} }, code: 409 },
+      { label: 'procesando', status: { status: 'complete', paymentStatus: 'unpaid', metadata: {} }, code: 409 },
+    ];
+    for (const item of cases) {
+      const s = setup();
+      vi.mocked(s.io.sessionStatus).mockImplementation(async () => {
+        if (item.status === null) throw new Error('red caída');
+        return item.status as any;
+      });
+      const res = await s.call({ courseId: course, attemptId: attempt, sessionId: session });
+      expect(res.status, item.label).toBe(item.code);
+      const text = await res.text();
+      expect(text).not.toContain('checkout.stripe.com');
+      expect(s.io.reserve).not.toHaveBeenCalled();
+      expect(s.io.price).not.toHaveBeenCalled();
+      expect(s.io.create).not.toHaveBeenCalled();
+      expect(s.io.bind).not.toHaveBeenCalled();
+    }
+  });
+
+  it('una sesión ajena, de otro curso o de otro intento no autoriza recuperación', async () => {
+    const bad = [
+      { user_id: '00000000-0000-0000-0000-000000000099', course_id: course, attempt_id: attempt },
+      { user_id: user, course_id: '10000000-0000-0000-0000-000000000099', attempt_id: attempt },
+      { user_id: user, course_id: course, attempt_id: '20000000-0000-0000-0000-000000000099' },
+    ];
+    for (const metadata of bad) {
+      const s = setup();
+      vi.mocked(s.io.sessionStatus).mockResolvedValue({ status: 'expired', metadata });
+      expect((await s.call({ courseId: course, attemptId: attempt, sessionId: session })).status).toBe(409);
+      expect(s.io.reserve).not.toHaveBeenCalled();
+      expect(s.io.create).not.toHaveBeenCalled();
+    }
+  });
+
+  it('url ausente con sesión open no se interpreta como expirada ni crea otro intento', async () => {
+    const s = setup();
+    vi.mocked(s.io.create).mockResolvedValue({ id: session, url: null });
+    const res = await s.call({ courseId: course, attemptId: attempt, sessionId: session });
+    expect(res.status).toBe(500);
+    expect(await res.text()).not.toContain('checkout.stripe.com');
+    expect(s.io.reserve).toHaveBeenCalledOnce();
+    expect(s.io.reserve).toHaveBeenCalledWith(user, course, attempt, RESERVATION_TTL_SECONDS);
+  });
+
+  it('curso ya adquirido: ni siquiera se consulta el estado para recuperar', async () => {
+    const s = setup();
+    vi.mocked(s.io.offer).mockResolvedValue({ ...offer, owned: true });
+    const res = await s.call({ courseId: course, attemptId: attempt, sessionId: session });
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain('Curso ya adquirido');
+    expect(s.io.sessionStatus).not.toHaveBeenCalled();
+    expect(s.io.reserve).not.toHaveBeenCalled();
+    expect(s.io.create).not.toHaveBeenCalled();
+  });
+
+  it('sin dependency de estado de Stripe no se abre ninguna recuperación', async () => {
+    const s = setup();
+    delete s.io.sessionStatus;
+    const res = await s.call({ courseId: course, attemptId: attempt, sessionId: session });
+    expect(res.status).toBe(409);
+    expect(s.io.reserve).not.toHaveBeenCalled();
+    expect(s.io.create).not.toHaveBeenCalled();
   });
 });

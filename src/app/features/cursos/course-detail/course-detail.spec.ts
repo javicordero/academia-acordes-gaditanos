@@ -5,6 +5,7 @@ import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 import { SUPABASE_CONFIG } from '../../../../environments/supabase-config';
 import { AuthService } from '../../../core/auth/auth.service';
+import { CheckoutService } from '../../../core/checkout/checkout.service';
 import { PublicCoursesRepository } from '../public-courses-repository';
 import { CourseDetail } from './course-detail';
 
@@ -29,20 +30,25 @@ function setup(options: {
   const access = vi.fn(options.access ?? (async () => 'none'));
   const repository = { detail: vi.fn().mockResolvedValue(detail), access };
   const auth = { status, session, isAdmin: signal(options.isAdmin ?? false) };
+  const checkoutStart = vi.fn();
   TestBed.configureTestingModule({ providers: [
     provideRouter([{ path: 'cursos/:slug', component: CourseDetail }]),
     { provide: AuthService, useValue: auth },
     { provide: PublicCoursesRepository, useValue: repository },
+    {
+      provide: CheckoutService,
+      useValue: { start: checkoutStart, discardRecovery: vi.fn(), cancelPending: vi.fn() },
+    },
     { provide: SUPABASE_CONFIG, useValue: {
       url: '', publishableKey: '', checkoutTestEnabled: options.checkoutEnabled ?? false,
     } },
   ] });
-  return { status, session, access, repository };
+  return { status, session, access, repository, checkoutStart };
 }
 
-async function open(): Promise<{ harness: RouterTestingHarness; text: () => string }> {
+async function open(url = '/cursos/ejemplo'): Promise<{ harness: RouterTestingHarness; text: () => string }> {
   const harness = await RouterTestingHarness.create();
-  await harness.navigateByUrl('/cursos/ejemplo', CourseDetail);
+  await harness.navigateByUrl(url, CourseDetail);
   await harness.fixture.whenStable();
   harness.detectChanges();
   return { harness, text: () => harness.routeNativeElement?.textContent ?? '' };
@@ -266,5 +272,25 @@ describe('Ficha de curso', () => {
     expect(text()).toContain('Ya tienes acceso a este curso');
     expect(text()).not.toContain('Comprar');
     expect(harness.routeNativeElement?.querySelector('a[href="/mis-cursos"]')).not.toBeNull();
+  });
+
+  it('retorno de Stripe: banner honesto sin conceder acceso ni iniciar compra', async () => {
+    const { access, checkoutStart } = setup({ checkoutEnabled: true });
+    const { harness, text } = await open('/cursos/ejemplo?checkout=cancelled');
+    expect(text()).toContain('Has vuelto de Stripe. Puedes reanudar la compra de prueba o consultar Mis cursos.');
+    expect(text()).not.toContain('no se cobró');
+    expect(text()).not.toContain('Ya tienes acceso a este curso');
+    expect(access).not.toHaveBeenCalled();
+    expect(checkoutStart).not.toHaveBeenCalled();
+    expect(harness.routeNativeElement?.querySelector('.checkout-return a')?.getAttribute('href')).toBe('/mis-cursos');
+  });
+
+  it('una query forjada con checkout=success o order_id no concede nada', async () => {
+    const { access, checkoutStart } = setup({ checkoutEnabled: true });
+    const { text } = await open('/cursos/ejemplo?checkout=success&order_id=40000000-0000-0000-0000-000000000001');
+    expect(text()).not.toContain('Has vuelto de Stripe');
+    expect(text()).not.toContain('Ya tienes acceso a este curso');
+    expect(access).not.toHaveBeenCalled();
+    expect(checkoutStart).not.toHaveBeenCalled();
   });
 });

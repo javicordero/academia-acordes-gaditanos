@@ -53,6 +53,26 @@ function enabledHandler(): (request: Request) => Promise<Response> {
       if (typeof session.id !== 'string') throw new Error('Sesión sin id');
       return { id: session.id, url: session.url ?? null };
     },
+    // Estado REAL de la sesión, consultado sólo en el servidor. Ante cualquier
+    // duda (red, forma inesperada) se devuelve null: el handler cierra la puerta
+    // y no abre un intento nuevo. No se registran datos del proveedor.
+    async sessionStatus(sessionId) {
+      try {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        if (typeof session.status !== 'string') return null;
+        const metadata: Record<string, string> = {};
+        for (const [key, value] of Object.entries(session.metadata ?? {})) {
+          if (typeof value === 'string') metadata[key] = value;
+        }
+        return {
+          status: session.status,
+          paymentStatus: session.payment_status ?? null,
+          metadata,
+        };
+      } catch {
+        return null;
+      }
+    },
     // Vincula la sesión al pedido reservado. El actor es el usuario de Auth ya
     // verificado por el handler (no metadata de cliente) y la RPC revalida
     // pedido, intento, estado y caducidad bajo bloqueo.

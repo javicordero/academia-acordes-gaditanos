@@ -1,4 +1,7 @@
 <p><a routerLink="/cursos">Volver a cursos</a></p>
+@if (returnedFromCheckout()) {
+  <p class="checkout-return" role="status">Has vuelto de Stripe. Puedes reanudar la compra de prueba o consultar <a routerLink="/mis-cursos">Mis cursos</a>.</p>
+}
 @switch (state()) {
   @case ('loading') {
     <p role="status">Cargando curso…</p>

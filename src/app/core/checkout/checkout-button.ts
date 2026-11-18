@@ -70,6 +70,8 @@ export class CheckoutButton {
   private destroyed = false;
   private navigated = false;
   private lastIdentity = '';
+  /** Sólo en memoria: nunca se guarda ni se envía como dato propio. */
+  private lastUserId = '';
 
   /** Cambia con sesión, cuenta, curso o acceso: invalida respuestas en vuelo. */
   readonly identityKey = computed(() =>
@@ -78,13 +80,24 @@ export class CheckoutButton {
 
   constructor() {
     this.lastIdentity = this.identityKey();
+    this.lastUserId = this.auth.session()?.user.id ?? '';
 
     effect(() => {
       const key = this.identityKey();
       untracked(() => {
         if (key === this.lastIdentity) return;
+        const previousUserId = this.lastUserId;
+        const currentUserId = this.auth.session()?.user.id ?? '';
         this.lastIdentity = key;
+        this.lastUserId = currentUserId;
         this.generation++;
+        // La petición en vuelo se aborta lógicamente antes de cualquier
+        // persistencia o navegación. Sólo se borra la marca de la cuenta que se
+        // abandona; la de otras cuentas del mismo navegador se deja intacta.
+        this.checkout.cancelPending(this.courseId(), previousUserId);
+        if (previousUserId && previousUserId !== currentUserId) {
+          void this.checkout.discardRecovery(this.courseId(), previousUserId);
+        }
         this.starting.set(false);
         this.error.set(null);
         this.retryable.set(false);
@@ -95,6 +108,7 @@ export class CheckoutButton {
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       this.generation++;
+      this.checkout.cancelPending(this.courseId(), this.lastUserId);
     });
   }
 

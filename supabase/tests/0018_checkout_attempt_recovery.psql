@@ -1,0 +1,147 @@
+\set ON_ERROR_STOP on
+-- Contrato ya desplegado en que se apoya la recuperación de una sesión que
+-- Stripe confirma como expirada: intento conocido => mismo pedido; intento
+-- distinto con reserva abierta => conflicto; intento distinto tras vencer el TTL
+-- => cierra la vencida y crea otro pedido; curso con derecho => denegado.
+-- Sólo SQL/RLS sobre PGlite: no prueba Supabase, Auth ni Stripe reales.
+begin;
+
+do $$ begin
+  if has_function_privilege('anon','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute')
+  or has_function_privilege('authenticated','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute')
+  or has_function_privilege('public','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute')
+  or not has_function_privilege('service_role','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute')
+  then raise exception 'privileges reserve'; end if;
+  if has_function_privilege('anon','public.bind_checkout_session(uuid,uuid,text)','execute')
+  or has_function_privilege('authenticated','public.bind_checkout_session(uuid,uuid,text)','execute')
+  or has_function_privilege('public','public.bind_checkout_session(uuid,uuid,text)','execute')
+  or not has_function_privilege('service_role','public.bind_checkout_session(uuid,uuid,text)','execute')
+  then raise exception 'privileges bind'; end if;
+end $$;
+
+set local role anon;
+do $$ begin
+  begin perform public.reserve_checkout_order(null,null,null,null);
+    raise exception 'access anon';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+  begin perform public.reserve_checkout_order(null,null,null,null);
+    raise exception 'access authenticated';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+insert into auth.users(id) values
+  ('00000000-0000-0000-0000-000000000019'),
+  ('00000000-0000-0000-0000-000000000020');
+insert into public.courses(id,slug,title,status,published_at) values
+  ('10000000-0000-0000-0000-000000000019','rec18a','Recuperación 18 A','published',now()),
+  ('10000000-0000-0000-0000-000000000020','rec18b','Recuperación 18 B','published',now());
+insert into public.course_prices(id,course_id,amount_minor,currency) values
+  ('20000000-0000-0000-0000-000000000019','10000000-0000-0000-0000-000000000019',100,'EUR'),
+  ('20000000-0000-0000-0000-000000000020','10000000-0000-0000-0000-000000000020',100,'EUR');
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values
+  ('20000000-0000-0000-0000-000000000019','stripe','price_rec18a'),
+  ('20000000-0000-0000-0000-000000000020','stripe','price_rec18b');
+insert into private.checkout_order_config values (true,'fixture18');
+
+do $$
+declare
+  user_a uuid := '00000000-0000-0000-0000-000000000019';
+  user_b uuid := '00000000-0000-0000-0000-000000000020';
+  course_a uuid := '10000000-0000-0000-0000-000000000019';
+  course_b uuid := '10000000-0000-0000-0000-000000000020';
+  attempt_a uuid := '30000000-0000-0000-0000-000000000019';
+  attempt_b uuid := '30000000-0000-0000-0000-000000000020';
+  attempt_open uuid := '30000000-0000-0000-0000-000000000021';
+  attempt_expired uuid := '30000000-0000-0000-0000-000000000022';
+  attempt_recovery uuid := '30000000-0000-0000-0000-000000000023';
+  attempt_owned uuid := '30000000-0000-0000-0000-000000000024';
+  order_a uuid;
+  order_again uuid;
+  order_expired uuid;
+  order_recovery uuid;
+  total_before integer;
+begin
+  -- Intento conocido: devuelve SIEMPRE el pedido original, sin importar el
+  -- tiempo transcurrido ni cuántas veces se reintente (idempotencia de BD).
+  select order_id into order_a from public.reserve_checkout_order(user_a,course_a,attempt_a,900);
+  select order_id into order_again from public.reserve_checkout_order(user_a,course_a,attempt_a,900);
+  if order_a <> order_again then raise exception 'known attempt changed order'; end if;
+  if (select count(*) from public.orders where user_id=user_a) <> 1 then
+    raise exception 'known attempt created order';
+  end if;
+  if (select extract(epoch from (expires_at - now())) from private.checkout_attempts
+       where attempt_id=attempt_a) not between 899 and 901 then
+    raise exception 'ttl';
+  end if;
+
+  -- Mismo usuario/curso con intento distinto antes del vencimiento: conflicto,
+  -- no se crea otro pedido. El cliente no puede "saltarse" la reserva abierta.
+  begin
+    perform public.reserve_checkout_order(user_a,course_a,attempt_b,900);
+    raise exception 'missing open conflict';
+  exception when raise_exception then
+    if sqlerrm <> 'open reservation conflict' then raise; end if;
+  end;
+  if (select count(*) from public.orders where user_id=user_a) <> 1 then
+    raise exception 'conflict created order';
+  end if;
+
+  -- Reserva vencida (expires_at en el pasado, closed_at aún nulo) deconstruida
+  -- con las mismas tablas: simula el paso del TTL sin dormir ni tocar migraciones.
+  insert into public.orders(user_id,currency,amount_total_minor,terms_version,provider)
+    values(user_b,'EUR',100,'fixture18','stripe') returning id into order_expired;
+  insert into public.order_items(order_id,course_id,course_title_snapshot,unit_amount_minor,currency)
+    values(order_expired,course_b,'Vencida',100,'EUR');
+  insert into private.checkout_attempts(attempt_id,actor_id,course_id,order_id,expires_at,snapshot)
+    values(attempt_expired,user_b,course_b,order_expired,now() - interval '1 second',
+           jsonb_build_object('course_id',course_b,'terms_version','fixture18'));
+
+  -- Intento nuevo: cierra la vencida y reserva un pedido distinto. Es el único
+  -- efecto permitido tras comprobar Stripe que la sesión anterior expiró.
+  select order_id into order_recovery from public.reserve_checkout_order(user_b,course_b,attempt_recovery,900);
+  if order_recovery = order_expired then raise exception 'recovery reused order'; end if;
+  if (select closed_at from private.checkout_attempts where attempt_id=attempt_expired) is null then
+    raise exception 'expired not closed';
+  end if;
+  if (select count(*) from private.checkout_attempts
+       where actor_id=user_b and course_id=course_b and closed_at is null) <> 1 then
+    raise exception 'more than one open reservation';
+  end if;
+  if public.bind_checkout_session(user_b,order_recovery,'cs_test_recovery18') <> 'bound' then
+    raise exception 'recovery bind';
+  end if;
+  begin
+    perform public.bind_checkout_session(user_a,order_recovery,'cs_test_recovery18');
+    raise exception 'foreign actor bound';
+  exception when raise_exception then
+    if sqlerrm <> 'invalid binding' then raise; end if;
+  end;
+  begin
+    perform public.bind_checkout_session(user_b,order_expired,'cs_test_expired18');
+    raise exception 'expired bound';
+  exception when raise_exception then
+    if sqlerrm <> 'invalid binding' then raise; end if;
+  end;
+
+  -- Un derecho activo bloquea cualquier intento NUEVO, aunque no haya reserva
+  -- abierta: no se reabre la compra de un curso ya adquirido.
+  insert into public.entitlements(user_id,course_id,order_id)
+    values(user_a,course_a,order_a);
+  select count(*) into total_before from public.orders;
+  begin
+    perform public.reserve_checkout_order(user_a,course_a,attempt_owned,900);
+    raise exception 'owned allowed';
+  exception when raise_exception then
+    if sqlerrm <> 'already owned' then raise; end if;
+  end;
+  if (select count(*) from public.orders) <> total_before then
+    raise exception 'owned created order';
+  end if;
+end $$;
+
+rollback;

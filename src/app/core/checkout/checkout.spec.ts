@@ -1,15 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { readCheckoutTestFlag } from '../../../environments/supabase-config';
 import {
   canonicalAttemptId,
+  checkoutOwnerHash,
   checkoutErrorMessage,
   classifyCheckoutError,
+  isCheckoutSessionId,
   isCheckoutUuid,
   isSafeCheckoutUrl,
 } from './checkout';
 
 const VALID = 'https://checkout.stripe.com/c/pay/cs_test_a1b2#fidkdWxOYHwn';
+const USER = '11111111-1111-4111-8111-111111111111';
+const OTHER = '55555555-5555-4555-8555-555555555555';
+const COURSE = '22222222-2222-4222-8222-222222222222';
 
 describe('flag público de compra TEST', () => {
   it('solo se activa con true literal; por defecto está apagado', () => {
@@ -44,11 +49,52 @@ describe('validación de la URL de Stripe', () => {
   });
 });
 
+describe('seudónimo local de identidad', () => {
+  it('es estable, distinto por cuenta y nunca contiene el id en claro', () => {
+    const first = checkoutOwnerHash(USER);
+    const other = checkoutOwnerHash(OTHER);
+    expect(first).toMatch(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/);
+    expect(checkoutOwnerHash(USER)).toBe(first);
+    expect(other).not.toBe(first);
+    expect(first).not.toContain(USER);
+    expect(first).not.toContain('11111111');
+  });
+
+  it('funciona en HTTP no seguro: crypto sin subtle y randomUUID cambiante', () => {
+    vi.stubGlobal('crypto', {
+      getRandomValues: <T extends ArrayBufferView>(array: T) => array,
+      randomUUID: () => `random-${Math.random()}`,
+    });
+    try {
+      expect((globalThis.crypto as { subtle?: unknown }).subtle).toBeUndefined();
+      expect(checkoutOwnerHash(USER)).toBe(checkoutOwnerHash(USER));
+      expect(checkoutOwnerHash(USER)).not.toBe(checkoutOwnerHash(OTHER));
+      expect(canonicalAttemptId(USER, COURSE)).toBe('9467a46f-a670-5c98-987a-82225fcff2c8');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('identificador opaco de sesión', () => {
+  it('sólo acepta ids de sesión de Stripe con forma válida', () => {
+    expect(isCheckoutSessionId('cs_test_session123')).toBe(true);
+    expect(isCheckoutSessionId('cs_live_session123')).toBe(true);
+    for (const value of ['cs_test_', 'cs_test_bad id', 'pi_test_1', 'https://checkout.stripe.com/x', '', null]) {
+      expect(isCheckoutSessionId(value)).toBe(false);
+    }
+  });
+});
+
 describe('intento canónico', () => {
   it('es un UUID válido, estable y distinto por curso o identidad', () => {
     const u = '11111111-1111-4111-8111-111111111111';
     const c = '22222222-2222-4222-8222-222222222222';
     const first = canonicalAttemptId(u, c);
+    // Vector conocido ANTES y DESPUÉS de extraer el helper puro: la clave de
+    // idempotencia de los intentos ya emitidos no puede cambiar.
+    expect(first).toBe('9467a46f-a670-5c98-987a-82225fcff2c8');
+    expect(canonicalAttemptId(OTHER, COURSE)).toBe('979f4947-88ab-5e08-988d-fc91c5caefb4');
     expect(isCheckoutUuid(first)).toBe(true);
     expect(canonicalAttemptId(u, c)).toBe(first);
     expect(canonicalAttemptId(u.toUpperCase(), c.toUpperCase())).toBe(first);
@@ -65,6 +111,10 @@ describe('errores controlados', () => {
       code: 'unavailable',
       retryable: false,
     });
+    expect(classifyCheckoutError({ context: { status: 422 } })).toEqual({
+      code: 'status-unknown',
+      retryable: true,
+    });
     expect(classifyCheckoutError(new Error('Failed to fetch')).code).toBe('network');
     expect(classifyCheckoutError(new Error('otro')).code).toBe('unknown');
   });
@@ -77,5 +127,7 @@ describe('errores controlados', () => {
     expect(forbidden).not.toContain('Confirma tu correo');
     expect(checkoutErrorMessage({ code: 'network', retryable: true }))
       .toContain('conectar');
+    expect(checkoutErrorMessage({ code: 'status-unknown', retryable: true }))
+      .toContain('No se pudo confirmar el estado');
   });
 });

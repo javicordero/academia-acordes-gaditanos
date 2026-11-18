@@ -130,12 +130,48 @@ compra, prueba E2E real ni flags `enabled`/términos inventados: la decisión
 remota sigue en manos del operador cloud y no se registra aquí ningún cambio de
 estado desplegado.
 
+### Retorno cancelado y sesión expirada (código local)
+
+La URL de cancelación lleva sólo `?checkout=cancelled` en la ficha del curso. La
+ficha muestra el texto «Has vuelto de Stripe. Puedes reanudar la compra de
+prueba o consultar Mis cursos.». Es un marcador de navegación: no afirma que no
+se cobrara nada, no confirma pagos, no escribe en BD, no concede derechos y no
+dispara ninguna petición al montar. El enlace `?comprar=1` del catálogo sigue
+siendo una pista sin lector: no activa la compra por query.
+
+Tras una respuesta válida, el servidor devuelve además el id opaco de la sesión
+(ya presente en la URL de Stripe) y el intento realmente usado. El cliente
+guarda ese **par intento/sesión** por curso en `localStorage` —sin correos,
+importes ni identificadores de cuenta— y lo reenvía **sólo en un reintento
+iniciado por clic**. El servidor consulta Stripe por ese
+id: únicamente si Stripe confirma `status: 'expired'` **y** la metadata de esa
+sesión coincide con el usuario, curso e intento canónico actuales, deriva un
+intento de recuperación determinista, reserva un pedido nuevo con la RPC ya
+existente (que cierra la reserva vencida tras el TTL de 900 s), crea una sesión
+con clave de idempotencia distinta y la vincula a ese pedido. El intento
+derivado es estable ante doble clic, doble pestaña o recarga; el cambio de
+cuenta o de curso descarta la marca antes de navegar.
+
+Todo lo demás cierra la puerta sin abrir otro intento: red caída, respuesta sin
+estado verificable (422), estados desconocidos, `complete` —incluidos pagos
+asíncronos en curso— y sesiones ajenas (409). Un `url: null` no se interpreta
+como «expirada». El reintento ante 422 vuelve a preguntar a Stripe; no crea
+reserva ni sesión nueva. No se modifica ninguna orden pagada, derecho, snapshot
+ni binding, y no se toca el webhook. No hay migración nueva para checkout: la prueba SQL
+`0018` cubre el contrato ya desplegado de intento conocido/conflicto/TTL/derecho
+activo. No hay política de reembolso, impago tardío ni precios nuevos; no se ha
+probado con Stripe real ni se afirma E2E.
+
 ## Verificación
 
 - Pruebas unitarias del controlador con **Node + mocks** (`vitest`), sin llamadas
   a Deno ni al runtime de Stripe: cubren reserva, bind, already_bound, rechazo
-  de otra sesión, URL inválida sin bind y reintento con clave estable. Se
-  ejecutan con `npm run test:functions`. No son pruebas E2E con Stripe.
+  de otra sesión, URL inválida sin bind y reintento con clave estable, además
+  del retorno cancelado, la recuperación por `expired` confirmado y el fail-closed
+  ante estados no verificables. Se ejecutan con `npm run test:functions`. No son
+  pruebas E2E con Stripe.
+- Pruebas del cliente (`npm test`): marca opaca por curso, doble clic, cambio de
+  cuenta y banner de retorno sin efectos. Tampoco son E2E.
 - Prueba SQL de la oferta con **PGlite en memoria** (`npm run test:sql`), sobre
   migraciones y `supabase/tests/*.psql`, con `ROLLBACK`. Esto valida lógica SQL y
   permisos, no Supabase/Auth/PostgREST reales.

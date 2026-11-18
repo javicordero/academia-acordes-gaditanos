@@ -116,6 +116,15 @@ export class CourseDetail {
   private readonly params = toSignal(this.route.paramMap, {
     initialValue: this.route.snapshot.paramMap,
   });
+  private readonly query = toSignal(this.route.queryParamMap, {
+    initialValue: this.route.snapshot.queryParamMap,
+  });
+
+  /**
+   * Sólo un marcador de retorno. La query no concede acceso, no confirma pagos
+   * y no dispara ninguna escritura: la ficha sigue consultando el derecho real.
+   */
+  readonly returnedFromCheckout = computed(() => this.query().get('checkout') === 'cancelled');
 
   constructor() {
     void this.load();
