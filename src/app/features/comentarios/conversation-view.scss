@@ -146,7 +146,8 @@ textarea {
 }
 
 .comments-button,
-.reply-button {
+.reply-button,
+.delete-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -164,6 +165,38 @@ textarea {
 .reply-button {
   background: transparent;
   color: var(--accent);
+}
+
+/* Moderación en línea: sin diálogos del navegador. */
+.moderation { margin-top: 0.5rem; }
+.delete-button { border-color: var(--admin-danger); background: transparent; color: var(--admin-danger-text); }
+.delete-button--confirm { background: var(--admin-danger); color: var(--surface); }
+
+.delete-confirm {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--admin-danger);
+  border-radius: 8px;
+  background: var(--admin-danger-surface);
+}
+
+.delete-confirm p {
+  margin: 0 0 0.4rem;
+}
+
+.delete-confirm__warning {
+  font-weight: 650;
+}
+
+.delete-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.conversation:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .comments-button--quiet {

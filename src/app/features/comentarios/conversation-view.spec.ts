@@ -32,6 +32,7 @@ function makeRow(overrides: Partial<ConversationPost> = {}): ConversationPost {
 describe('Vista compartida de conversación', () => {
   const list = vi.fn();
   const create = vi.fn();
+  const remove = vi.fn();
   let fixture: ComponentFixture<ConversationView>;
   let root: HTMLElement;
 
@@ -39,10 +40,11 @@ describe('Vista compartida de conversación', () => {
     vi.clearAllMocks();
     list.mockResolvedValue([]);
     create.mockResolvedValue(makeRow());
+    remove.mockResolvedValue({ threadDeleted: false });
     TestBed.configureTestingModule({});
     fixture = TestBed.createComponent(ConversationView);
     fixture.componentRef.setInput('scopeId', LESSON);
-    fixture.componentRef.setInput('repository', { list, create });
+    fixture.componentRef.setInput('repository', { list, create, deleteComment: remove });
     root = fixture.nativeElement as HTMLElement;
   });
 
@@ -70,6 +72,21 @@ describe('Vista compartida de conversación', () => {
   function replyButtonFor(author: string): HTMLButtonElement {
     return [...root.querySelectorAll<HTMLButtonElement>('.reply-button')]
       .find((b) => b.getAttribute('aria-label') === `Responder a ${author}`)!;
+  }
+
+  function deleteButtonFor(author: string): HTMLButtonElement {
+    return [...root.querySelectorAll<HTMLButtonElement>('.delete-button')]
+      .find((b) => b.getAttribute('aria-label') === `Eliminar comentario de ${author}`)!;
+  }
+
+  function confirmButton(): HTMLButtonElement {
+    return buttonWith('Confirmar eliminación');
+  }
+
+  function openDelete(author: string): HTMLButtonElement {
+    const button = deleteButtonFor(author);
+    button.click();
+    return button;
   }
 
   it('carga una sola vez por lección y muestra el estado vacío', async () => {
@@ -403,5 +420,216 @@ describe('Vista compartida de conversación', () => {
     expect(root.querySelector('textarea')?.getAttribute('placeholder')).toBe('Escribe tu respuesta');
     expect(buttonWith('Publicar respuesta')).toBeInstanceOf(HTMLButtonElement);
     expect(root.querySelector('section')?.getAttribute('aria-labelledby')).toBe(fixture.componentInstance.headingId);
+  });
+
+  describe('moderación en la vista compartida', () => {
+    async function seed(rows: ConversationPost[]): Promise<void> {
+      list.mockResolvedValueOnce(rows);
+      await settle();
+    }
+
+    it('oculta Eliminar para alumnos y lo ofrece en cada nivel a los administradores', async () => {
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: L2, parentId: ROOT, createdAt: '2026-11-18T10:02:00Z', authorDisplayName: 'Hija' }),
+        makeRow({ id: OTHER_ROOT, parentId: null, createdAt: '2026-11-18T09:00:00Z', authorDisplayName: 'Otra' }),
+      ]);
+      expect(root.querySelectorAll('.delete-button')).toHaveLength(0);
+
+      fixture.componentRef.setInput('canModerate', true);
+      await settle();
+      expect([...root.querySelectorAll('.delete-button')].map((b) => b.getAttribute('aria-label'))).toEqual([
+        'Eliminar comentario de Otra',
+        'Eliminar comentario de Raíz',
+        'Eliminar comentario de Hija',
+      ]);
+      expect(deleteButtonFor('Raíz').textContent?.trim()).toBe('Eliminar');
+      // El badge y responder en todos los niveles siguen intactos.
+      expect(replyButtonFor('Hija')).toBeInstanceOf(HTMLButtonElement);
+      expect(deleteButtonFor('Hija').closest('.comment--reply')).not.toBeNull();
+    });
+
+    it('confirma en línea con avisos, foco en Confirmar, Cancelar y Escape devuelven el foco', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: L2, parentId: ROOT, createdAt: '2026-11-18T10:02:00Z', authorDisplayName: 'Hija' }),
+      ]);
+      const trigger = openDelete('Raíz');
+      await settle();
+      const panel = root.querySelector<HTMLElement>('.delete-confirm')!;
+      expect(panel.textContent).toContain('¿Eliminar este comentario?');
+      expect(panel.textContent).toContain('Se borrarán también sus respuestas');
+      expect(panel.textContent).toContain('Se borrará el hilo completo');
+      expect(confirmButton()).toBeInstanceOf(HTMLButtonElement);
+      expect(document.activeElement).toBe(confirmButton());
+      expect(remove).not.toHaveBeenCalled();
+
+      buttonWith('Cancelar').click();
+      await settle();
+      expect(root.querySelector('.delete-confirm')).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+
+      const trigger2 = openDelete('Raíz');
+      await settle();
+      confirmButton().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+      expect(root.querySelector('.delete-confirm')).toBeNull();
+      expect(document.activeElement).toBe(trigger2);
+      expect(remove).not.toHaveBeenCalled();
+    });
+
+    it('borra una respuesta sin recargar y lleva el foco al comentario siguiente', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: L2, parentId: ROOT, createdAt: '2026-11-18T10:02:00Z', authorDisplayName: 'Hija' }),
+        makeRow({ id: L2B, parentId: L2, createdAt: '2026-11-18T10:02:30Z', authorDisplayName: 'Neta' }),
+        makeRow({ id: L3, parentId: ROOT, createdAt: '2026-11-18T10:03:00Z', authorDisplayName: 'Hija 2' }),
+      ]);
+      openDelete('Hija');
+      await settle();
+      const panel = root.querySelector<HTMLElement>('.delete-confirm')!;
+      expect(panel.textContent).toContain('Se borrarán también sus respuestas');
+      expect(panel.textContent).not.toContain('Se borrará el hilo completo');
+
+      confirmButton().click();
+      await settle();
+      expect(remove).toHaveBeenCalledWith(L2);
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(node(L2)).toBeNull();
+      expect(node(L2B)).toBeNull();
+      expect(node(ROOT)).toBeInstanceOf(HTMLElement);
+      expect(node(L3)).toBeInstanceOf(HTMLElement);
+      expect(root.querySelector('[role="status"][aria-live="polite"]')?.textContent).toContain('Comentario eliminado');
+      expect(document.activeElement).toBe(node(L3));
+    });
+
+    it('quita del árbol local el mensaje y todos sus descendientes', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: L2, parentId: ROOT, createdAt: '2026-11-18T10:02:00Z', authorDisplayName: 'Intermedia' }),
+        makeRow({ id: L3, parentId: L2, createdAt: '2026-11-18T10:03:00Z', authorDisplayName: 'Profunda' }),
+        makeRow({ id: OTHER_ROOT, parentId: null, createdAt: '2026-11-18T09:00:00Z', authorDisplayName: 'Otra' }),
+      ]);
+      openDelete('Intermedia');
+      await settle();
+      confirmButton().click();
+      await settle();
+      expect(node(L2)).toBeNull();
+      expect(node(L3)).toBeNull();
+      expect(node(ROOT)).toBeInstanceOf(HTMLElement);
+      expect(node(OTHER_ROOT)).toBeInstanceOf(HTMLElement);
+      expect(fixture.componentInstance.posts().map((p) => p.id)).toEqual([ROOT, OTHER_ROOT]);
+    });
+
+    it('borra el mensaje raíz con aviso de hilo y foco en el contenedor', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      remove.mockResolvedValueOnce({ threadDeleted: true });
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: L2, parentId: ROOT, createdAt: '2026-11-18T10:02:00Z', authorDisplayName: 'Hija' }),
+      ]);
+      openDelete('Raíz');
+      await settle();
+      confirmButton().click();
+      await settle();
+      expect(remove).toHaveBeenCalledWith(ROOT);
+      expect(node(ROOT)).toBeNull();
+      expect(node(L2)).toBeNull();
+      expect(root.querySelector('[role="status"][aria-live="polite"]')?.textContent).toContain('Hilo eliminado');
+      expect(document.activeElement).toBe(root.querySelector('[data-conversation-list]'));
+    });
+
+    it('muestra error saneado con reintento y permite completar el borrado', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([makeRow({ id: ROOT, authorDisplayName: 'Raíz' })]);
+      remove.mockRejectedValueOnce(
+        new Error('https://ejemplo.test/rpc?token=secreto&email=alumno@ejemplo.test'),
+      );
+      openDelete('Raíz');
+      await settle();
+      confirmButton().click();
+      await settle();
+      expect(root.querySelector<HTMLElement>('[role="alert"]')?.textContent).toContain('No se pudo eliminar');
+      expect(root.textContent).not.toContain('secreto');
+      expect(root.textContent).not.toContain('@');
+      expect(node(ROOT)).toBeInstanceOf(HTMLElement);
+      expect(fixture.componentInstance.deletingId()).toBeNull();
+
+      buttonWith('Reintentar').click();
+      await settle();
+      expect(remove).toHaveBeenCalledTimes(2);
+      expect(node(ROOT)).toBeNull();
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('bloquea el doble clic y cualquier borrado mientras hay otro en vuelo', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: OTHER_ROOT, parentId: null, createdAt: '2026-11-18T09:00:00Z', authorDisplayName: 'Otra' }),
+      ]);
+      let resolveRemove!: (value: { threadDeleted: boolean }) => void;
+      remove.mockReturnValueOnce(new Promise<{ threadDeleted: boolean }>((done) => { resolveRemove = done; }));
+      openDelete('Raíz');
+      await settle();
+      confirmButton().click();
+      await settle();
+      expect(deleteButtonFor('Otra').disabled).toBe(true);
+      await fixture.componentInstance.confirmDelete(ROOT);
+      expect(remove).toHaveBeenCalledTimes(1);
+      resolveRemove({ threadDeleted: false });
+      await settle();
+      expect(deleteButtonFor('Otra').disabled).toBe(false);
+    });
+
+    it('limpia confirmación y descarta un borrado en vuelo al cambiar de ámbito', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: OTHER_ROOT, parentId: null, createdAt: '2026-11-18T09:00:00Z', authorDisplayName: 'Otra' }),
+      ]);
+      let resolveRemove!: (value: { threadDeleted: boolean }) => void;
+      remove.mockReturnValueOnce(new Promise<{ threadDeleted: boolean }>((done) => { resolveRemove = done; }));
+      openDelete('Raíz');
+      await settle();
+      confirmButton().click();
+      await settle();
+      fixture.componentRef.setInput('scopeId', OTHER);
+      await settle();
+      expect(fixture.componentInstance.confirmingDeleteId()).toBeNull();
+      expect(fixture.componentInstance.deletingId()).toBeNull();
+      resolveRemove({ threadDeleted: true });
+      await settle();
+      expect(fixture.componentInstance.posts()).toHaveLength(0);
+      expect(root.textContent).not.toContain('Hilo eliminado');
+    });
+
+    it('al destruir descarta el resultado de un borrado pendiente', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([makeRow({ id: ROOT, authorDisplayName: 'Raíz' })]);
+      let resolveRemove!: (value: { threadDeleted: boolean }) => void;
+      remove.mockReturnValueOnce(new Promise<{ threadDeleted: boolean }>((done) => { resolveRemove = done; }));
+      openDelete('Raíz');
+      await settle();
+      confirmButton().click();
+      await settle();
+      fixture.destroy();
+      resolveRemove({ threadDeleted: false });
+      await Promise.resolve();
+      expect(fixture.componentInstance.posts()).toHaveLength(1);
+      expect(fixture.componentInstance.confirmingDeleteId()).toBeNull();
+    });
+
+    it('permite desactivar el aviso de hilo en las dudas de lección', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      fixture.componentRef.setInput('rootDeletesThread', false);
+      await seed([makeRow({ id: ROOT, authorDisplayName: 'Raíz' })]);
+      openDelete('Raíz');
+      await settle();
+      expect(root.querySelector('.delete-confirm')?.textContent).not.toContain('Se borrará el hilo completo');
+    });
   });
 });

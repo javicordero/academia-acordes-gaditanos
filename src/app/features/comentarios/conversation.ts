@@ -16,12 +16,24 @@ export interface ConversationPost {
 }
 
 /**
+ * Resultado permitido de una moderación. `threadDeleted` solo lo pone en true
+ * la RPC del foro cuando se borra el mensaje raíz; la de lección siempre false.
+ * No viaja ningún otro dato del servidor (ni IDs de proveedor ni correos).
+ */
+export interface DeleteCommentResult {
+  readonly threadDeleted: boolean;
+}
+
+/**
  * Puerto de la vista. `scopeId` identifica la conversación (lección o tema) y
  * `create` admite una respuesta opcional a cualquier mensaje del árbol.
+ * `deleteComment` es la única operación de moderación: la autoridad sigue siendo
+ * la RPC (RLS); esta interfaz solo transporta el permiso que el servidor aplica.
  */
 export interface ConversationRepository {
   list(scopeId: string): Promise<readonly ConversationPost[]>;
   create(scopeId: string, body: string, parentId?: string | null): Promise<ConversationPost>;
+  deleteComment(id: string): Promise<DeleteCommentResult>;
 }
 
 /** Límite del cuerpo del mensaje, compartido por formulario y repositorios. */

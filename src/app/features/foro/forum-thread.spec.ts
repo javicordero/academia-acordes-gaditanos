@@ -1,8 +1,10 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AuthService } from '../../core/auth/auth.service';
 import { ConversationError } from '../comentarios/conversation';
 import { ConversationView } from '../comentarios/conversation-view';
 import { ForumThread } from './forum-thread';
@@ -24,17 +26,22 @@ function post(overrides: Record<string, unknown> = {}) {
 describe('Pantalla de un hilo del foro', () => {
   const list = vi.fn();
   const create = vi.fn();
+  const remove = vi.fn();
+  const isAdmin = signal(false);
   let harness: RouterTestingHarness;
   let text: () => string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    isAdmin.set(false);
     list.mockResolvedValue([post()]);
     create.mockResolvedValue(post({ id: NEW, parentId: ROOT, body: 'Gracias', authorIsAdmin: false }));
+    remove.mockResolvedValue({ threadDeleted: false });
     TestBed.configureTestingModule({
       providers: [
         provideRouter([{ path: 'comunidad/:categoryId/:threadId', component: ForumThread }]),
-        { provide: ForumThreadRepository, useValue: { list, create } },
+        { provide: ForumThreadRepository, useValue: { list, create, deleteComment: remove } },
+        { provide: AuthService, useValue: { isAdmin } },
       ],
     });
     harness = await RouterTestingHarness.create();
@@ -117,5 +124,20 @@ describe('Pantalla de un hilo del foro', () => {
     harness.detectChanges();
     expect(harness.routeNativeElement?.querySelector('section')).toBeNull();
     expect(text()).not.toContain('Respuestas del tema');
+  });
+
+  it('pasa canModerate desde AuthService y delega el borrado al repositorio del foro', async () => {
+    expect(view().canModerate()).toBe(false);
+    expect(view().rootDeletesThread()).toBe(true);
+
+    isAdmin.set(true);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(view().canModerate()).toBe(true);
+    expect(harness.routeNativeElement?.querySelector<HTMLButtonElement>('.delete-button')?.getAttribute('aria-label'))
+      .toBe('Eliminar comentario de Profesor');
+
+    await view().repository().deleteComment(ROOT);
+    expect(remove).toHaveBeenCalledWith(ROOT);
   });
 });

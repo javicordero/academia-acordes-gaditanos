@@ -157,6 +157,51 @@ describe('Repositorio del foro (puerto de conversación)', () => {
     const unconfigured = TestBed.inject(ForumThreadRepository);
     expect((await failure(unconfigured.list(THREAD))).kind).toBe('unconfigured');
     expect((await failure(unconfigured.createThread(CATEGORY, 'Título', 'Cuerpo'))).kind).toBe('unconfigured');
+    expect((await failure(unconfigured.deleteComment(POST))).kind).toBe('unconfigured');
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('borra un mensaje y lee thread_deleted del jsonb sin exponer los ids borrados', async () => {
+    rpc.mockResolvedValueOnce({
+      data: { deleted: true, thread_deleted: true, deleted_posts: [POST, REPLY] }, error: null,
+    });
+    await expect(repo.deleteComment(POST)).resolves.toEqual({ threadDeleted: true });
+    expect(rpc).toHaveBeenCalledWith('delete_forum_post', { p_post_id: POST });
+
+    rpc.mockResolvedValueOnce({
+      data: { deleted: true, thread_deleted: false, deleted_posts: [REPLY] }, error: null,
+    });
+    await expect(repo.deleteComment(REPLY)).resolves.toEqual({ threadDeleted: false });
+  });
+
+  it('valida estrictamente la forma del jsonb de borrado', async () => {
+    const shapes = [
+      null, true, [], { deleted: false, thread_deleted: true, deleted_posts: [] },
+      { deleted: 'true', thread_deleted: false, deleted_posts: [] },
+      { deleted: true, thread_deleted: 'false', deleted_posts: [] },
+      { deleted: true, thread_deleted: false },
+      { deleted: true, thread_deleted: false, deleted_posts: 'no-array' },
+      { deleted: true, thread_deleted: false, deleted_posts: ['no-uuid'] },
+    ];
+    for (const shape of shapes) {
+      rpc.mockResolvedValueOnce({ data: shape, error: null });
+      expect((await failure(repo.deleteComment(POST))).kind).toBe('invalid');
+    }
+  });
+
+  it('rechaza ids inválidos sin llamar a la RPC y sanea los errores de borrado', async () => {
+    for (const id of ['no-uuid', '', 7, null, undefined]) {
+      expect((await failure(repo.deleteComment(id as string))).kind).toBe('invalid');
+    }
+    expect(rpc).not.toHaveBeenCalled();
+
+    const secret = 'https://ejemplo.test/rpc?token=secreto&email=alumno@ejemplo.test';
+    rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: secret } });
+    expect((await failure(repo.deleteComment(POST))).kind).toBe('forbidden');
+    rpc.mockResolvedValueOnce({ data: null, error: { code: 'XX', message: secret } });
+    const error = await failure(repo.deleteComment(POST));
+    expect(error.kind).toBe('failed');
+    expect(error.message).not.toContain('secreto');
+    expect(error.message).not.toContain('@');
   });
 });

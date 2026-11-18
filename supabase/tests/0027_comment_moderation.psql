@@ -1,0 +1,221 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID y correos ficticios de example.invalid, sin PII.
+-- Admin, alumna y otro alumno; un curso con una lección para los comentarios;
+-- dos hilos de foro (A se conserva, B se borra entero).
+insert into auth.users (id, email) values
+ ('c3000000-0000-0000-0000-000000000001', 'admin.mod@example.invalid'),
+ ('c3000000-0000-0000-0000-000000000002', 'alumna.mod@example.invalid'),
+ ('c3000000-0000-0000-0000-000000000003', 'otro.mod@example.invalid');
+insert into public.user_roles (user_id, role) values
+ ('c3000000-0000-0000-0000-000000000001', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values
+ ('d3000000-0000-0000-0000-000000000001', 'mod-curso', 'Curso moderación', 'published', now());
+insert into public.course_sections (id, course_id, title, position) values
+ ('e3000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000001', 'Sección', 0);
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview) values
+ ('f3000000-0000-0000-0000-000000000001', 'd3000000-0000-0000-0000-000000000001', 'e3000000-0000-0000-0000-000000000001', 'mod-leccion', 'Lección', 0, true, true);
+-- Comercio y progreso de relleno para comprobar que la moderación no los toca.
+insert into public.entitlements (user_id, course_id, revoked_at) values
+ ('c3000000-0000-0000-0000-000000000002', 'd3000000-0000-0000-0000-000000000001', null);
+insert into public.orders (id, user_id, status, currency, amount_total_minor) values
+ ('40300000-0000-0000-0000-000000000001', 'c3000000-0000-0000-0000-000000000002', 'paid', 'EUR', 1000);
+insert into public.lesson_progress (user_id, lesson_id) values
+ ('c3000000-0000-0000-0000-000000000002', 'f3000000-0000-0000-0000-000000000001');
+
+-- Cuatro comentarios: raíz con respuesta y respuesta anidada (se borrarán las
+-- tres), más una raíz hermana que debe permanecer.
+insert into public.lesson_comments (id, lesson_id, author_id, parent_id, body) values
+ ('10300000-0000-0000-0000-000000000001', 'f3000000-0000-0000-0000-000000000001', 'c3000000-0000-0000-0000-000000000002', null, 'Raíz a borrar'),
+ ('10300000-0000-0000-0000-000000000002', 'f3000000-0000-0000-0000-000000000001', 'c3000000-0000-0000-0000-000000000001', '10300000-0000-0000-0000-000000000001', 'Respuesta a borrar'),
+ ('10300000-0000-0000-0000-000000000003', 'f3000000-0000-0000-0000-000000000001', 'c3000000-0000-0000-0000-000000000002', '10300000-0000-0000-0000-000000000002', 'Anidada a borrar'),
+ ('10300000-0000-0000-0000-000000000004', 'f3000000-0000-0000-0000-000000000001', 'c3000000-0000-0000-0000-000000000001', null, 'Raíz que permanece');
+
+-- Foro: A = raíz con dos respuestas, una de ellas anidada; B = raíz con dos
+-- respuestas. Categorías semilla de la migración de foro, sin duplicarlas.
+insert into public.forum_threads (id, category_id, author_id, title) values
+ ('20300000-0000-0000-0000-000000000001', (select id from public.forum_categories where slug = 'general'), 'c3000000-0000-0000-0000-000000000002', 'Hilo A'),
+ ('20300000-0000-0000-0000-000000000002', (select id from public.forum_categories where slug = 'dudas'), 'c3000000-0000-0000-0000-000000000001', 'Hilo B');
+insert into public.forum_posts (id, thread_id, author_id, parent_id, body) values
+ ('30300000-0000-0000-0000-000000000001', '20300000-0000-0000-0000-000000000001', 'c3000000-0000-0000-0000-000000000002', null, 'Raíz A'),
+ ('30300000-0000-0000-0000-000000000002', '20300000-0000-0000-0000-000000000001', 'c3000000-0000-0000-0000-000000000001', '30300000-0000-0000-0000-000000000001', 'Respuesta a borrar'),
+ ('30300000-0000-0000-0000-000000000003', '20300000-0000-0000-0000-000000000001', 'c3000000-0000-0000-0000-000000000002', '30300000-0000-0000-0000-000000000002', 'Anidada a borrar'),
+ ('30300000-0000-0000-0000-000000000004', '20300000-0000-0000-0000-000000000001', 'c3000000-0000-0000-0000-000000000001', '30300000-0000-0000-0000-000000000001', 'Hermana que permanece'),
+ ('30300000-0000-0000-0000-000000000010', '20300000-0000-0000-0000-000000000002', 'c3000000-0000-0000-0000-000000000001', null, 'Raíz B'),
+ ('30300000-0000-0000-0000-000000000011', '20300000-0000-0000-0000-000000000002', 'c3000000-0000-0000-0000-000000000002', '30300000-0000-0000-0000-000000000010', 'Respuesta B'),
+ ('30300000-0000-0000-0000-000000000012', '20300000-0000-0000-0000-000000000002', 'c3000000-0000-0000-0000-000000000001', '30300000-0000-0000-0000-000000000011', 'Anidada B');
+create temp table mod_baseline as
+select
+ (select count(*) from public.orders) as orders,
+ (select count(*) from public.entitlements) as entitlements,
+ (select count(*) from public.lesson_progress) as progress,
+ (select count(*) from public.user_roles) as roles,
+ (select count(*) from public.forum_categories) as categories;
+
+-- Firma, seguridad y grants: SECURITY DEFINER con search_path vacío; EXECUTE
+-- solo para authenticated; tablas sin grants de cliente y service_role intacto.
+do $$
+declare v_func text; v_table text;
+begin
+ foreach v_func in array array[
+   'public.delete_lesson_comment(uuid)', 'public.delete_forum_post(uuid)'
+ ] loop
+  if has_function_privilege('anon', v_func, 'EXECUTE')
+  or has_function_privilege('service_role', v_func, 'EXECUTE')
+  or has_function_privilege('public', v_func, 'EXECUTE') then
+   raise exception 'EXECUTE inesperado en %', v_func;
+  end if;
+  if not has_function_privilege('authenticated', v_func, 'EXECUTE') then
+   raise exception 'authenticated sin EXECUTE en %', v_func;
+  end if;
+  if not exists (
+    select 1 from pg_proc pr
+    join pg_namespace ns on ns.oid = pr.pronamespace
+    where pr.oid = to_regprocedure(v_func)
+      and pr.prosecdef
+      and exists (select 1 from unnest(pr.proconfig) cfg where cfg like 'search_path=%')
+  ) then
+   raise exception '% no es security definer con search_path vacío', v_func;
+  end if;
+ end loop;
+ foreach v_table in array array[
+   'public.lesson_comments', 'public.forum_categories',
+   'public.forum_threads', 'public.forum_posts'
+ ] loop
+  if has_table_privilege('anon', v_table, 'SELECT')
+  or has_table_privilege('authenticated', v_table, 'SELECT')
+  or has_table_privilege('authenticated', v_table, 'DELETE') then
+   raise exception 'grant de tabla inesperado en %', v_table;
+  end if;
+  if not has_table_privilege('service_role', v_table, 'SELECT') then
+   raise exception 'service_role sin grants en %', v_table;
+  end if;
+ end loop;
+end $$;
+
+-- anon: ni invoca las RPC ni lee las tablas; nada se borra.
+set local role anon;
+do $$
+begin
+ begin perform public.delete_lesson_comment('10300000-0000-0000-0000-000000000001'); raise exception 'anon borró comentario'; exception when insufficient_privilege then null; end;
+ begin perform public.delete_forum_post('30300000-0000-0000-0000-000000000002'); raise exception 'anon borró post'; exception when insufficient_privilege then null; end;
+ begin perform 1 from public.lesson_comments limit 1; raise exception 'anon leyó comentarios'; exception when insufficient_privilege then null; end;
+ begin perform 1 from public.forum_posts limit 1; raise exception 'anon leyó posts'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+-- authenticated sin rol admin: respuestas negativas idénticas para un id real
+-- y para uno inexistente; no se borra nada.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"c3000000-0000-0000-0000-000000000002"}', true);
+do $$
+declare
+ v_denied jsonb := jsonb_build_object('deleted', false, 'thread_deleted', false, 'deleted_posts', 0);
+ v_bool boolean; v_real jsonb; v_fake jsonb;
+begin
+ select public.delete_lesson_comment('10300000-0000-0000-0000-000000000001') into v_bool;
+ if v_bool is distinct from false then raise exception 'alumna borró comentario'; end if;
+ select public.delete_lesson_comment('10300000-0000-0000-0000-000000000099') into v_bool;
+ if v_bool is distinct from false then raise exception 'alumna distingue comentario inexistente'; end if;
+ select public.delete_forum_post('30300000-0000-0000-0000-000000000002') into v_real;
+ select public.delete_forum_post('30300000-0000-0000-0000-000000000099') into v_fake;
+ if v_real is distinct from v_denied or v_fake is distinct from v_denied
+ or v_real is distinct from v_fake then
+  raise exception 'alumna borró post o reveló existencia: % / %', v_real, v_fake;
+ end if;
+end $$;
+
+-- authenticated sin claim de sesión: la misma negativa, sin distinguir motivos.
+select set_config('request.jwt.claims', '', true);
+do $$
+declare
+ v_denied jsonb := jsonb_build_object('deleted', false, 'thread_deleted', false, 'deleted_posts', 0);
+ v_bool boolean; v_res jsonb;
+begin
+ select public.delete_lesson_comment('10300000-0000-0000-0000-000000000001') into v_bool;
+ select public.delete_forum_post('30300000-0000-0000-0000-000000000002') into v_res;
+ if v_bool is distinct from false or v_res is distinct from v_denied then
+  raise exception 'sin claim borró o reveló existencia';
+ end if;
+end $$;
+reset role;
+
+do $$
+begin
+ if (select count(*) from public.lesson_comments) <> 4
+ or (select count(*) from public.forum_threads) <> 2
+ or (select count(*) from public.forum_posts) <> 7 then
+  raise exception 'no admin borró datos';
+ end if;
+end $$;
+
+-- Admin real: id inexistente, borrado de comentario con cascada, borrado de
+-- respuesta de foro sin tocar el hilo y borrado de post raíz con todo el hilo.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"c3000000-0000-0000-0000-000000000001"}', true);
+do $$
+declare
+ v_denied jsonb := jsonb_build_object('deleted', false, 'thread_deleted', false, 'deleted_posts', 0);
+ v_bool boolean; v_res jsonb;
+begin
+ select public.delete_lesson_comment('10300000-0000-0000-0000-000000000099') into v_bool;
+ if v_bool is distinct from false then raise exception 'admin: comentario inexistente'; end if;
+ select public.delete_forum_post('30300000-0000-0000-0000-000000000099') into v_res;
+ if v_res is distinct from v_denied then raise exception 'admin: post inexistente'; end if;
+
+ select public.delete_lesson_comment('10300000-0000-0000-0000-000000000001') into v_bool;
+ if v_bool is not true then raise exception 'admin no borró el comentario'; end if;
+ select public.delete_lesson_comment('10300000-0000-0000-0000-000000000001') into v_bool;
+ if v_bool is distinct from false then raise exception 'admin borró dos veces el comentario'; end if;
+
+ select public.delete_forum_post('30300000-0000-0000-0000-000000000002') into v_res;
+ if v_res is distinct from jsonb_build_object('deleted', true, 'thread_deleted', false, 'deleted_posts', 2) then
+  raise exception 'borrar respuesta: %', v_res;
+ end if;
+
+ select public.delete_forum_post('30300000-0000-0000-0000-000000000010') into v_res;
+ if v_res is distinct from jsonb_build_object('deleted', true, 'thread_deleted', true, 'deleted_posts', 3) then
+  raise exception 'borrar raíz: %', v_res;
+ end if;
+end $$;
+reset role;
+
+-- Recuentos finales coherentes y sin efectos en otras tablas.
+do $$
+begin
+ if (select count(*) from public.lesson_comments) <> 1
+ or exists (select 1 from public.lesson_comments
+            where id in ('10300000-0000-0000-0000-000000000001',
+                         '10300000-0000-0000-0000-000000000002',
+                         '10300000-0000-0000-0000-000000000003'))
+ or not exists (select 1 from public.lesson_comments
+                 where id = '10300000-0000-0000-0000-000000000004') then
+  raise exception 'cascada de comentarios incorrecta';
+ end if;
+ if (select count(*) from public.forum_threads) <> 1
+ or exists (select 1 from public.forum_threads
+            where id = '20300000-0000-0000-0000-000000000002')
+ or not exists (select 1 from public.forum_threads
+                 where id = '20300000-0000-0000-0000-000000000001') then
+  raise exception 'el hilo raíz no se borró o se borró otro';
+ end if;
+ if (select count(*) from public.forum_posts) <> 2
+ or exists (select 1 from public.forum_posts
+            where id in ('30300000-0000-0000-0000-000000000002',
+                         '30300000-0000-0000-0000-000000000003',
+                         '30300000-0000-0000-0000-000000000010',
+                         '30300000-0000-0000-0000-000000000011',
+                         '30300000-0000-0000-0000-000000000012'))
+ or (select count(*) from public.forum_posts
+     where thread_id = '20300000-0000-0000-0000-000000000001') <> 2 then
+  raise exception 'posts finales incorrectos';
+ end if;
+ if (select count(*) from public.orders) <> (select orders from mod_baseline)
+ or (select count(*) from public.entitlements) <> (select entitlements from mod_baseline)
+ or (select count(*) from public.lesson_progress) <> (select progress from mod_baseline)
+ or (select count(*) from public.user_roles) <> (select roles from mod_baseline)
+ or (select count(*) from public.forum_categories) <> (select categories from mod_baseline) then
+  raise exception 'moderación afectó a pedidos, derechos, progreso, roles o categorías';
+ end if;
+end $$;
+rollback;

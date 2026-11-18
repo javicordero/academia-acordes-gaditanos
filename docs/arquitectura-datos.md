@@ -221,6 +221,30 @@ La verificación fue `npm run test:sql` (PGlite), que valida solo lógica SQL/RL
 aplicado a ningún proyecto remoto** ni desplegado; este agente no ha tocado
 migraciones ya aplicadas en DEV.
 
+## Moderación (borrado real, backend)
+
+La migración aditiva `20261118233000_comment_moderation.sql` y la prueba
+`supabase/tests/0027_comment_moderation.psql` añaden dos RPC de borrado sobre las
+tablas ya existentes, sin editar migraciones aplicadas ni tocar la UI:
+
+| RPC | Comportamiento |
+| --- | --- |
+| `public.delete_lesson_comment(p_comment_id uuid) returns boolean` | Borra el comentario y sus respuestas en cascada (FK `parent_id ... on delete cascade`). Devuelve `true` solo si borró algo. |
+| `public.delete_forum_post(p_post_id uuid) returns jsonb` | Si es respuesta, borra ese post y sus descendientes (`deleted=true, thread_deleted=false, deleted_posts=n`). Si es la raíz, borra el hilo completo por cascada (`deleted=true, thread_deleted=true, deleted_posts=n`). |
+
+Ambas son `security definer` con `set search_path = ''` y todo cualificado.
+Exigen sesión (`auth.uid()` no nulo) y un rol admin **real** en
+`public.user_roles`; no hay parámetro de actor. Sin sesión, sin ese rol o con un
+id inexistente devuelven `false` / `deleted=false` con la misma forma, sin
+revelar si el objeto existe. Solo `authenticated` recibe `EXECUTE` (no PUBLIC,
+anon ni service_role); las tablas siguen con RLS sin políticas y sin grants de
+cliente. No se borran categorías, roles, derechos, pedidos ni progreso, y no se
+exponen correos, autores, GUID de Bunny ni rutas. Los alumnos no pueden editar
+ni borrar; no hay flags de moderación, notificaciones ni moderación avanzada
+todavía. La verificación es `npm run test:sql` (PGlite): valida lógica SQL/RLS,
+**no** Auth, PostgREST ni RLS reales de Supabase. La migración **no se ha
+aplicado a ningún proyecto remoto** ni desplegado.
+
 ## Principios
 
 1. **La base de datos decide.** Angular puede ocultar botones, pero la

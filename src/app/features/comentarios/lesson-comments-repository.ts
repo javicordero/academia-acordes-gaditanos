@@ -120,4 +120,21 @@ export class LessonCommentsRepository {
     const created = Array.isArray(data) ? data[0] : data;
     return parseRow(created);
   }
+
+  /**
+   * Moderación de un comentario o respuesta de lección. La RPC devuelve un
+   * booleano que se valida antes de usar: cualquier otra forma se trata como
+   * respuesta inválida y nunca se envía al usuario. El permiso real lo comprueba
+   * el servidor; aquí solo se sanea el error y se serializa el resultado.
+   */
+  async deleteComment(id: string): Promise<{ threadDeleted: boolean }> {
+    if (!this.client) throw new LessonCommentsError('unconfigured');
+    if (!isUuid(id)) throw new LessonCommentsError('invalid');
+    const { data, error } = await this.client.rpc('delete_lesson_comment', {
+      p_comment_id: id,
+    });
+    if (error) throw classify(error);
+    if (typeof data !== 'boolean') throw new LessonCommentsError('invalid');
+    return { threadDeleted: false };
+  }
 }

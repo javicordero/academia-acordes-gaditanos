@@ -146,6 +146,35 @@ describe('Repositorio de comentarios de lección', () => {
     const unconfigured = TestBed.inject(LessonCommentsRepository);
     expect((await failure(unconfigured.list(LESSON))).kind).toBe('unconfigured');
     expect((await failure(unconfigured.create(LESSON, 'Hola', null))).kind).toBe('unconfigured');
+    expect((await failure(unconfigured.deleteComment(ROOT))).kind).toBe('unconfigured');
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('borra por RPC con un booleano validado y sin filtrar datos', async () => {
+    rpc.mockResolvedValueOnce({ data: true, error: null });
+    await expect(repo.deleteComment(ROOT)).resolves.toEqual({ threadDeleted: false });
+    expect(rpc).toHaveBeenCalledWith('delete_lesson_comment', { p_comment_id: ROOT });
+  });
+
+  it('rechaza ids y respuestas de borrado inválidas sin llamar a la RPC', async () => {
+    for (const id of ['no-uuid', '', 7, null, undefined]) {
+      expect((await failure(repo.deleteComment(id as string))).kind).toBe('invalid');
+    }
+    expect(rpc).not.toHaveBeenCalled();
+    for (const data of [null, 1, 'true', {}, [true], { deleted: true }]) {
+      rpc.mockResolvedValueOnce({ data, error: null });
+      expect((await failure(repo.deleteComment(ROOT))).kind).toBe('invalid');
+    }
+  });
+
+  it('sanea los errores de borrado sin exponer mensajes, tokens ni correos', async () => {
+    const secret = 'https://ejemplo.test/rpc?token=secreto&email=alumno@ejemplo.test';
+    rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: secret } });
+    expect((await failure(repo.deleteComment(ROOT))).kind).toBe('forbidden');
+    rpc.mockResolvedValueOnce({ data: null, error: { code: 'XX', message: secret } });
+    const error = await failure(repo.deleteComment(ROOT));
+    expect(error.kind).toBe('failed');
+    expect(error.message).not.toContain('secreto');
+    expect(error.message).not.toContain('@');
   });
 });

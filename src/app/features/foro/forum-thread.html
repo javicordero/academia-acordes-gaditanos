@@ -3,6 +3,7 @@
   <h1 id="forum-thread-title">Hilo del foro</h1>
 
   <app-conversation-view [scopeId]="threadId" [repository]="repository"
+    [canModerate]="canModerate()"
     heading="Respuestas del tema"
     emptyText="Todavía no hay respuestas en este tema."
     placeholder="Escribe tu respuesta"

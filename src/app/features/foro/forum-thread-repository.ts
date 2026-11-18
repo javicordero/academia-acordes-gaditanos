@@ -4,6 +4,7 @@ import {
   ConversationError,
   ConversationPost,
   ConversationRepository,
+  DeleteCommentResult,
   MAX_AUTHOR_NAME_LENGTH,
   MAX_CONVERSATION_LENGTH,
   classifyConversationError,
@@ -181,6 +182,30 @@ export class ForumThreadRepository implements ConversationRepository {
       p_parent_id: parentId,
     });
     return parseConversationRow(firstRow(data));
+  }
+
+  /**
+   * Moderación de un mensaje del foro. La RPC devuelve un jsonb con
+   * `{ deleted, thread_deleted, deleted_posts }`: se valida cada campo y solo
+   * se conserva `thread_deleted` para el aviso de la interfaz. Los identificadores
+   * borrados no se exponen; cualquier forma inesperada es un error `invalid`.
+   */
+  async deleteComment(id: string): Promise<DeleteCommentResult> {
+    if (!isConversationUuid(id)) throw new ConversationError('invalid');
+    const data = await this.rpc('delete_forum_post', { p_post_id: id });
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+      throw new ConversationError('invalid');
+    }
+    const row = data as Record<string, unknown>;
+    if (row['deleted'] !== true) throw new ConversationError('invalid');
+    if (typeof row['thread_deleted'] !== 'boolean') throw new ConversationError('invalid');
+    if (
+      !Array.isArray(row['deleted_posts']) ||
+      !row['deleted_posts'].every((item) => isConversationUuid(item))
+    ) {
+      throw new ConversationError('invalid');
+    }
+    return { threadDeleted: row['thread_deleted'] };
   }
 
   /** Una sola puerta a la RPC: sin cliente no se intenta ninguna llamada. */

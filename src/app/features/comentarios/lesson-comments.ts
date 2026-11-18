@@ -1,5 +1,6 @@
 import { Component, inject, input } from '@angular/core';
 
+import { AuthService } from '../../core/auth/auth.service';
 import { ConversationRepository } from './conversation';
 import { ConversationView } from './conversation-view';
 import { LessonCommentsRepository } from './lesson-comments-repository';
@@ -21,9 +22,18 @@ export class LessonComments {
 
   private readonly lessonRepository = inject(LessonCommentsRepository);
 
+  /** Solo el contenedor decide si se ofrece moderación; la RPC la verifica. */
+  readonly auth = inject(AuthService);
+
   readonly conversation: ConversationRepository = {
     list: (scopeId: string) => this.lessonRepository.list(scopeId),
     create: (scopeId: string, body: string, parentId: string | null = null) =>
       this.lessonRepository.create(scopeId, body, parentId),
+    deleteComment: (id: string) => this.lessonRepository.deleteComment(id),
   };
+
+  /** Sin rol resuelto (o mocks parciales) no se ofrece moderación. */
+  canModerate(): boolean {
+    return typeof this.auth.isAdmin === 'function' && this.auth.isAdmin() === true;
+  }
 }
