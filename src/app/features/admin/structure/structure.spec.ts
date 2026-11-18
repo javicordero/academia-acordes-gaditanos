@@ -9,6 +9,9 @@ describe('Structure', () => {
   const course = { id: 'course', title: 'Curso', slug: 'curso', summary: null, description: null,
     level: 'basico' as const, status: 'draft' as const, sort_order: 0, published_at: null };
   const section = { id: 'section', course_id: 'course', title: 'Bloque', summary: null, position: 2 };
+  const makeLesson = (id: string, title: string) => ({ id, course_id: 'course', section_id: 'section',
+    slug: title.toLowerCase(), title, summary: null, content_md: null, position: 0,
+    duration_seconds: null, is_free_preview: false, is_published: false, content_type: 'video' as const });
   beforeEach(() => {
     vi.resetAllMocks();
     repo.list.mockResolvedValue({ sections: [section], lessons: [] });
@@ -47,6 +50,36 @@ describe('Structure', () => {
     component.closeMaterials(); fixture.detectChanges(); await fixture.whenStable();
     expect(document.activeElement?.textContent).toContain('Estructura:');
     expect(component.lessonTitle).toBe('Sin guardar');
+  });
+  it('ofrece el vídeo de la lección guardada junto a los materiales', async () => {
+    const saved = makeLesson('22222222-2222-2222-2222-222222222222', 'Lección');
+    repo.list.mockResolvedValueOnce({ sections: [section], lessons: [saved] });
+    const fixture = await setup();
+    const video = fixture.nativeElement.querySelector('a[aria-label="Vídeo de la lección Lección"]');
+    expect(video).not.toBeNull();
+    expect(video.getAttribute('href')).toBe('/admin/course/22222222-2222-2222-2222-222222222222/video');
+    expect(fixture.nativeElement.querySelector('button[aria-label="Materiales PDF de Lección"]')).not.toBeNull();
+  });
+  it('no ofrece el vídeo en lecciones nuevas sin guardar', async () => {
+    repo.list.mockResolvedValueOnce({ sections: [section], lessons: [makeLesson('l', 'Sin guardar')] });
+    const fixture = await setup();
+    expect(fixture.nativeElement.querySelector('a[aria-label^="Vídeo de la lección"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('button[aria-label^="Materiales PDF de"]')).toBeNull();
+    fixture.componentInstance.editLesson(section); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('a[aria-label^="Vídeo de la lección"]')).toBeNull();
+  });
+  it('muestra un enlace de vídeo por lección guardada sin duplicarlos', async () => {
+    const first = makeLesson('11111111-1111-1111-1111-111111111111', 'Primera');
+    const second = makeLesson('22222222-2222-2222-2222-222222222222', 'Segunda');
+    repo.list.mockResolvedValueOnce({ sections: [section], lessons: [first, second] });
+    const fixture = await setup();
+    const links = [...fixture.nativeElement.querySelectorAll('a[aria-label^="Vídeo de la lección "]')];
+    expect(links).toHaveLength(2);
+    expect(links.map((link: HTMLAnchorElement) => link.getAttribute('href'))).toEqual([
+      '/admin/course/11111111-1111-1111-1111-111111111111/video',
+      '/admin/course/22222222-2222-2222-2222-222222222222/video',
+    ]);
+    expect(fixture.nativeElement.querySelectorAll('button[aria-label^="Materiales PDF de"]')).toHaveLength(2);
   });
   it('oculta edición si falla la carga', async () => {
     repo.list.mockRejectedValueOnce(new Error('denied'));

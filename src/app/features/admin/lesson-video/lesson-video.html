@@ -1,0 +1,43 @@
+<section aria-labelledby="lesson-video-heading">
+  <h3 id="lesson-video-heading" tabindex="-1">Vídeo de la lección · {{ lessonTitle() || 'Lección' }}</h3>
+
+  @if (!canEdit()) {
+    <p role="status">Guarda primero la lección para tener un identificador válido. No se puede vincular un vídeo a una lección que todavía no existe.</p>
+  } @else {
+    <p>La biblioteca y la clave se configuran en el servidor. Aquí solo se indica el GUID del vídeo; no se muestran metadatos privados.</p>
+
+    @if (!formVisible() && state() !== 'vinculado') {
+      <button type="button" (click)="reveal()">Comprobar o cambiar</button>
+    } @else {
+      <form (ngSubmit)="link()" novalidate>
+        <label for="video-guid">GUID del vídeo (UUID)</label>
+        <input #guidInput id="video-guid" name="videoId" [(ngModel)]="videoId"
+          (ngModelChange)="clearGuid()" required maxlength="36"
+          [attr.aria-invalid]="invalidGuid()"
+          [attr.aria-describedby]="invalidGuid() ? 'video-guid-error' : 'video-guid-hint'">
+        @if (invalidGuid()) {
+          <p id="video-guid-error" role="alert">Indica un UUID válido en minúsculas.</p>
+        }
+        <p id="video-guid-hint">El GUID se comprueba en Bunny antes de guardarse. Ninguna clave ni identificador de biblioteca se muestra en esta pantalla.</p>
+        <button type="submit" [disabled]="state() === 'validando'">Vincular vídeo</button>
+      </form>
+    }
+
+    @if (state() === 'validando') {
+      <p role="status" aria-live="polite" aria-atomic="true">{{ message() }}</p>
+    }
+    @if (state() === 'error' || state() === 'sin-config') {
+      <p role="alert">{{ message() }}</p>
+    }
+    @if (state() === 'sin-video') {
+      <p>{{ message() }}</p>
+    }
+    @if (state() === 'vinculado' && result(); as linked) {
+      <p role="status" aria-live="polite" aria-atomic="true">{{ message() }}</p>
+      <ul>
+        <li>Vínculo: {{ linked.linkage === 'linked' ? 'establecido' : 'ya existente' }}</li>
+        <li>Estado: {{ linked.status === 'ready' ? 'listo para reproducir' : 'en procesamiento; todavía no reproducible' }}</li>
+      </ul>
+    }
+  }
+</section>

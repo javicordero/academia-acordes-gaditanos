@@ -63,6 +63,7 @@
               <button type="button" [disabled]="saving()" (click)="editLesson(section, lesson)" [attr.aria-label]="'Editar lección ' + lesson.title">Editar lección</button>
               @if (canOpenMaterials(lesson)) {
                 <button type="button" [disabled]="saving()" (click)="openMaterials(lesson)" [attr.aria-label]="'Materiales PDF de ' + lesson.title">Materiales PDF</button>
+                <a [routerLink]="['/admin', course().id, lesson.id, 'video']" [attr.aria-label]="'Vídeo de la lección ' + lesson.title">Vídeo de la lección</a>
               }
             </li>
           }

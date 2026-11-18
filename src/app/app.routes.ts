@@ -102,6 +102,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/admin/preview/preview').then(m => m.Preview),
   },
   {
+    path: 'admin/:courseId/:lessonId/video',
+    title: 'Vídeo de la lección · Academia Acordes Gaditanos',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () => import('./features/admin/lesson-video/lesson-video').then(m => m.LessonVideo),
+  },
+  {
     path: 'admin',
     title: 'Administración · Academia Acordes Gaditanos',
     canActivate: [adminGuard],
