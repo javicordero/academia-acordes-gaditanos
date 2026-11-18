@@ -1,13 +1,15 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
-import { Router, provideRouter } from '@angular/router';
+import { Routes, Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { Session } from '@supabase/supabase-js';
 import { vi } from 'vitest';
 import { routes } from './app.routes';
+import { adminGuard } from './core/auth/admin.guard';
 import { AuthService } from './core/auth/auth.service';
 import { authGuard } from './core/auth/auth.guard';
+import { SUPABASE_CLIENT } from './core/supabase/supabase-client';
 import { AulaRepository } from './features/aula/aula-repository';
 import { PublicCoursesRepository } from './features/cursos/public-courses-repository';
 import { PerfilRepository } from './features/perfil/perfil-repository';
@@ -25,6 +27,8 @@ describe('Routes', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter(routes),
+        // Sin cliente Supabase el foro muestra su estado honesto sin red.
+        { provide: SUPABASE_CLIENT, useValue: null },
         { provide: PerfilRepository, useValue: { load: () => Promise.resolve(null) } },
         {
           provide: AuthService,
@@ -91,7 +95,7 @@ describe('Routes', () => {
     ['/cursos', 'Cursos', 'Cursos · Academia Acordes Gaditanos'],
     ['/mis-cursos', 'Mis cursos', 'Mis cursos · Academia Acordes Gaditanos'],
     ['/perfil', 'Mi perfil', 'Mi perfil · Academia Acordes Gaditanos'],
-    ['/comunidad', 'Comunidad', 'Comunidad · Academia Acordes Gaditanos'],
+    ['/comunidad', 'Foro', 'Foro · Academia Acordes Gaditanos'],
   ])('carga %s con su título', async (url, heading, title) => {
     await harness.navigateByUrl(url);
     await harness.fixture.whenStable();
@@ -99,6 +103,49 @@ describe('Routes', () => {
     const h1 = harness.routeNativeElement?.querySelector('h1');
 
     expect(h1?.textContent?.trim()).toBe(heading);
+    expect(TestBed.inject(Title).getTitle()).toBe(title);
+  });
+
+  it('monta el foro con loadChildren bajo /comunidad, sin loadComponent ni guard nuevo', async () => {
+    const comunidad = routes.find((route) => route.path === 'comunidad');
+
+    expect(comunidad?.title).toBe('Comunidad · Academia Acordes Gaditanos');
+    expect(comunidad?.canActivate).toBeUndefined();
+    expect(comunidad?.loadComponent).toBeUndefined();
+    expect(comunidad?.loadChildren).toBeTypeOf('function');
+
+    const hijas = (await comunidad!.loadChildren!()) as Routes;
+
+    expect(hijas.map((route) => route.path)).toEqual([
+      '',
+      ':categoryId',
+      ':categoryId/:threadId',
+    ]);
+    expect(hijas.map((route) => route.title)).toEqual([
+      'Foro · Academia Acordes Gaditanos',
+      'Hilos del foro · Academia Acordes Gaditanos',
+      'Hilo del foro · Academia Acordes Gaditanos',
+    ]);
+    expect(hijas.every((route) => typeof route.loadComponent === 'function')).toBe(true);
+  });
+
+  it.each([
+    [
+      '/comunidad/11111111-1111-1111-1111-111111111111',
+      'Hilos del foro',
+      'Hilos del foro · Academia Acordes Gaditanos',
+    ],
+    [
+      '/comunidad/11111111-1111-1111-1111-111111111111/22222222-2222-2222-2222-222222222222',
+      'Hilo del foro',
+      'Hilo del foro · Academia Acordes Gaditanos',
+    ],
+  ])('carga %s del foro con su título', async (url, heading, title) => {
+    await harness.navigateByUrl(url);
+    await harness.fixture.whenStable();
+
+    expect(TestBed.inject(Router).url).toBe(url);
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(heading);
     expect(TestBed.inject(Title).getTitle()).toBe(title);
   });
 
@@ -131,6 +178,40 @@ describe('Routes', () => {
   it('rechaza la vista previa para usuarios sin rol administrador', async () => {
     await harness.navigateByUrl('/admin/vista-previa/11111111-1111-1111-1111-111111111111');
     expect(TestBed.inject(Router).url).toBe('/sin-acceso');
+  });
+
+  it('conserva las rutas legales y su navegación', async () => {
+    const legal = routes.find((route) => route.path === 'legal');
+
+    expect(legal?.loadChildren).toBeTypeOf('function');
+    const legales = (await legal!.loadChildren!()) as Routes;
+    expect(legales.map((route) => route.path)).toEqual([
+      'aviso-legal',
+      'privacidad',
+      'cookies',
+      'terminos',
+      'reembolsos',
+      '',
+    ]);
+
+    await harness.navigateByUrl('/legal/privacidad');
+    await harness.fixture.whenStable();
+
+    expect(TestBed.inject(Router).url).toBe('/legal/privacidad');
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(
+      'Política de privacidad',
+    );
+    expect(TestBed.inject(Title).getTitle()).toBe('Privacidad · Academia Acordes Gaditanos');
+  });
+
+  it('conserva el guard de administración, sus alias históricos y el aula', () => {
+    const admin = routes.find((route) => route.path === 'admin');
+    const alias = admin?.children?.map((route) => route.path) ?? [];
+
+    expect(admin?.canActivate).toContain(adminGuard);
+    expect(alias).toContain('vista-previa/:courseId/:lessonId');
+    expect(alias).toContain('vista-previa/:courseId');
+    expect(routes.find((route) => route.path === 'aula')?.loadChildren).toBeTypeOf('function');
   });
 
   it('muestra la página 404 para una ruta desconocida', async () => {

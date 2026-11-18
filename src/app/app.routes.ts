@@ -42,8 +42,13 @@ export const routes: Routes = [
   {
     path: 'comunidad',
     title: 'Comunidad · Academia Acordes Gaditanos',
-    loadComponent: () =>
-      import('./features/comunidad/comunidad').then((m) => m.Comunidad),
+    loadChildren: () =>
+      import('./features/foro/foro.routes').then((m) => m.FORO_ROUTES),
+  },
+  {
+    path: 'legal',
+    loadChildren: () =>
+      import('./features/legal/legal.routes').then((m) => m.LEGAL_ROUTES),
   },
   {
     path: 'auth/login',
