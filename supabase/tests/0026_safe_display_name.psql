@@ -1,0 +1,226 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID y correos ficticios de example.invalid, sin PII.
+-- normal = nombre permitido; email = '@' en display_name; falso = 'Administrador'
+-- sin rol; real = admin con '@' en display_name; espacios = '  aD MiN  '.
+insert into auth.users (id, email) values
+ ('e2000000-0000-0000-0000-000000000001', 'normal.sdn@example.invalid'),
+ ('e2000000-0000-0000-0000-000000000002', 'email.sdn@example.invalid'),
+ ('e2000000-0000-0000-0000-000000000003', 'falso.sdn@example.invalid'),
+ ('e2000000-0000-0000-0000-000000000004', 'admin.sdn@example.invalid'),
+ ('e2000000-0000-0000-0000-000000000005', 'espacios.sdn@example.invalid');
+-- El trigger on_auth_user_created ya creó los perfiles: solo se fija el nombre.
+update public.profiles set display_name = case id
+ when 'e2000000-0000-0000-0000-000000000001' then 'Alumna Normal'
+ when 'e2000000-0000-0000-0000-000000000002' then 'nombre@correo.invalid'
+ when 'e2000000-0000-0000-0000-000000000003' then 'Administrador'
+ when 'e2000000-0000-0000-0000-000000000004' then 'admin@correo.invalid'
+ when 'e2000000-0000-0000-0000-000000000005' then '  aD MiN  '
+end
+where id in (
+ 'e2000000-0000-0000-0000-000000000001',
+ 'e2000000-0000-0000-0000-000000000002',
+ 'e2000000-0000-0000-0000-000000000003',
+ 'e2000000-0000-0000-0000-000000000004',
+ 'e2000000-0000-0000-0000-000000000005'
+);
+insert into public.user_roles (user_id, role) values
+ ('e2000000-0000-0000-0000-000000000004', 'admin');
+
+insert into public.courses (id, slug, title, status, published_at) values
+ ('f2000000-0000-0000-0000-000000000001', 'sdn-seguro', 'Seguro', 'published', now());
+insert into public.course_sections (id, course_id, title, position) values
+ ('a2000000-0000-0000-0000-000000000001', 'f2000000-0000-0000-0000-000000000001', 'Sección', 0);
+-- Muestra gratuita: cualquier authenticated puede comentar sin entitlement.
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview) values
+ ('b2000000-0000-0000-0000-000000000001', 'f2000000-0000-0000-0000-000000000001', 'a2000000-0000-0000-0000-000000000001', 'sdn-leccion', 'Lección', 0, true, true);
+-- Hilo semilla directo (obra de servidor) para probar anon sobre list_thread_posts.
+insert into public.forum_threads (id, category_id, author_id, title) values
+ ('d2000000-0000-0000-0000-000000000001', (select id from public.forum_categories where slug = 'general'), 'e2000000-0000-0000-0000-000000000001', 'Hilo semilla');
+insert into public.forum_posts (id, thread_id, author_id, body) values
+ ('c2000000-0000-0000-0000-000000000001', 'd2000000-0000-0000-0000-000000000001', 'e2000000-0000-0000-0000-000000000001', 'Raíz semilla');
+-- GUC para compartir el id de categoría sin leer la tabla como authenticated.
+select set_config('sdn.cat', (select id::text from public.forum_categories where slug = 'general'), false);
+create temp table sdn_baseline as
+select
+ (select count(*) from public.orders) as orders,
+ (select count(*) from public.entitlements) as entitlements,
+ (select count(*) from public.lesson_progress) as progress,
+ (select count(*) from public.user_roles) as roles;
+
+-- La auxiliar no se expone a clientes; las seis RPC conservan solo authenticated.
+do $$
+declare v_func text;
+begin
+ if has_function_privilege('anon', 'public.safe_display_name(uuid)', 'EXECUTE')
+ or has_function_privilege('authenticated', 'public.safe_display_name(uuid)', 'EXECUTE') then
+  raise exception 'safe_display_name expuesta a clientes';
+ end if;
+ if not has_function_privilege('service_role', 'public.safe_display_name(uuid)', 'EXECUTE') then
+  raise exception 'service_role sin EXECUTE en safe_display_name';
+ end if;
+ foreach v_func in array array[
+  'public.list_lesson_comments(uuid)',
+  'public.create_lesson_comment(uuid,text,uuid)',
+  'public.list_forum_threads(uuid)',
+  'public.create_forum_thread(uuid,text,text)',
+  'public.list_thread_posts(uuid)',
+  'public.create_thread_post(uuid,text,uuid)'
+ ] loop
+  if has_function_privilege('anon', v_func, 'EXECUTE')
+  or has_function_privilege('service_role', v_func, 'EXECUTE') then
+   raise exception 'EXECUTE inesperado en %', v_func;
+  end if;
+  if not has_function_privilege('authenticated', v_func, 'EXECUTE') then
+   raise exception 'authenticated sin EXECUTE en %', v_func;
+  end if;
+ end loop;
+end $$;
+set local role anon;
+do $$
+begin
+ begin perform public.safe_display_name('e2000000-0000-0000-0000-000000000001'); raise exception 'anon llamó safe_display_name'; exception when insufficient_privilege then null; end;
+ begin perform public.list_lesson_comments('b2000000-0000-0000-0000-000000000001'); raise exception 'anon listó comentarios'; exception when insufficient_privilege then null; end;
+ begin perform public.create_lesson_comment('b2000000-0000-0000-0000-000000000001', 'x'); raise exception 'anon comentó'; exception when insufficient_privilege then null; end;
+ begin perform public.list_forum_threads(current_setting('sdn.cat')::uuid); raise exception 'anon listó hilos'; exception when insufficient_privilege then null; end;
+ begin perform public.create_forum_thread(current_setting('sdn.cat')::uuid, 'x', 'y'); raise exception 'anon creó hilo'; exception when insufficient_privilege then null; end;
+ begin perform public.list_thread_posts('d2000000-0000-0000-0000-000000000001'); raise exception 'anon listó posts'; exception when insufficient_privilege then null; end;
+ begin perform public.create_thread_post('d2000000-0000-0000-0000-000000000001', 'x'); raise exception 'anon respondió'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+-- Comentarios: la creación y el listado devuelven el mismo nombre normalizado.
+set local role authenticated;
+do $$
+declare r record; v_expected text; n int := 0;
+begin
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000001"}', true);
+ select * into r from public.create_lesson_comment('b2000000-0000-0000-0000-000000000001', 'De normal');
+ if not found or r.author_display_name <> 'Alumna Normal' or r.author_is_admin is not false then raise exception 'crear normal'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000002"}', true);
+ select * into r from public.create_lesson_comment('b2000000-0000-0000-0000-000000000001', 'De email');
+ if not found or r.author_display_name <> 'Alumno' or r.author_is_admin is not false
+ or position('@' in r.author_display_name) > 0 then raise exception 'crear email'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000003"}', true);
+ select * into r from public.create_lesson_comment('b2000000-0000-0000-0000-000000000001', 'De falso admin');
+ if not found or r.author_display_name <> 'Alumno' or r.author_is_admin is not false then raise exception 'crear falso admin'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000005"}', true);
+ select * into r from public.create_lesson_comment('b2000000-0000-0000-0000-000000000001', 'De espacios');
+ if not found or r.author_display_name <> 'Alumno' or r.author_is_admin is not false then raise exception 'crear espacios'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000004"}', true);
+ select * into r from public.create_lesson_comment('b2000000-0000-0000-0000-000000000001', 'De admin');
+ if not found or r.author_display_name <> 'Administrador' or r.author_is_admin is not true
+ or position('@' in r.author_display_name) > 0 then raise exception 'crear admin'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000001"}', true);
+ for r in select * from public.list_lesson_comments('b2000000-0000-0000-0000-000000000001') loop
+  n := n + 1;
+  v_expected := case r.body
+   when 'De normal' then 'Alumna Normal'
+   when 'De email' then 'Alumno'
+   when 'De falso admin' then 'Alumno'
+   when 'De espacios' then 'Alumno'
+   when 'De admin' then 'Administrador'
+   else null
+  end;
+  if v_expected is null or r.author_display_name <> v_expected then raise exception 'list display %', r.body; end if;
+  if r.author_is_admin is distinct from (r.body = 'De admin') then raise exception 'list badge %', r.body; end if;
+  if position('@' in r.author_display_name) > 0 then raise exception 'email filtrado en comentarios'; end if;
+ end loop;
+ if n <> 5 then raise exception 'list comentarios: %', n; end if;
+end $$;
+
+-- Foro: create/list de hilos y posts con la misma normalización.
+do $$
+declare
+ r record; v_cat uuid := current_setting('sdn.cat')::uuid;
+ v_normal_thread uuid; v_expected text; n int := 0;
+begin
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000001"}', true);
+ select * into r from public.create_forum_thread(v_cat, 'Hilo normal', 'Raíz normal');
+ if not found or r.author_display_name <> 'Alumna Normal' or r.author_is_admin is not false then raise exception 'hilo normal'; end if;
+ v_normal_thread := r.id;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000002"}', true);
+ select * into r from public.create_forum_thread(v_cat, 'Hilo email', 'Raíz email');
+ if not found or r.author_display_name <> 'Alumno' or r.author_is_admin is not false
+ or position('@' in r.author_display_name) > 0 then raise exception 'hilo email'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000003"}', true);
+ select * into r from public.create_forum_thread(v_cat, 'Hilo falso admin', 'Raíz falso');
+ if not found or r.author_display_name <> 'Alumno' or r.author_is_admin is not false then raise exception 'hilo falso admin'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000004"}', true);
+ select * into r from public.create_forum_thread(v_cat, 'Hilo admin', 'Raíz admin');
+ if not found or r.author_display_name <> 'Administrador' or r.author_is_admin is not true
+ or position('@' in r.author_display_name) > 0 then raise exception 'hilo admin'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000005"}', true);
+ select * into r from public.create_thread_post(v_normal_thread, 'Respuesta espacios');
+ if not found or r.author_display_name <> 'Alumno' or r.author_is_admin is not false then raise exception 'respuesta espacios'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000004"}', true);
+ select * into r from public.create_thread_post(v_normal_thread, 'Respuesta admin');
+ if not found or r.author_display_name <> 'Administrador' or r.author_is_admin is not true
+ or position('@' in r.author_display_name) > 0 then raise exception 'respuesta admin'; end if;
+
+ perform set_config('request.jwt.claims', '{"sub":"e2000000-0000-0000-0000-000000000001"}', true);
+ for r in select * from public.list_forum_threads(v_cat) loop
+  if r.title = 'Hilo semilla' then continue; end if;
+  v_expected := case r.title
+   when 'Hilo normal' then 'Alumna Normal'
+   when 'Hilo email' then 'Alumno'
+   when 'Hilo falso admin' then 'Alumno'
+   when 'Hilo admin' then 'Administrador'
+   else null
+  end;
+  if v_expected is null or r.author_display_name <> v_expected then raise exception 'list hilos %', r.title; end if;
+  if r.author_is_admin is distinct from (r.title = 'Hilo admin') then raise exception 'badge hilo %', r.title; end if;
+  if position('@' in r.author_display_name) > 0 then raise exception 'email filtrado en hilos'; end if;
+  n := n + 1;
+ end loop;
+ if n <> 4 then raise exception 'list hilos: %', n; end if;
+
+ n := 0;
+ for r in select * from public.list_thread_posts(v_normal_thread) loop
+  n := n + 1;
+  v_expected := case r.body
+   when 'Raíz normal' then 'Alumna Normal'
+   when 'Respuesta espacios' then 'Alumno'
+   when 'Respuesta admin' then 'Administrador'
+   else null
+  end;
+  if v_expected is null or r.author_display_name <> v_expected then raise exception 'list posts %', r.body; end if;
+  if r.author_is_admin is distinct from (r.body = 'Respuesta admin') then raise exception 'badge post %', r.body; end if;
+  if position('@' in r.author_display_name) > 0 then raise exception 'email filtrado en posts'; end if;
+ end loop;
+ if n <> 3 then raise exception 'list posts: %', n; end if;
+end $$;
+reset role;
+
+-- Sin efectos en roles, pedidos, derechos ni progreso; la auxiliar no escribe.
+do $$
+begin
+ if (select count(*) from public.orders) <> (select orders from sdn_baseline)
+ or (select count(*) from public.entitlements) <> (select entitlements from sdn_baseline)
+ or (select count(*) from public.lesson_progress) <> (select progress from sdn_baseline)
+ or (select count(*) from public.user_roles) <> (select roles from sdn_baseline) then
+  raise exception 'se crearon objetos de comercio, progreso o rol';
+ end if;
+ if (select count(*) from public.user_roles where role = 'admin') <> 1
+ or exists (
+   select 1 from public.user_roles
+   where user_id in (
+    'e2000000-0000-0000-0000-000000000002',
+    'e2000000-0000-0000-0000-000000000003',
+    'e2000000-0000-0000-0000-000000000005'
+   )
+ ) then raise exception 'se concedió rol admin'; end if;
+ if (select display_name from public.profiles where id = 'e2000000-0000-0000-0000-000000000002')
+    <> 'nombre@correo.invalid' then raise exception 'display_name modificado'; end if;
+end $$;
+rollback;
