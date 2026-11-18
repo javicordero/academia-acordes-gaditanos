@@ -12,8 +12,10 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { of } from 'rxjs';
 
 import { AuthService } from '../../../core/auth/auth.service';
 import { SUPABASE_CLIENT } from '../../../core/supabase/supabase-client';
@@ -35,11 +37,20 @@ import {
   formatDuration,
   resolveBunnyTusResumeUrl,
   stableRequestId,
+  statusMessage,
   uploadHttpMessage,
 } from './video-upload-contract';
 import { VideoUploadService } from './video-upload.service';
+import {
+  UPLOAD_TOAST_TIMING,
+  ToastHold,
+  UploadToast,
+  UploadToasts,
+} from './upload-toasts.service';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const CONFLICT_MESSAGE =
+  'Conflicto: ese vídeo ya está reservado para otra lección. No se ha creado otro; elige otro archivo o sustituye el vídeo expresamente.';
 
 type State = 'idle' | 'validando' | 'vinculado' | 'error' | 'sin-config' | 'sin-video';
 type LinkResult = { linkage: 'linked' | 'linked_yet'; status: 'ready' | 'processing' };
@@ -53,6 +64,7 @@ type UploadPhase =
   | 'processing'
   | 'done'
   | 'error';
+type ToastStage = 'preparacion' | 'reanudacion' | 'transferencia' | 'estado' | 'conflicto';
 
 function statusOf(error: unknown): number | null {
   const context = (error as { context?: unknown } | null)?.context as { status?: unknown } | null;
@@ -65,6 +77,9 @@ function statusOf(error: unknown): number | null {
   templateUrl: './lesson-video.html',
   styleUrl: './lesson-video.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Ámbito de componente: los avisos mueren con esta vista, sin compartir
+  // estado con otras pantallas del panel ni con un host global.
+  providers: [UploadToasts],
 })
 export class LessonVideo {
   readonly lessonId = input('');
@@ -72,6 +87,12 @@ export class LessonVideo {
   readonly courseId = input('');
 
   private readonly route = inject(ActivatedRoute, { optional: true });
+  // La ruta puede reutilizar este componente al pasar de :lessonId a otro:
+  // paramMap es reactivo, a diferencia de route.snapshot.
+  private readonly routeParams = toSignal(
+    this.route?.paramMap ?? of(convertToParamMap({})),
+    { initialValue: this.route?.snapshot.paramMap ?? convertToParamMap({}) },
+  );
   private readonly client = inject(SUPABASE_CLIENT);
   private readonly destroy = inject(DestroyRef);
   private readonly injector = inject(Injector);
@@ -83,6 +104,8 @@ export class LessonVideo {
   private readonly tusFactory = inject(TUS_UPLOAD_FACTORY);
   private readonly auth = inject(AuthService, { optional: true });
   private readonly timing = inject(VIDEO_UPLOAD_TIMING);
+  private readonly toastStore = inject(UploadToasts);
+  private readonly toastTiming = inject(UPLOAD_TOAST_TIMING);
   private uploadGeneration = 0;
   private activeUpload: TusUploadLike | null = null;
   private grant: UploadGrant | null = null;
@@ -94,10 +117,10 @@ export class LessonVideo {
   private observedSession: string | undefined;
 
   readonly effectiveLessonId = computed(() =>
-    this.lessonId() || this.route?.snapshot.paramMap.get('lessonId') || '',
+    this.lessonId() || this.routeParams().get('lessonId') || '',
   );
   readonly effectiveCourseId = computed(() =>
-    this.courseId() || this.route?.snapshot.paramMap.get('courseId') || '',
+    this.courseId() || this.routeParams().get('courseId') || '',
   );
   readonly canEdit = computed(() => UUID.test(this.effectiveLessonId()));
 
@@ -115,6 +138,9 @@ export class LessonVideo {
   readonly statusInfo = signal<UploadStatus | null>(null);
   readonly needsRenewal = signal(false);
   readonly replaceRequested = signal(false);
+
+  /** Avisos accesibles de la subida (signal de solo lectura del almacén local). */
+  readonly toasts = this.toastStore.toasts;
 
   readonly limits = computed(() => this.statusInfo()?.limits ?? null);
   readonly acceptTypes = computed(() => (this.limits()?.allowedMimeTypes ?? []).join(','));
@@ -152,6 +178,7 @@ export class LessonVideo {
     this.destroy.onDestroy(() => {
       this.generation++;
       this.invalidate(null);
+      this.toastStore.clear();
     });
 
     // Detecta cambio de lección, ruta o sesión (incluido logout). Un refresh de
@@ -167,17 +194,37 @@ export class LessonVideo {
       const lessonChanged = previousLesson !== lessonId;
       const sessionChanged = previousSession !== undefined && previousSession !== session;
       if (lessonChanged || sessionChanged) {
-        this.invalidate(
-          this.activeUpload
-            ? 'La lección o la sesión ha cambiado. La subida local se ha detenido; el vídeo remoto se conserva.'
-            : null,
-        );
+        // Cambio de lección (la ruta reutiliza el componente) o de sesión:
+        // nada de la lección anterior puede seguir vivo ni anunciarse.
+        this.resetForLesson(lessonId);
       }
       if (!lessonId && this.uploadState() !== 'loading') this.uploadState.set('idle');
       if (lessonId && (lessonChanged || previousLesson === undefined || sessionChanged)) {
         void this.loadStatus();
       }
     });
+  }
+
+  /** Descarta subida, temporizadores, avisos y estado editorial de otra lección. */
+  private resetForLesson(lessonId: string): void {
+    this.invalidate(null); // abort(false): no borra el vídeo remoto.
+    this.toastStore.clear();
+    this.generation++; // descarta respuestas pendientes de vinculación por GUID.
+    this.state.set('idle');
+    this.message.set('');
+    this.result.set(null);
+    this.videoId = '';
+    this.invalidGuid.set(false);
+    this.formVisible.set(false);
+    this.selectedFile.set(null);
+    this.fileError.set(null);
+    this.grant = null;
+    this.currentRequestId = null;
+    this.replaceRequested.set(false);
+    this.statusInfo.set(null);
+    this.uploadMessage.set('');
+    this.statusLoading = false;
+    this.uploadState.set(lessonId ? 'loading' : 'idle');
   }
 
   // --- Vinculación por GUID (flujo existente, intacto) -----------------------
@@ -281,7 +328,7 @@ export class LessonVideo {
       const status = await this.uploads.status(lessonId);
       if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
       this.statusInfo.set(status);
-      if (status.notice) this.uploadMessage.set(status.notice);
+      this.uploadMessage.set(statusMessage(status));
       if (status.state === 'failed' || status.state === 'blocked') {
         this.uploadState.set('error');
       } else if (this.uploadState() === 'loading' || this.uploadState() === 'error') {
@@ -289,12 +336,18 @@ export class LessonVideo {
       }
     } catch (error) {
       if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
+      const text = this.safeError(error);
       this.uploadState.set('error');
-      this.uploadMessage.set(this.safeError(error));
+      this.uploadMessage.set(text);
+      this.pushError(text, 'estado', generation, () => void this.refreshStatus());
     }
   }
 
-  /** Relectura manual: una sola petición, sin crear ni renovar nada. */
+  /**
+   * Relectura manual: `action: 'status'` consulta el estado real en el servidor
+   * (y este a Bunny para los trabajos activos). No es `action: 'refresh'`:
+   * aquí no se renueva ninguna firma ni se crea ni sube ningún objeto.
+   */
   async refreshStatus(): Promise<void> {
     if (this.statusLoading || this.isBusy()) return;
     this.statusLoading = true;
@@ -306,8 +359,10 @@ export class LessonVideo {
       this.interpretStatus(status, generation);
     } catch (error) {
       if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
+      const text = this.safeError(error);
       this.uploadState.set('error');
-      this.uploadMessage.set(this.safeError(error));
+      this.uploadMessage.set(text);
+      this.pushError(text, 'estado', generation, () => void this.refreshStatus());
     } finally {
       this.statusLoading = false;
     }
@@ -320,20 +375,24 @@ export class LessonVideo {
       return;
     }
     if (status.state === 'failed' || status.state === 'blocked') {
+      const text = statusMessage(status);
       this.uploadState.set('error');
-      this.uploadMessage.set(status.notice ?? 'El vídeo no está listo. Vuelve a intentarlo.');
+      this.uploadMessage.set(text);
+      this.pushError(text, 'estado', generation, () => void this.refreshStatus());
       return;
     }
     const previous = this.uploadState();
     if (previous === 'processing' || previous === 'done') {
       this.uploadState.set('processing');
-      this.uploadMessage.set(status.notice ?? 'Sigue procesándose. Actualiza el estado en unos momentos.');
+      this.uploadMessage.set(statusMessage(status));
     }
   }
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
+    // Cambiar de archivo (incluso por el mismo) descarta los avisos anteriores.
+    this.toastStore.clear();
     this.invalidate(null);
     this.selectedFile.set(file);
     this.grant = null;
@@ -365,9 +424,11 @@ export class LessonVideo {
 
     const generation = ++this.uploadGeneration;
     this.cancelPoll();
+    this.toastStore.clear();
     this.uploadState.set('preparing');
     this.uploadMessage.set('Solicitando autorización de subida…');
     this.needsRenewal.set(false);
+    this.pushInfo('Preparando la subida del vídeo…', `preparando-${generation}`);
 
     try {
       const requestId = this.currentRequestId ?? stableRequestId([
@@ -380,9 +441,17 @@ export class LessonVideo {
     } catch (e) {
       if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
       this.activeUpload = null;
+      const status = e instanceof UploadHttpError ? e.status : null;
+      const text = status === 409 ? CONFLICT_MESSAGE : this.safeError(e);
       this.uploadState.set('error');
       this.uploadMessage.set(this.safeError(e));
-      this.needsRenewal.set(e instanceof UploadHttpError && e.status === 401);
+      this.pushError(
+        text,
+        status === 409 ? 'conflicto' : 'preparacion',
+        generation,
+        () => this.retryUpload(),
+      );
+      this.needsRenewal.set(status === 401);
     }
   }
 
@@ -394,25 +463,37 @@ export class LessonVideo {
 
     const generation = ++this.uploadGeneration;
     this.cancelPoll();
+    this.toastStore.clear();
     this.uploadState.set('preparing');
     this.uploadMessage.set('Renovando la autorización para reanudar…');
     this.needsRenewal.set(false);
+    this.pushInfo('Reanudando la subida con el mismo archivo…', `reanudando-${generation}`);
 
     try {
       const fresh = await this.uploads.refresh(this.effectiveLessonId(), grant.uploadId);
       if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
       if (fresh.videoId !== grant.videoId || fresh.uploadId !== grant.uploadId) {
+        const text = 'El servidor devolvió un vídeo distinto; no se ha reanudado ni creado otro.';
         this.uploadState.set('error');
-        this.uploadMessage.set('El servidor devolvió un vídeo distinto; no se ha reanudado ni creado otro.');
+        this.uploadMessage.set(text);
+        this.pushError(text, 'reanudacion', generation, () => void this.startUpload());
         return;
       }
       this.grant = fresh;
       await this.beginTransfer(file, fresh, generation, true);
     } catch (e) {
       if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
+      const status = e instanceof UploadHttpError ? e.status : null;
+      const text = status === 409 ? CONFLICT_MESSAGE : this.safeError(e);
       this.uploadState.set('error');
       this.uploadMessage.set(this.safeError(e));
-      this.needsRenewal.set(e instanceof UploadHttpError && e.status === 401);
+      this.pushError(
+        text,
+        status === 409 ? 'conflicto' : 'reanudacion',
+        generation,
+        () => this.retryUpload(),
+      );
+      this.needsRenewal.set(status === 401);
     }
   }
 
@@ -435,6 +516,15 @@ export class LessonVideo {
       onProgress: (sent, total) => {
         if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
         this.progress.set({ sent, total });
+        // El porcentaje exacto vive en la barra; solo se anuncian hitos, una vez.
+        if (total > 0) {
+          const percent = Math.min(100, Math.max(0, Math.round((sent / total) * 100)));
+          for (const mark of [25, 50, 75]) {
+            if (percent >= mark) {
+              this.pushInfo(`Subida al ${mark} %.`, `hito-${generation}-${mark}`);
+            }
+          }
+        }
       },
       onSuccess: () => {
         if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
@@ -442,14 +532,22 @@ export class LessonVideo {
         this.uploadState.set('processing');
         this.uploadMessage.set('Subida completada. El vídeo se está procesando en el servidor.');
         this.needsRenewal.set(false);
+        // El 100 % NO es éxito: solo un GET validado puede declarar «Listo».
         void this.pollStatus(generation);
       },
       onError: (error) => {
         if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
         this.activeUpload = null;
         const status = this.tusStatus(error);
+        const text = status === 409 ? CONFLICT_MESSAGE : uploadHttpMessage(status);
         this.uploadState.set('error');
         this.uploadMessage.set(uploadHttpMessage(status));
+        this.pushError(
+          text,
+          status === 409 ? 'conflicto' : 'transferencia',
+          generation,
+          () => this.retryUpload(),
+        );
         this.needsRenewal.set(status === 401);
       },
       // Según la documentación de tus: solo 409/423 se reintentan. 401 exige
@@ -473,6 +571,7 @@ export class LessonVideo {
       if (safeUrl === null) {
         this.uploadState.set('error');
         this.uploadMessage.set(INVALID_RESUME_MESSAGE);
+        this.pushError(INVALID_RESUME_MESSAGE, 'reanudacion', generation, () => void this.startUpload());
         return;
       }
       // Solo se reutiliza la URL verificada; la huella sigue ligada a esta
@@ -484,6 +583,7 @@ export class LessonVideo {
     this.progress.set({ sent: 0, total: file.size });
     this.uploadState.set('uploading');
     this.uploadMessage.set('Subiendo el vídeo…');
+    this.pushInfo('Enviando el archivo al proveedor…', `enviando-${generation}`);
     upload.start();
   }
 
@@ -491,6 +591,10 @@ export class LessonVideo {
   cancelUpload(): void {
     if (!this.activeUpload && !this.isBusy() && this.uploadState() !== 'uploading') return;
     this.invalidate('Subida detenida. El vídeo remoto se conserva; puedes reanudarlo con el mismo archivo.');
+    this.pushInfo(
+      'Subida detenida. El archivo no se ha borrado; reanuda con el mismo archivo.',
+      `pausa-${this.uploadGeneration}`,
+    );
   }
 
   /** Restituir el formulario de subida tras un vídeo ya asociado (gesto editorial). */
@@ -512,6 +616,13 @@ export class LessonVideo {
       ? ` Duración: ${formatDuration(status.durationSeconds)}.`
       : '';
     this.uploadMessage.set(`Listo. El vídeo está asociado a esta lección.${duration}`);
+    this.toastStore.push({
+      severity: 'success',
+      title: 'Listo',
+      text: `El vídeo ya está disponible en esta lección.${duration}`,
+      dedupeKey: `listo-${this.uploadGeneration}`,
+      autoHideMs: this.toastTiming.successMs,
+    });
     this.needsRenewal.set(false);
     this.replaceRequested.set(false);
     // En `ready` el servidor omite uploadId: las siguientes lecturas no lo envían.
@@ -535,16 +646,20 @@ export class LessonVideo {
           return;
         }
         if (status.state === 'failed' || status.state === 'blocked') {
+          const text = statusMessage(status);
           this.uploadState.set('error');
-          this.uploadMessage.set(status.notice ?? 'El proveedor no pudo terminar el procesamiento.');
+          this.uploadMessage.set(text);
+          this.pushError(text, 'estado', generation, () => void this.refreshStatus());
           return;
         }
         this.uploadState.set('processing');
-        this.uploadMessage.set(status.notice ?? 'Sigue procesándose…');
+        this.uploadMessage.set(statusMessage(status));
       } catch (e) {
         if (generation !== this.uploadGeneration || this.destroy.destroyed) return;
+        const text = this.safeError(e);
         this.uploadState.set('error');
-        this.uploadMessage.set(this.safeError(e));
+        this.uploadMessage.set(text);
+        this.pushError(text, 'estado', generation, () => void this.refreshStatus());
         return;
       }
     }
@@ -588,6 +703,54 @@ export class LessonVideo {
       this.uploadMessage.set(reason);
     }
   }
+
+  // --- Avisos accesibles de la subida -----------------------------------------
+
+  /** Informativo con autocierre; la clave fija el dedupe por motivo. */
+  private pushInfo(text: string, dedupeKey: string): void {
+    this.toastStore.push({
+      severity: 'info',
+      title: 'Aviso',
+      text,
+      dedupeKey,
+      autoHideMs: this.toastTiming.infoMs,
+    });
+  }
+
+  /** Error persistente con reintento: no se cierra solo y la clave evita repetirlo. */
+  private pushError(
+    text: string,
+    stage: ToastStage,
+    generation: number,
+    retry: () => void,
+  ): void {
+    this.toastStore.push({
+      severity: 'error',
+      title: stage === 'conflicto' ? 'Conflicto' : 'Error',
+      text,
+      dedupeKey: `error-${stage}-${generation}-${text}`,
+      autoHideMs: null,
+      retry,
+      retryLabel: 'Reintentar',
+    });
+  }
+
+  /** Un único reintento por la vía existente; las guardas impiden duplicarlo. */
+  private retryUpload(): void {
+    if (this.isBusy()) return;
+    if (this.grant && !this.needsRenewal()) void this.resumeUpload();
+    else void this.startUpload();
+  }
+
+  retryToast(toast: UploadToast): void {
+    // Se retira antes de actuar: un segundo clic ya no encuentra el botón.
+    this.toastStore.dismiss(toast.id);
+    toast.retry?.();
+  }
+
+  dismissToast(id: string): void { this.toastStore.dismiss(id); }
+  pauseToast(id: string, source: ToastHold): void { this.toastStore.pause(id, source); }
+  resumeToast(id: string, source: ToastHold): void { this.toastStore.resume(id, source); }
 
   private safeError(error: unknown): string {
     if (error instanceof UploadHttpError || error instanceof InvalidUploadResponseError ||

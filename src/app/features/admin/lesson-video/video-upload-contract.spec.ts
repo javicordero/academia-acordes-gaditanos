@@ -4,6 +4,7 @@ import {
   fileValidationError,
   resolveBunnyTusResumeUrl,
   stableRequestId,
+  statusMessage,
   uploadHttpMessage,
   validateGrant,
   validateStatus,
@@ -37,6 +38,17 @@ describe('video-upload-contract', () => {
     expect(validateStatus({ ...STATUS, limits: { maxBytes: -1, allowedMimeTypes: [] } })).toBeNull();
     expect(validateStatus({ ...STATUS, uploadId: 'no-uuid' })).toBeNull();
     expect(validateStatus(null)).toBeNull();
+  });
+
+  it('no conserva el notice del servidor y solo expone mensajes fijos por estado', () => {
+    const parsed = validateStatus({ ...STATUS, state: 'failed', notice: 'https://x?token=SECRETO' });
+    expect(parsed).not.toBeNull();
+    expect(parsed).not.toHaveProperty('notice');
+    expect(statusMessage(parsed!)).toBe('El proveedor informó de un error en el vídeo. No se ha borrado nada; revisa el estado.');
+    for (const state of ['none', 'pending', 'uploading', 'processing', 'ready', 'failed', 'blocked'] as const) {
+      const text = statusMessage({ ...STATUS, state });
+      expect(text).not.toMatch(/https?:|token=|signature=|SECRETO/i);
+    }
   });
 
   it('acepta una concesión válida y rechaza endpoint arbitrario y firma caducada', () => {

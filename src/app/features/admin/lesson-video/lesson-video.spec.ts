@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { vi } from 'vitest';
 
 import { AuthService } from '../../../core/auth/auth.service';
@@ -13,6 +15,7 @@ import {
   VIDEO_UPLOAD_NOW,
   VIDEO_UPLOAD_TIMING,
 } from './video-upload-contract';
+import { UPLOAD_TOAST_TIMING, UploadToasts } from './upload-toasts.service';
 import { LessonVideo } from './lesson-video';
 
 const lesson = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -56,6 +59,20 @@ interface FakeUpload {
   resumeFromPreviousUpload: ReturnType<typeof vi.fn>;
 }
 
+async function settle(fixture: ComponentFixture<unknown>, ms = 0): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+  await fixture.whenStable();
+  fixture.detectChanges();
+}
+
+function toastEls(fixture: ComponentFixture<unknown>): HTMLElement[] {
+  return Array.from(fixture.nativeElement.querySelectorAll('.toast')) as HTMLElement[];
+}
+
+function toastText(fixture: ComponentFixture<unknown>): string {
+  return (fixture.nativeElement.querySelector('.toast-stack')?.textContent as string) ?? '';
+}
+
 describe('LessonVideo · subida Bunny desde el panel', () => {
   let invoke: ReturnType<typeof vi.fn>;
   let tusCreate: ReturnType<typeof vi.fn>;
@@ -69,9 +86,11 @@ describe('LessonVideo · subida Bunny desde el panel', () => {
   let refreshResponse: unknown;
   let previousUploads: unknown;
   let linkData: unknown;
+  let toastTiming: { infoMs: number; successMs: number };
 
   beforeEach(() => {
     vi.useRealTimers();
+    toastTiming = { infoMs: 4000, successMs: 6000 };
     invoke = vi.fn();
     created = [];
     statusQueue = [];
@@ -107,20 +126,16 @@ describe('LessonVideo · subida Bunny desde el panel', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([{ path: 'admin/:courseId/:lessonId/video', component: LessonVideo }]),
         { provide: SUPABASE_CLIENT, useValue: { functions: { invoke } } },
         { provide: TUS_UPLOAD_FACTORY, useValue: { create: tusCreate } },
         { provide: AuthService, useValue: { session: session.asReadonly() } },
         { provide: VIDEO_UPLOAD_NOW, useValue: () => NOW },
         { provide: VIDEO_UPLOAD_TIMING, useValue: { pollIntervalMs: 1, pollAttempts: 2, retryDelays: [] } },
+        { provide: UPLOAD_TOAST_TIMING, useValue: toastTiming },
       ],
     });
   });
-
-  async function settle(fixture: ComponentFixture<LessonVideo>, ms = 0): Promise<void> {
-    await new Promise<void>((resolve) => setTimeout(resolve, ms));
-    await fixture.whenStable();
-    fixture.detectChanges();
-  }
 
   async function setup(lessonId = lesson): Promise<ComponentFixture<LessonVideo>> {
     const fixture = TestBed.createComponent(LessonVideo);
@@ -450,6 +465,52 @@ describe('LessonVideo · subida Bunny desde el panel', () => {
     errorSpy.mockRestore();
   });
 
+  it('no vierte el notice del servidor: solo mensajes fijos según el estado', async () => {
+    const malicious = 'https://evil.test/firma?token=ABC&signature=SECRETO';
+    const cases: Array<[string, string]> = [
+      ['processing', 'Sigue procesándose'],
+      ['failed', 'No se ha borrado nada'],
+      ['blocked', 'no se ha sobrescrito ningún vídeo'],
+    ];
+    for (const [state, expected] of cases) {
+      defaultStatus = { data: { state, hasVideo: false, limits, uploadId, notice: malicious }, error: null };
+      const fixture = await setup();
+      fixture.componentInstance.uploadState.set('processing');
+      await fixture.componentInstance.refreshStatus();
+      await settle(fixture);
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain(expected);
+      expect(text).not.toContain('token=');
+      expect(text).not.toContain('https://');
+      expect(text).not.toContain('SECRETO');
+      fixture.destroy();
+    }
+  });
+
+  it('«Actualizar estado» consulta el backend con action=status y pasa de obsoleto a listo sin preparar ni re-firmar', async () => {
+    defaultStatus = { data: { state: 'processing', hasVideo: false, limits, uploadId }, error: null };
+    const fixture = await setup();
+    fixture.componentInstance.uploadState.set('processing');
+    await settle(fixture);
+    const before = invoke.mock.calls.length;
+    const button = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((b) => b.textContent?.includes('Actualizar estado'));
+    expect(button).toBeDefined();
+
+    defaultStatus = { data: { state: 'ready', hasVideo: true, limits, uploadId, durationSeconds: 40 }, error: null };
+    button!.click();
+    await settle(fixture);
+
+    const bodies = invoke.mock.calls.slice(before).map((call) => call[1]?.body);
+    expect(bodies).toEqual([{ action: 'status', lessonId: lesson }]);
+    expect(bodies.some((body) => body?.['action'] === 'refresh' || body?.['action'] === 'prepare')).toBe(false);
+    expect(tusCreate).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.uploadState()).toBe('done');
+    expect(fixture.nativeElement.textContent).toContain('Listo');
+    expect(fixture.nativeElement.textContent).toContain('0:40');
+  });
+
   it('un 401 del TUS exige renovación y solo reintenta 409/423, sin bucles de coste', async () => {
     const fixture = await setup();
     pickFile(fixture);
@@ -608,5 +669,450 @@ describe('LessonVideo · subida Bunny desde el panel', () => {
     await settle(fixture);
     expect(fixture.nativeElement.textContent).toContain('No se pudo completar');
     expect(fixture.nativeElement.textContent).not.toContain('HTTP secreto');
+  });
+
+  // --- Avisos accesibles de la subida ---------------------------------------
+
+  it('emite avisos informativos al preparar y enviar con role=status y aria-live', async () => {
+    const fixture = await setup();
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+
+    const text = toastText(fixture);
+    expect(text).toContain('Preparando la subida');
+    expect(text).toContain('Enviando el archivo');
+    const statuses = fixture.nativeElement.querySelectorAll('.toast[role="status"]');
+    expect(statuses.length).toBeGreaterThan(0);
+    expect(statuses[0].getAttribute('aria-live')).toBe('polite');
+    expect(statuses[0].hasAttribute('aria-atomic')).toBe(true);
+    expect(toastEls(fixture).every((el) => el.querySelector('.toast__close'))).toBe(true);
+  });
+
+  it('el progreso detallado no llena de avisos: solo hitos, una vez cada uno', async () => {
+    const fixture = await setup();
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+    const options = created[0].options;
+    for (let percent = 1; percent <= 100; percent++) options.onProgress(percent, 100);
+    await settle(fixture);
+
+    const milestones = toastEls(fixture)
+      .map((el) => el.textContent ?? '')
+      .filter((text) => text.includes('Subida al'));
+    expect(milestones).toHaveLength(3);
+    expect(toastText(fixture)).not.toContain('Subida al 1 %');
+    expect(toastEls(fixture).length).toBeLessThanOrEqual(4);
+
+    options.onProgress(25, 100);
+    await settle(fixture);
+    expect(toastEls(fixture).length).toBeLessThanOrEqual(4);
+  });
+
+  it('el 100 % no avisa de éxito: «Listo» solo tras un GET ready con duración', async () => {
+    const fixture = await setup();
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+    const options = created[0].options;
+    options.onProgress(100, 100);
+    statusQueue.push({ data: { state: 'processing', hasVideo: false, limits, uploadId }, error: null });
+    options.onSuccess();
+    await settle(fixture, 10);
+
+    expect(toastText(fixture)).not.toContain('ya está disponible');
+    expect(toastEls(fixture).some((el) => el.textContent?.includes('Listo'))).toBe(false);
+
+    defaultStatus = { data: { state: 'ready', hasVideo: true, limits, uploadId, durationSeconds: 125 }, error: null };
+    await fixture.componentInstance.refreshStatus();
+    await settle(fixture);
+
+    const success = toastEls(fixture).find((el) => el.textContent?.includes('ya está disponible'));
+    expect(success).toBeDefined();
+    expect(success?.textContent).toContain('2:05');
+    expect(success?.getAttribute('role')).toBe('status');
+  });
+
+  it('un fallo de prepare deja un aviso persistente con reintento único', async () => {
+    prepareResponse = Promise.resolve({ data: null, error: failure(500, 'SECRETO') });
+    const fixture = await setup();
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+
+    const errorToast = toastEls(fixture).find((el) => el.getAttribute('role') === 'alert');
+    expect(errorToast).toBeDefined();
+    expect(errorToast?.textContent).toContain('Error');
+    expect(errorToast?.textContent).not.toContain('SECRETO');
+    expect(errorToast?.getAttribute('aria-live')).toBe('assertive');
+    const retry = errorToast?.querySelector('.toast__retry') as HTMLButtonElement | null;
+    expect(retry).not.toBeNull();
+    expect(prepareCalls()).toHaveLength(1);
+
+    retry?.click();
+    await settle(fixture);
+    expect(prepareCalls()).toHaveLength(2);
+  });
+
+  it('un 409 explica la reserva del vídeo y la sustitución expresa sin filtrar secretos', async () => {
+    prepareResponse = Promise.resolve({ data: null, error: failure(409, 'FIRMA-SECRETA') });
+    const fixture = await setup();
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+
+    const conflict = toastEls(fixture).find((el) => el.getAttribute('role') === 'alert');
+    expect(conflict?.textContent).toContain('Conflicto');
+    expect(conflict?.textContent).toContain('reservado');
+    expect(conflict?.textContent).toContain('sustituye');
+    expect(toastText(fixture)).not.toContain('FIRMA-SECRETA');
+  });
+
+  it('detener avisa de la pausa y cambiar de archivo descarta el aviso', async () => {
+    const fixture = await setup();
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+    fixture.componentInstance.cancelUpload();
+    await settle(fixture);
+    expect(toastText(fixture)).toContain('Subida detenida');
+
+    pickFile(fixture, new File([new Uint8Array(50)], 'otro.mp4', { type: 'video/mp4', lastModified: 9 }));
+    await settle(fixture);
+    expect(toastEls(fixture)).toHaveLength(0);
+  });
+
+  it('logout, cambio de lección y destrucción descartan los avisos pendientes', async () => {
+    const fixture = await setup();
+    const store = fixture.debugElement.injector.get(UploadToasts);
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+    expect(toastEls(fixture).length).toBeGreaterThan(0);
+
+    session.set(null);
+    await settle(fixture);
+    expect(toastEls(fixture)).toHaveLength(0);
+
+    session.set({ user: { id: 'admin-1' } });
+    await settle(fixture);
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+    expect(toastEls(fixture).length).toBeGreaterThan(0);
+    fixture.componentRef.setInput('lessonId', otherLesson);
+    await settle(fixture);
+    expect(toastEls(fixture)).toHaveLength(0);
+
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+    expect(toastEls(fixture).length).toBeGreaterThan(0);
+    fixture.destroy();
+    expect(store.toasts()).toHaveLength(0);
+  });
+
+  it('un doble clic y un archivo idéntico no duplican avisos ni preparaciones', async () => {
+    const fixture = await setup();
+    pickFile(fixture);
+    void fixture.componentInstance.startUpload();
+    void fixture.componentInstance.startUpload();
+    await settle(fixture);
+    expect(prepareCalls()).toHaveLength(1);
+    expect(toastEls(fixture).filter((el) => el.textContent?.includes('Preparando'))).toHaveLength(1);
+
+    pickFile(fixture);
+    await settle(fixture);
+    expect(toastEls(fixture)).toHaveLength(0);
+    expect(prepareCalls()).toHaveLength(1);
+  });
+
+  it('el botón de cerrar es accesible y retira el aviso sin borrar el error inline', async () => {
+    prepareResponse = Promise.resolve({ data: null, error: failure(500, 'x') });
+    const fixture = await setup();
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+
+    const errorToast = toastEls(fixture).find((el) => el.getAttribute('role') === 'alert');
+    const close = errorToast?.querySelector('.toast__close') as HTMLButtonElement | null;
+    expect(close?.tagName).toBe('BUTTON');
+    expect(close?.getAttribute('aria-label')).toContain('Cerrar aviso');
+    close?.click();
+    await settle(fixture);
+    expect(toastEls(fixture).some((el) => el.getAttribute('role') === 'alert')).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('Vuelve a intentarlo');
+  });
+
+  it('no reanuncia «Listo» tras el autocierre ni al volver a consultar el estado', async () => {
+    toastTiming.infoMs = 5;
+    toastTiming.successMs = 5;
+    const fixture = await setup();
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+    statusQueue.push({ data: { state: 'processing', hasVideo: false, limits, uploadId }, error: null });
+    created[0].options.onSuccess();
+    await settle(fixture, 10);
+
+    defaultStatus = { data: { state: 'ready', hasVideo: true, limits, uploadId, durationSeconds: 40 }, error: null };
+    await fixture.componentInstance.refreshStatus();
+    await settle(fixture);
+    expect(toastText(fixture)).toContain('ya está disponible');
+
+    await settle(fixture, 30);
+    expect(toastEls(fixture)).toHaveLength(0);
+    await fixture.componentInstance.refreshStatus();
+    await settle(fixture);
+    expect(toastText(fixture)).not.toContain('ya está disponible');
+    // El texto visual sigue ahí; solo se evita el segundo anuncio accesible.
+    expect(fixture.nativeElement.textContent).toContain('Listo');
+  });
+
+  it('al destruir el componente se vacían los avisos y sus temporizadores', async () => {
+    const fixture = await setup();
+    const store = fixture.debugElement.injector.get(UploadToasts);
+    pickFile(fixture);
+    await fixture.componentInstance.startUpload();
+    await settle(fixture);
+    expect(store.getTimerCount()).toBeGreaterThan(0);
+    fixture.destroy();
+    expect(store.getTimerCount()).toBe(0);
+    expect(store.toasts()).toHaveLength(0);
+  });
+});
+
+describe('LessonVideo · navegación real entre lecciones', () => {
+  let invoke: ReturnType<typeof vi.fn>;
+  let tusCreate: ReturnType<typeof vi.fn>;
+  let created: FakeUpload[];
+  let session: ReturnType<typeof signal<{ user: { id: string } } | null>>;
+  let harness: RouterTestingHarness;
+
+  beforeEach(async () => {
+    vi.useRealTimers();
+    invoke = vi.fn(async (_name: string, options: { body?: Record<string, unknown> } = {}) => {
+      const action = options.body?.['action'];
+      if (action === 'status') {
+        const fresh = options.body?.['lessonId'] === otherLesson
+          ? { ...baseStatus, state: 'processing' }
+          : baseStatus;
+        return { data: fresh, error: null };
+      }
+      if (action === 'prepare') return { data: grant(), error: null };
+      return { data: null, error: null };
+    });
+    created = [];
+    tusCreate = vi.fn(async (_file: File, options: TusTransferOptions) => {
+      const upload: FakeUpload = {
+        options,
+        start: vi.fn(),
+        abort: vi.fn().mockResolvedValue(undefined),
+        findPreviousUploads: vi.fn().mockResolvedValue([]),
+        resumeFromPreviousUpload: vi.fn(),
+      };
+      created.push(upload);
+      return upload;
+    });
+    session = signal<{ user: { id: string } } | null>({ user: { id: 'admin-1' } });
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: 'admin/:courseId/:lessonId/video', component: LessonVideo }]),
+        { provide: SUPABASE_CLIENT, useValue: { functions: { invoke } } },
+        { provide: TUS_UPLOAD_FACTORY, useValue: { create: tusCreate } },
+        { provide: AuthService, useValue: { session: session.asReadonly() } },
+        { provide: VIDEO_UPLOAD_NOW, useValue: () => NOW },
+        { provide: VIDEO_UPLOAD_TIMING, useValue: { pollIntervalMs: 1, pollAttempts: 2, retryDelays: [] } },
+        { provide: UPLOAD_TOAST_TIMING, useValue: { infoMs: 4000, successMs: 6000 } },
+      ],
+    });
+    harness = await RouterTestingHarness.create();
+  });
+
+  function statusCallsFor(id: string): number {
+    return invoke.mock.calls.filter((call) =>
+      call[1]?.body?.['action'] === 'status' && call[1]?.body?.['lessonId'] === id).length;
+  }
+
+  function selectFileOn(component: LessonVideo): void {
+    const file = new File([new Uint8Array(100)], 'leccion.mp4', { type: 'video/mp4', lastModified: 7 });
+    component.onFileSelected({ target: { files: [file] } } as unknown as Event);
+  }
+
+  async function startOn(component: LessonVideo): Promise<void> {
+    selectFileOn(component);
+    await settle(harness.fixture as ComponentFixture<unknown>);
+    await component.startUpload();
+    await settle(harness.fixture as ComponentFixture<unknown>);
+  }
+
+  it('Router.navigate reutiliza el componente, descarta subida/avisos/timers y recarga el estado de la lección nueva', async () => {
+    const first = await harness.navigateByUrl(`/admin/${course}/${lesson}/video`, LessonVideo);
+    await settle(harness.fixture as ComponentFixture<unknown>);
+    expect(first.effectiveLessonId()).toBe(lesson);
+    expect(statusCallsFor(lesson)).toBe(1);
+    const store = (first as unknown as { toastStore: UploadToasts }).toastStore;
+
+    await startOn(first);
+    expect(created).toHaveLength(1);
+    expect(store.getTimerCount()).toBeGreaterThan(0);
+    expect(toastText(harness.fixture as ComponentFixture<unknown>)).toContain('Preparando');
+
+    await TestBed.inject(Router).navigate(['/admin', course, otherLesson, 'video']);
+    await settle(harness.fixture as ComponentFixture<unknown>);
+
+    expect(first.effectiveLessonId()).toBe(otherLesson); // misma instancia, paramMap reactivo
+    expect(statusCallsFor(lesson)).toBe(1); // ninguna petición vieja después del cambio
+    expect(statusCallsFor(otherLesson)).toBe(1);
+    expect(created[0].abort).toHaveBeenCalledWith(false); // sin DELETE ni finish()
+    expect(created[0].start).toHaveBeenCalledTimes(1);
+    expect(first.uploadState()).not.toBe('uploading');
+    expect(first.selectedFile()).toBeNull();
+    expect(first.statusInfo()?.state).toBe('processing'); // estado recién leído de la lección nueva
+    expect(first.progress()).toEqual({ sent: 0, total: 0 });
+    expect(toastEls(harness.fixture as ComponentFixture<unknown>)).toHaveLength(0);
+    expect(store.getTimerCount()).toBe(0);
+    expect(invoke.mock.calls.some((call) => call[1]?.body?.['action'] === 'prepare')).toBe(true);
+    expect(invoke.mock.calls.filter((call) => call[1]?.body?.['action'] === 'prepare')).toHaveLength(1);
+  });
+
+  it('una respuesta prepare antigua tras Router.navigate no crea ni inicia otra subida', async () => {
+    const first = await harness.navigateByUrl(`/admin/${course}/${lesson}/video`, LessonVideo);
+    await settle(harness.fixture as ComponentFixture<unknown>);
+    const pending = deferred<unknown>();
+    invoke.mockImplementation((_name: string, options: { body?: Record<string, unknown> } = {}) => {
+      if (options.body?.['action'] === 'status') return Promise.resolve({ data: baseStatus, error: null });
+      if (options.body?.['action'] === 'prepare') return pending.promise;
+      return Promise.resolve({ data: null, error: null });
+    });
+    selectFileOn(first);
+    void first.startUpload(); // prepare queda pendiente a propósito
+    await settle(harness.fixture as ComponentFixture<unknown>);
+
+    await TestBed.inject(Router).navigate(['/admin', course, otherLesson, 'video']);
+    await settle(harness.fixture as ComponentFixture<unknown>);
+    pending.resolve({ data: grant(), error: null });
+    await settle(harness.fixture as ComponentFixture<unknown>);
+
+    expect(created).toHaveLength(0);
+    expect(first.uploadState()).not.toBe('uploading');
+    expect(statusCallsFor(otherLesson)).toBe(1);
+    expect(toastEls(harness.fixture as ComponentFixture<unknown>)).toHaveLength(0);
+  });
+});
+
+describe('UploadToasts · autocierre y dedupe', () => {
+  it('cierra solo los avisos sin acción con temporizadores falsos y conserva los errores', () => {
+    vi.useFakeTimers();
+    try {
+      const store = new UploadToasts();
+      store.push({
+        severity: 'info', title: 'Aviso', text: 'Aviso temporal',
+        dedupeKey: 'info-1', autoHideMs: 1000,
+      });
+      store.push({
+        severity: 'error', title: 'Error', text: 'Fallo',
+        dedupeKey: 'error-1', autoHideMs: null, retry: () => {},
+      });
+      expect(store.toasts()).toHaveLength(2);
+
+      vi.advanceTimersByTime(1000);
+      expect(store.toasts()).toHaveLength(1);
+      expect(store.toasts()[0].severity).toBe('error');
+
+      store.clear();
+      expect(store.toasts()).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('dedupe por motivo y pausa/reanuda el tiempo de autocierre restante', () => {
+    vi.useFakeTimers();
+    try {
+      const store = new UploadToasts();
+      const build = () => ({
+        severity: 'info' as const, title: 'Aviso', text: 'Igual',
+        dedupeKey: 'mismo', autoHideMs: 1000,
+      });
+      store.push(build());
+      store.push(build());
+      expect(store.toasts()).toHaveLength(1);
+
+      vi.advanceTimersByTime(400);
+      store.pause(store.toasts()[0].id, 'hover');
+      vi.advanceTimersByTime(2000);
+      expect(store.toasts()).toHaveLength(1);
+      store.resume(store.toasts()[0].id, 'hover');
+      vi.advanceTimersByTime(600);
+      expect(store.toasts()).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('solo reanuda cuando terminan el hover y el foco, y vacía los timers al limpiar', () => {
+    vi.useFakeTimers();
+    try {
+      const store = new UploadToasts();
+      store.push({
+        severity: 'info', title: 'Aviso', text: 'Subida',
+        dedupeKey: 'info-unico', autoHideMs: 1000,
+      });
+      const id = store.toasts()[0].id;
+      expect(store.getTimerCount()).toBe(1);
+
+      store.pause(id, 'hover');
+      expect(store.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(500);
+      store.resume(id, 'hover');
+      expect(store.getTimerCount()).toBe(1);
+
+      store.pause(id, 'focus');
+      expect(store.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(500);
+      store.resume(id, 'hover'); // el foco sigue encima: no se rearma
+      expect(store.getTimerCount()).toBe(0);
+      expect(store.toasts()).toHaveLength(1);
+
+      store.resume(id, 'focus');
+      expect(store.getTimerCount()).toBe(1);
+      vi.runAllTimers();
+      expect(store.toasts()).toHaveLength(0);
+
+      store.push({
+        severity: 'info', title: 'Aviso', text: 'Otro',
+        dedupeKey: 'info-nuevo', autoHideMs: 1000,
+      });
+      expect(store.getTimerCount()).toBe(1);
+      store.clear();
+      expect(store.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('recuerda las claves anunciadas: no repite un hito tras el autocierre', () => {
+    vi.useFakeTimers();
+    try {
+      const store = new UploadToasts();
+      const build = (key: string) => ({
+        severity: 'info' as const, title: 'Aviso', text: 'Hito',
+        dedupeKey: key, autoHideMs: 10,
+      });
+      store.push(build('listo-1'));
+      vi.advanceTimersByTime(10);
+      expect(store.toasts()).toHaveLength(0);
+
+      store.push(build('listo-1'));
+      expect(store.toasts()).toHaveLength(0);
+      // Otra generación sí puede anunciar su propio «Listo».
+      store.push(build('listo-2'));
+      expect(store.toasts()).toHaveLength(1);
+      store.clear();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

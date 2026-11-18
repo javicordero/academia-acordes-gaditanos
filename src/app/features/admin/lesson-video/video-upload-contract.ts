@@ -83,7 +83,6 @@ export interface UploadStatus {
   readonly hasVideo: boolean;
   readonly limits: UploadLimits;
   readonly durationSeconds?: number;
-  readonly notice?: string;
 }
 
 export interface UploadGrant {
@@ -181,14 +180,35 @@ export function validateStatus(data: unknown): UploadStatus | null {
   )) return null;
   if (notice !== undefined && !(typeof notice === 'string' && notice.length <= MAX_NOTICE)) return null;
 
+  // El `notice` del servidor se valida pero NO se conserva: podría contener una
+  // URL firmada o un token. La UI solo usa los textos fijos de `statusMessage`.
   return {
     state: state as UploadState,
     ...(typeof uploadId === 'string' ? { uploadId } : {}),
     hasVideo,
     limits,
     ...(typeof durationSeconds === 'number' ? { durationSeconds } : {}),
-    ...(typeof notice === 'string' && notice.length > 0 ? { notice } : {}),
   };
+}
+
+/** Textos fijos, sin datos del proveedor: nunca se muestra el `notice` crudo. */
+export function statusMessage(status: UploadStatus): string {
+  switch (status.state) {
+    case 'ready':
+      return 'El vídeo está disponible en esta lección.';
+    case 'processing':
+      return 'Sigue procesándose. Actualiza el estado en unos momentos.';
+    case 'failed':
+      return 'El proveedor informó de un error en el vídeo. No se ha borrado nada; revisa el estado.';
+    case 'blocked':
+      return 'El estado requiere revisión; no se ha sobrescrito ningún vídeo.';
+    case 'uploading':
+      return 'El vídeo se está enviando al proveedor.';
+    case 'pending':
+      return 'La subida está reservada; todavía no se ha enviado el archivo.';
+    case 'none':
+      return 'Todavía no hay vídeo asociado a esta lección.';
+  }
 }
 
 /**

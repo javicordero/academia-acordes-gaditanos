@@ -115,3 +115,88 @@ ul {
     width: 100%;
   }
 }
+
+/* Avisos de subida: flotan sin capturar el foco ni bloquear la interfaz. */
+.toast-stack {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  display: grid;
+  gap: 0.5rem;
+  width: min(24rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.toast {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 15%);
+  pointer-events: auto;
+  overflow-wrap: anywhere;
+}
+
+.toast--info {
+  border-left-color: #2f6690;
+  background: #eef5fa;
+}
+
+.toast--success {
+  border-left-color: #2f6b3a;
+  background: #eef7ef;
+}
+
+.toast--error {
+  border-left-color: #9b2c2c;
+  background: #f9eeee;
+}
+
+.toast__title {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-weight: 700;
+}
+
+.toast__text {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.toast__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.toast__actions button {
+  min-height: 36px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.88rem;
+}
+
+.toast__retry {
+  border-color: #2f6690;
+  color: #1f4a68;
+}
+
+.toast__close:focus-visible,
+.toast__retry:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 40rem) {
+  .toast-stack {
+    left: 1rem;
+    right: 1rem;
+    width: auto;
+  }
+
+  .toast__actions button {
+    width: auto;
+  }
+}

@@ -97,7 +97,9 @@
       }
 
       @if (uploadState() === 'processing' || uploadState() === 'done') {
-        <p role="status" aria-live="polite" aria-atomic="true">{{ uploadMessage() }}</p>
+        <!-- Texto visual: el anuncio accesible lo hace el aviso deduplicado,
+             para no narrar dos veces el mismo hito ni el «Listo». -->
+        <p class="hint">{{ uploadMessage() }}</p>
       }
 
       @if (uploadState() === 'error') {
@@ -109,6 +111,31 @@
 
       @if (uploadState() !== 'uploading' && uploadState() !== 'preparing' && uploadState() !== 'loading') {
         <button type="button" (click)="refreshStatus()" [disabled]="isBusy()">Actualizar estado</button>
+      }
+    </div>
+  }
+
+  <!-- Avisos de la subida: canal paralelo a los mensajes inline, no modal. -->
+  @if (toasts().length > 0) {
+    <div class="toast-stack">
+      @for (toast of toasts(); track toast.id) {
+        <div [class]="'toast toast--' + toast.severity"
+          [attr.role]="toast.severity === 'error' ? 'alert' : 'status'"
+          [attr.aria-live]="toast.severity === 'error' ? 'assertive' : 'polite'"
+          aria-atomic="true"
+          (mouseenter)="pauseToast(toast.id, 'hover')" (mouseleave)="resumeToast(toast.id, 'hover')"
+          (focusin)="pauseToast(toast.id, 'focus')" (focusout)="resumeToast(toast.id, 'focus')">
+          <span class="toast__title">{{ toast.title }}</span>
+          <p class="toast__text">{{ toast.text }}</p>
+          <div class="toast__actions">
+            @if (toast.retry) {
+              <button type="button" class="toast__retry" (click)="retryToast(toast)">{{ toast.retryLabel ?? 'Reintentar' }}</button>
+            }
+            <button type="button" class="toast__close"
+              [attr.aria-label]="'Cerrar aviso: ' + toast.text"
+              (click)="dismissToast(toast.id)">Cerrar</button>
+          </div>
+        </div>
       }
     </div>
   }
