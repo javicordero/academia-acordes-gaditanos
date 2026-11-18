@@ -55,6 +55,9 @@ export class MisCursos {
 
   /** Retorno del pago: null cuando la URL no pide comprobar nada. */
   readonly checkout = signal<CheckoutReturn | null>(null);
+  /** El aviso solo se pinta con sesión: nada de la cuenta anterior tras logout. */
+  readonly visibleCheckout = computed(() =>
+    this.auth.status() === 'authenticated' ? this.checkout() : null);
   private checkoutKey = '';
   private checkoutIdentity = '';
   private checkoutRequest = 0;
@@ -72,6 +75,19 @@ export class MisCursos {
   /** Fallos temporales concretos, sin contar los cursos inaccesibles. */
   /** Solo los fallos parciales se reintentan aislados; el error global recarga todo. */
   readonly failed = computed(() => (this.problems() ?? []).filter((problem) => problem.kind === 'failed'));
+
+  /** Resumen global derivado de los cursos ya cargados; sin cifras inventadas. */
+  readonly summary = computed(() => {
+    const courses = this.courses();
+    const total = courses.reduce((acc, course) => acc + course.total, 0);
+    const completed = courses.reduce((acc, course) => acc + course.completed, 0);
+    return {
+      count: courses.length,
+      total,
+      completed,
+      percent: total ? Math.round(completed * 100 / total) : 0,
+    };
+  });
 
   /** Usuario y estado de sesión; un token refrescado con el mismo id no recarga. */
   private readonly identity = computed(() => {
@@ -95,9 +111,16 @@ export class MisCursos {
       const flag = params.get('checkout');
       const orderId = params.get('order_id');
       // `success` sin order_id también se atiende: respuesta honesta, sin BD.
-      const key = flag === 'success' ? `success:${orderId ?? ''}` : '';
+      // `cancelled` es una señal explícita de la URL: aviso, sin verificación.
+      const key = flag === 'success'
+        ? `success:${orderId ?? ''}`
+        : flag === 'cancelled' ? 'cancelled:' : '';
       if (key === this.checkoutKey) return;
       this.checkoutKey = key;
+      if (flag === 'cancelled') {
+        this.resetCheckout({ kind: 'cancelled' });
+        return;
+      }
       this.resetCheckout(key ? { kind: 'checking' } : null);
       if (key) untracked(() => void this.handleCheckout(this.identity()));
     });
@@ -165,10 +188,19 @@ export class MisCursos {
 
   private async load(identity: string): Promise<void> {
     const userId = this.userId();
-    if (!userId || identity === this.loadedIdentity) {
-      if (!userId) this.state.set('empty');
+    if (!userId) {
+      // Logout o sesión no usable: no queda datos de la identidad anterior,
+      // aunque la plantilla ya no pinte la biblioteca.
+      this.loadedIdentity = '';
+      this.courses.set([]);
+      this.problems.set([]);
+      this.unavailable.set(0);
+      this.retrying.set(false);
+      this.state.set('empty');
+      this.resetCheckout(null);
       return;
     }
+    if (identity === this.loadedIdentity) return;
 
     this.loadedIdentity = identity;
     const request = ++this.request;
@@ -212,7 +244,8 @@ export class MisCursos {
   }
 
   private async handleCheckout(identity: string): Promise<void> {
-    if (!this.checkoutKey || identity === 'loading' || identity === this.checkoutIdentity) return;
+    if (!this.checkoutKey || this.checkoutKey.startsWith('cancelled:')
+      || identity === 'loading' || identity === this.checkoutIdentity) return;
     this.checkoutIdentity = identity;
     this.cancelCheckoutTimer();
     const request = ++this.checkoutRequest;

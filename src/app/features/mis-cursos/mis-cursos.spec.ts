@@ -476,3 +476,120 @@ describe('MisCursos — retorno de Stripe', () => {
     expect(verify).toHaveBeenCalledTimes(before);
   });
 });
+
+describe('MisCursos — biblioteca en rejilla', () => {
+  it('ordena aviso de retorno, título, resumen global y rejilla con un solo h1', async () => {
+    const { fixture, verify, text } = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      verification: { kind: 'confirmed', courseId: 'c' },
+    });
+    await render(fixture);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const sections = Array.from(root.querySelectorAll('.library__banner, h1, .library__summary, ul.cards'))
+      .map((node) => node.classList.contains('library__banner') ? 'banner'
+        : node.tagName === 'H1' ? 'h1'
+        : node.classList.contains('library__summary') ? 'summary' : 'cards');
+    expect(sections).toEqual(['banner', 'h1', 'summary', 'cards']);
+    expect(root.querySelectorAll('h1')).toHaveLength(1);
+    expect(root.querySelectorAll('ul.cards > li.course-card')).toHaveLength(1);
+    expect(verify).toHaveBeenCalledWith(order, 'u');
+    expect(text()).toContain('Acceso confirmado');
+    expect(root.querySelector('.library__summary-track')?.getAttribute('aria-valuenow')).toBe('50');
+  });
+
+  it('cada tarjeta lleva visual decorativo sin precio, progreso real y CTA coherentes', async () => {
+    const courses = [
+      card('a', { title: 'Curso A', summary: 'Resumen A', total: 4, completed: 1, percent: 25, resume: 'leccion-a' }),
+      card('b', { title: 'Curso B', summary: null, total: 0, completed: 0, percent: 0, resume: null }),
+    ];
+    const { fixture } = setup({ load: vi.fn().mockResolvedValue(library(courses)) });
+    await render(fixture);
+    const root = fixture.nativeElement as HTMLElement;
+    const cards = Array.from(root.querySelectorAll('ul.cards > li.course-card'));
+    expect(cards).toHaveLength(2);
+
+    for (const element of cards) {
+      const visual = element.querySelector('.course-card__visual');
+      expect(visual).not.toBeNull();
+      expect(visual?.getAttribute('aria-hidden')).toBe('true');
+      expect(visual?.querySelectorAll('.course-card__shape').length ?? 0).toBeGreaterThan(0);
+      expect(element.querySelector('h2.course-card__title')).not.toBeNull();
+      expect(element.textContent ?? '').not.toMatch(/[€$]|\b(?:precio|precios|price|EUR|USD)\b/i);
+    }
+
+    expect(cards[0].textContent).toContain('Resumen A');
+    expect(cards[0].querySelector('progress')?.getAttribute('aria-label')).toBe('Progreso de Curso A');
+    expect(cards[0].querySelector('.action--primary')?.getAttribute('href')).toBe('/aula/a/leccion-a');
+    expect(cards[0].querySelector('.action--secondary')?.getAttribute('href')).toBe('/cursos/a');
+    expect(cards[1].textContent).toContain('0/0 · Sin lecciones publicadas');
+    expect(cards[1].querySelector('.action--primary')).toBeNull();
+    expect(cards[1].querySelector('.action--secondary')?.getAttribute('href')).toBe('/cursos/b');
+  });
+
+  it('el resumen global agrega solo cifras de la biblioteca cargada', async () => {
+    const courses = [
+      card('a', { total: 2, completed: 1, percent: 50 }),
+      card('b', { total: 4, completed: 3, percent: 75 }),
+    ];
+    const { fixture, text } = setup({ load: vi.fn().mockResolvedValue(library(courses)) });
+    await render(fixture);
+    expect(text()).toContain('4/6 lecciones completadas (67 %)');
+    expect(text()).toContain('en 2 cursos');
+  });
+
+  it('checkout=cancelled avisa sin consultar pedidos ni conceder acceso', async () => {
+    const { fixture, verify, load, text } = setupCheckout({ query: { checkout: 'cancelled' } });
+    await render(fixture);
+    expect(verify).not.toHaveBeenCalled();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.library__banner')).not.toBeNull();
+    expect(text()).toContain('Has cancelado el pago');
+    expect(text()).not.toContain('Acceso confirmado');
+  });
+
+  it('al cerrar sesión desaparecen el aviso de pago y los datos de la cuenta anterior', async () => {
+    const status = signal('authenticated');
+    const session = signal<{ user: { id: string } }>({ user: { id: 'u' } });
+    const { fixture, text } = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      verification: { kind: 'confirmed', courseId: 'c' },
+      status,
+      session,
+    });
+    await render(fixture);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(text()).toContain('Acceso confirmado');
+
+    status.set('anonymous');
+    session.set(null as unknown as { user: { id: string } });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('.library__banner')).toBeNull();
+    expect(text()).not.toContain('Acceso confirmado');
+    expect(text()).not.toContain('Curso c');
+    expect(text()).toContain('Inicia sesión');
+  });
+
+  it('declara las clases de foco y rejilla que aplican el SCSS responsive', async () => {
+    const { fixture } = setup({ load: vi.fn().mockResolvedValue(library([card('c')])) });
+    await render(fixture);
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('article.library')).not.toBeNull();
+    expect(root.querySelector('ul.cards')).not.toBeNull();
+    expect(root.querySelector('.course-card__visual')).not.toBeNull();
+    const actions = Array.from(root.querySelectorAll('a.action'));
+    expect(actions.length).toBeGreaterThan(0);
+    for (const action of actions) {
+      expect(action.classList.contains('action')).toBe(true);
+      expect(action.getAttribute('href')).toMatch(/^\/(aula|cursos)\//);
+    }
+    expect(root.querySelector('.library__summary-track')?.getAttribute('role')).toBe('progressbar');
+    expect(root.querySelector('.library__banner')).toBeNull();
+  });
+});

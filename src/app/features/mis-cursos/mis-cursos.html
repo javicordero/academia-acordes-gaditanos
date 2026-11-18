@@ -1,89 +1,118 @@
-﻿<article aria-labelledby="mis-cursos-title">
-  <h1 id="mis-cursos-title">Mis cursos</h1>
-  <p>Tus cursos y tu progreso manual.</p>
-  @switch (auth.status()) {
-    @case ('loading') {
-      <p role="status">Comprobando tu sesión…</p>
-    }
-    @case ('unconfigured') {
-      <p>La conexión aún no está configurada.</p>
-    }
-    @case ('anonymous') {
-      <p>Inicia sesión para consultar tus cursos.</p>
-      <a routerLink="/auth/login">Iniciar sesión</a>
-    }
-    @case ('authenticated') {
-      @if (checkout(); as returnState) {
-        <div class="notice checkout">
-          @switch (returnState.kind) {
-            @case ('checking') {
-              <p role="status">Comprobando la confirmación de tu pedido…</p>
-            }
-            @case ('pending') {
-              <p role="status">La confirmación del pago está pendiente. El acceso aparecerá aquí cuando se confirme.</p>
-              <button type="button" (click)="recheckCheckout()">Comprobar de nuevo</button>
-            }
-            @case ('confirmed') {
-              <p role="status">Acceso confirmado. Ya puedes ver tus cursos.</p>
-              @if (confirmedCourse(); as course) {
-                <a [routerLink]="['/cursos', course.slug]">Ver {{ course.title }}</a>
-              }
-            }
-            @case ('notavailable') {
-              <p role="alert">No hay acceso disponible para este pedido. Si crees que es un error, vuelve a intentarlo más tarde.</p>
-            }
-            @case ('error') {
-              <p role="alert">No se ha podido comprobar la confirmación. Inténtalo de nuevo.</p>
-              <button type="button" (click)="recheckCheckout()">Comprobar de nuevo</button>
-            }
+﻿<article class="library" aria-labelledby="mis-cursos-title">
+  @if (visibleCheckout(); as returnState) {
+    <div class="library__banner notice"
+      [class.notice--alert]="returnState.kind === 'notavailable' || returnState.kind === 'error'">
+      @switch (returnState.kind) {
+        @case ('checking') {
+          <p role="status">Comprobando la confirmación de tu pedido…</p>
+        }
+        @case ('pending') {
+          <p role="status">La confirmación del pago está pendiente. El acceso aparecerá aquí cuando se confirme.</p>
+          <button type="button" class="action action--secondary" (click)="recheckCheckout()">Comprobar de nuevo</button>
+        }
+        @case ('confirmed') {
+          <p role="status">Acceso confirmado. Ya puedes ver tus cursos.</p>
+          @if (confirmedCourse(); as course) {
+            <a class="action action--secondary" [routerLink]="['/cursos', course.slug]">Ver {{ course.title }}</a>
           }
-        </div>
-      }
-      @switch (state()) {
-        @case ('loading') {
-          <p role="status">Cargando tus cursos…</p>
+        }
+        @case ('cancelled') {
+          <p role="status">Has cancelado el pago. No se ha concedido acceso.</p>
+        }
+        @case ('notavailable') {
+          <p role="alert">No hay acceso disponible para este pedido. Si crees que es un error, vuelve a intentarlo más tarde.</p>
         }
         @case ('error') {
-          <p role="alert">No se han podido cargar tus cursos.</p>
-          <button type="button" (click)="retry()" [disabled]="retrying()">
-            {{ retrying() ? 'Reintentando…' : 'Reintentar' }}
-          </button>
+          <p role="alert">No se ha podido comprobar la confirmación. Inténtalo de nuevo.</p>
+          <button type="button" class="action action--secondary" (click)="recheckCheckout()">Comprobar de nuevo</button>
+        }
+      }
+    </div>
+  }
+
+  <header class="library__header">
+    <h1 id="mis-cursos-title">Mis cursos</h1>
+    <p>Tus cursos y tu progreso manual.</p>
+  </header>
+
+  @switch (auth.status()) {
+    @case ('loading') {
+      <p role="status" class="library__status">Comprobando tu sesión…</p>
+    }
+    @case ('unconfigured') {
+      <p class="library__status">La conexión aún no está configurada.</p>
+    }
+    @case ('anonymous') {
+      <p class="library__status">Inicia sesión para consultar tus cursos.</p>
+      <a class="action action--primary" routerLink="/auth/login">Iniciar sesión</a>
+    }
+    @case ('authenticated') {
+      @switch (state()) {
+        @case ('loading') {
+          <p role="status" class="library__status">Cargando tus cursos…</p>
+        }
+        @case ('error') {
+          <div class="notice notice--alert library__status">
+            <p role="alert">No se han podido cargar tus cursos.</p>
+            <button type="button" class="action action--secondary" (click)="retry()" [disabled]="retrying()">
+              {{ retrying() ? 'Reintentando…' : 'Reintentar' }}
+            </button>
+          </div>
         }
         @case ('empty') {
-          <p>No tienes cursos disponibles en tu biblioteca.</p>
-          <a routerLink="/cursos">Ver catálogo</a>
+          <p class="library__status">No tienes cursos disponibles en tu biblioteca.</p>
+          <a class="action action--primary" routerLink="/cursos">Ver catálogo</a>
         }
         @case ('ready') {
           @if (unavailable()) {
-            <p>Algunos cursos con acceso activo no están disponibles en este momento.</p>
+            <p class="notice notice--muted" role="status">Algunos cursos con acceso activo no están disponibles en este momento.</p>
           }
           @if (failed().length) {
-            <div class="notice" role="alert">
+            <div class="notice notice--alert" role="alert">
               <p>No se pudieron cargar {{ failed().length }} curso{{ failed().length === 1 ? '' : 's' }}. Los demás siguen disponibles.</p>
-              <button type="button" (click)="retry()" [disabled]="retrying()">
+              <button type="button" class="action action--secondary" (click)="retry()" [disabled]="retrying()">
                 {{ retrying() ? 'Reintentando…' : 'Reintentar cursos con fallo' }}
               </button>
             </div>
           }
+
+          <section class="library__summary" aria-labelledby="library-summary-title">
+            <h2 id="library-summary-title">Tu progreso</h2>
+            <p>{{ summary().completed }}/{{ summary().total }} lecciones completadas ({{ summary().percent }} %) en {{ summary().count }} curso{{ summary().count === 1 ? '' : 's' }}.</p>
+            <div class="library__summary-track" role="progressbar" aria-label="Progreso global de tus cursos"
+              aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="summary().percent">
+              <span class="library__summary-bar" [style.width.%]="summary().percent"></span>
+            </div>
+          </section>
+
           <ul class="cards">
             @for (course of courses(); track course.id) {
-              <li>
-                <h2>{{ course.title }}</h2>
-                <p>Nivel: {{ levels[course.level] }}</p>
-                @if (course.summary) {
-                  <p>{{ course.summary }}</p>
-                }
-                @if (course.total) {
-                  <p>Progreso: {{ course.completed }}/{{ course.total }} lecciones completadas ({{ course.percent }} %)</p>
-                  <progress [value]="course.completed" [max]="course.total" [attr.aria-label]="'Progreso de ' + course.title"></progress>
-                } @else {
-                  <p>0/0 · Sin lecciones publicadas</p>
-                }
-                <div class="links">
-                  @if (course.resume) {
-                    <a [routerLink]="['/aula', course.slug, course.resume]">Continuar <span class="visually-hidden">{{ course.title }}</span></a>
+              <li class="course-card">
+                <div class="course-card__visual" aria-hidden="true">
+                  <span class="course-card__shape course-card__shape--strings"></span>
+                  <span class="course-card__shape course-card__shape--frets"></span>
+                  <span class="course-card__shape course-card__shape--hole"></span>
+                </div>
+                <div class="course-card__body">
+                  <h2 class="course-card__title">{{ course.title }}</h2>
+                  <p class="course-card__meta">Nivel: {{ levels[course.level] }}</p>
+                  @if (course.summary) {
+                    <p class="course-card__summary">{{ course.summary }}</p>
                   }
-                  <a [routerLink]="['/cursos', course.slug]">Ver curso <span class="visually-hidden">{{ course.title }}</span></a>
+                  <div class="course-card__progress">
+                    @if (course.total) {
+                      <p class="course-card__progress-label">{{ course.completed }}/{{ course.total }} lecciones completadas ({{ course.percent }} %)</p>
+                      <progress [value]="course.completed" [max]="course.total" [attr.aria-label]="'Progreso de ' + course.title"></progress>
+                    } @else {
+                      <p class="course-card__progress-label">0/0 · Sin lecciones publicadas</p>
+                    }
+                  </div>
+                  <div class="course-card__actions">
+                    @if (course.resume) {
+                      <a class="action action--primary" [routerLink]="['/aula', course.slug, course.resume]">Continuar <span class="visually-hidden">{{ course.title }}</span></a>
+                    }
+                    <a class="action action--secondary" [routerLink]="['/cursos', course.slug]">Ver curso <span class="visually-hidden">{{ course.title }}</span></a>
+                  </div>
                 </div>
               </li>
             }

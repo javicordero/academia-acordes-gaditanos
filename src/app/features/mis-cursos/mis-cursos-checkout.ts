@@ -15,8 +15,13 @@ export type CheckoutVerification =
   | { readonly kind: 'notavailable' }
   | { readonly kind: 'error' };
 
-/** Estado visible; `checking` solo existe mientras se consulta la BD. */
-export type CheckoutReturn = { readonly kind: 'checking' } | CheckoutVerification;
+/** Estado visible; `checking` solo existe mientras se consulta la BD.
+ *  `cancelled` refleja la señal explícita de la URL: no consulta pedidos ni
+ *  concede acceso, igual que el resto de estados de este retorno. */
+export type CheckoutReturn =
+  | { readonly kind: 'checking' }
+  | { readonly kind: 'cancelled' }
+  | CheckoutVerification;
 
 /** Temporizadores inyectables para poder cancelarlos y probarlos sin reloj falso. */
 export interface CheckoutScheduler {
