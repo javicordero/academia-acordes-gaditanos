@@ -8,7 +8,7 @@ import { disabledResponse, loadCheckoutRuntime } from '../_shared/test-gate-env.
 const runtime = loadCheckoutRuntime(name => Deno.env.get(name));
 
 function enabledHandler(): (request: Request) => Promise<Response> {
-  const { origins, appOrigin, termsVersion, supabaseUrl, supabaseServiceRoleKey, stripeSecretKey } = runtime.config;
+  const { origins, appOrigin, termsVersion, allowHttpTestOrigin, supabaseUrl, supabaseServiceRoleKey, stripeSecretKey } = runtime.config;
   // La guarda garantiza que los secretos están presentes; la forma de la URL,
   // el allowlist y la validez legal de los términos siguen siendo competencia
   // del controlador. Aquí no se fabrica ni se aprueba ninguna versión.
@@ -32,7 +32,15 @@ function enabledHandler(): (request: Request) => Promise<Response> {
         p_actor: user, p_course: course, p_attempt: attemptId, p_ttl_seconds: ttlSeconds,
       });
       if (error) throw error;
-      return data?.[0] ?? null;
+      const row = data?.[0];
+      if (!row) return null;
+      // Sólo se extrae la versión del snapshot privado: nunca se expone el
+      // snapshot completo ni se añade consentimiento alguno desde el servidor.
+      const snap: unknown = row.snapshot;
+      const terms = snap && typeof snap === 'object' && !Array.isArray(snap)
+        ? (snap as Record<string, unknown>).terms_version
+        : undefined;
+      return { order_id: row.order_id, terms_version: typeof terms === 'string' ? terms : undefined };
     },
     // La idempotencia de la clave canónica evita duplicar la sesión si el
     // navegador reintenta la misma petición; un intento nuevo es otra compra.
@@ -59,7 +67,7 @@ function enabledHandler(): (request: Request) => Promise<Response> {
       return data;
     },
   }, {
-    origins, appOrigin, enabled: true, termsVersion,
+    origins, appOrigin, enabled: true, termsVersion, allowHttpTestOrigin,
   });
 }
 

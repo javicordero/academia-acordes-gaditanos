@@ -18,6 +18,8 @@ export type CheckoutRuntime = {
     origins: string[];
     appOrigin: string;
     termsVersion: string | undefined;
+    /** literal 'true' Y guarda TEST abierta; nunca se lee de cliente. */
+    allowHttpTestOrigin: boolean;
     supabaseUrl: string | undefined;
     supabaseServiceRoleKey: string | undefined;
     stripeSecretKey: string | undefined;
@@ -64,6 +66,10 @@ export function loadCheckoutRuntime(env: EnvReader): CheckoutRuntime {
     supabaseServiceRoleKey,
     termsVersion,
   });
+  // Flag HTTP estrictamente de entorno: sólo el literal 'true' y únicamente
+  // cuando la guarda TEST está abierta. Cualquier modo live, clave no-test o
+  // configuración parcial lo deja en false aunque el flag esté presente.
+  const allowHttpTestOrigin = gate.enabled && env('CHECKOUT_ALLOW_HTTP_TEST_ORIGIN') === 'true';
   return {
     gate,
     // Estos valores se pasan SOLO al controlador y a los clientes de servidor.
@@ -72,6 +78,7 @@ export function loadCheckoutRuntime(env: EnvReader): CheckoutRuntime {
       origins: (env('CHECKOUT_ALLOWED_ORIGINS') ?? DEFAULT_ORIGIN).split(',').map(x => x.trim()).filter(Boolean),
       appOrigin: env('APP_ORIGIN') ?? DEFAULT_ORIGIN,
       termsVersion,
+      allowHttpTestOrigin,
       supabaseUrl,
       supabaseServiceRoleKey,
       stripeSecretKey,

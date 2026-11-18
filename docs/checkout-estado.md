@@ -49,6 +49,7 @@ No hay ningún flag activado en este repositorio.
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | presencia en servidor | ausentes ⇒ cerrado |
 | `CHECKOUT_TERMS_VERSION` | versión **presente**; comprobar presencia no aprueba legalmente unas condiciones | fila/valor ausente en DEV |
 | `CHECKOUT_ALLOWED_ORIGINS`, `APP_ORIGIN` | allowlist y origen ya validados en el handler | `http://localhost:4200` |
+| `CHECKOUT_ALLOW_HTTP_TEST_ORIGIN` | literal `'true'` exacto; sólo surte efecto con la guarda TEST abierta y `APP_ORIGIN` exacto en el allowlist | ausente ⇒ sin HTTP nuevo |
 
 Con la gate cerrada no se instancian SDK ni cliente de base de datos: la
 respuesta sigue siendo el 409 «Compra no disponible» de siempre. La fila de
@@ -56,6 +57,65 @@ términos en BD está **ausente** y la decisión legal sigue **pendiente**: no s
 fabricado ni insertado versión alguna. Las migraciones aplicadas en DEV, según
 informe, son 19/20/21/22/24/25/28, pero el historial de la CLI **no está
 reconciliado**. No se afirma prueba E2E ni cobro real.
+
+### Prueba técnica DEV (sandbox, sin condiciones aprobadas)
+
+Esta rama existe únicamente para verificar el flujo técnico en DEV con Stripe
+en modo TEST. No es una apertura comercial: aquí no se aprueban precios, no se
+redactan políticas, no hay consentimiento ni aceptación de condiciones.
+
+Configuración exacta del servidor de la Edge Function (los secretos se ponen en
+el entorno del servidor, **nunca** en el repositorio):
+
+| Variable | Valor DEV de prueba |
+|---|---|
+| `CHECKOUT_ENABLED` | `true` |
+| `CHECKOUT_MODE` | `test` (exacto; `live` u otra casing cierran) |
+| `STRIPE_SECRET_KEY` | clave `sk_test_...` real de prueba, **sólo en servidor** |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | valores DEV, **sólo en servidor** |
+| `CHECKOUT_TERMS_VERSION` | `sandbox-no-contract-v1` (marcador QA, ver abajo) |
+| `APP_ORIGIN` | `http://100.108.147.80:4200` |
+| `CHECKOUT_ALLOWED_ORIGINS` | `http://100.108.147.80:4200` (el mismo origen exacto) |
+| `CHECKOUT_ALLOW_HTTP_TEST_ORIGIN` | `true` (literal exacto) |
+
+El flag HTTP está apagado por defecto y **no** puede activarse desde petición,
+cuerpo, query ni cabecera. Sólo surte efecto cuando la guarda TEST está abierta
+y `APP_ORIGIN` coincide exactamente con una entrada del allowlist. HTTPS y
+`http://localhost:4200` conservan su comportamiento anterior. Cualquier otro
+HTTP se rechaza con el flag apagado, con `APP_ORIGIN` fuera del allowlist o con
+un `Origin` ajeno; las URLs de retorno se construyen siempre desde `APP_ORIGIN`
+del servidor, nunca desde el navegador ni desde un parámetro de la URL.
+
+`sandbox-no-contract-v1` es un **marcador técnico de fixture QA**: viaja como
+`terms_version` en metadata y en el pedido/snapshot, y significa sólo «prueba
+técnica, condiciones no aprobadas». No es un término comercial, no fija precio,
+no constituye aceptación ni consentimiento y no autoriza un cobro real. No se ha
+añadido ningún checkbox ni texto legal. Producción sigue inhabilitada: la guarda
+exige modo `test` y clave `sk_test_`, así que una clave `sk_live_` nunca abre la
+rama; no existe fallback automático a este marcador.
+
+Configuración privada coherente (instrucción, **no aplicada**): la versión del
+entorno debe coincidir con la fila singleton. `private.checkout_order_config`
+tiene `singleton boolean primary key check (singleton)` y `terms_version text
+not null` con longitud 1..200. Inserción idempotente y **sólo si la fila está
+vacía**, sin sobrescribir una versión ya aprobada ni sembrar precios:
+
+```sql
+-- DEV únicamente; ejecutar con privilegios de servidor y tras revisión.
+-- Nunca en producción ni en una base remota sin permiso explícito.
+insert into private.checkout_order_config (singleton, terms_version)
+select true, 'sandbox-no-contract-v1'
+where not exists (select 1 from private.checkout_order_config);
+```
+
+No se crea nueva migración ni fila de consentimiento. Si la reserva devuelve
+`snapshot.terms_version`, el controlador compara ese valor con
+`CHECKOUT_TERMS_VERSION` **antes de cualquier llamada a Stripe** y responde 409
+si difieren; si el DTO no lo incluye, no se finge la comparación: queda como
+límite de coherencia que el operador debe resolver configurando ambos valores.
+El webhook no se modifica en este bloque: conserva su guarda TEST separada.
+Estos cambios locales están pendientes de revisión: no se han desplegado ni
+aplicado a base remota, y no se ha ejecutado ninguna prueba de cobro.
 
 ### Retorno del pago (sólo marcas locales)
 
@@ -74,8 +134,8 @@ estado desplegado.
 
 - Pruebas unitarias del controlador con **Node + mocks** (`vitest`), sin llamadas
   a Deno ni al runtime de Stripe: cubren reserva, bind, already_bound, rechazo
-  de otra sesión, URL inválida sin bind y reintento con clave estable. No son
-  pruebas E2E con Stripe.
+  de otra sesión, URL inválida sin bind y reintento con clave estable. Se
+  ejecutan con `npm run test:functions`. No son pruebas E2E con Stripe.
 - Prueba SQL de la oferta con **PGlite en memoria** (`npm run test:sql`), sobre
   migraciones y `supabase/tests/*.psql`, con `ROLLBACK`. Esto valida lógica SQL y
   permisos, no Supabase/Auth/PostgREST reales.

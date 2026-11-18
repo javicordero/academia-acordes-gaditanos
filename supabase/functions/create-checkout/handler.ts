@@ -5,19 +5,47 @@ const SESSION = /^cs_(?:test|live)_[A-Za-z0-9]+$/;
 export const RESERVATION_TTL_SECONDS = 900;
 export type Offer = { owned: boolean; slug: string; price_id: string; amount_minor: number; currency: string; provider_price_id: string };
 export type Bind = 'bound' | 'already_bound' | 'binding_conflict';
+/** `terms_version` llega desde el snapshot de la reserva, nunca del cliente. */
+export type Reservation = { order_id: string; terms_version?: string };
 export interface Dependencies {
   getUser(token: string): Promise<{ id: string; confirmed: boolean } | null>;
   offer(user: string, course: string): Promise<Offer | null>;
   price(id: string): Promise<{ active: boolean; currency: string; unit_amount: number | null; type: string; recurring: unknown }>;
   /** Debe existir antes de crear la sesión: el webhook concilia por order_id. */
-  reserve?(user: string, course: string, attemptId: string, ttlSeconds: number): Promise<{ order_id: string } | null>;
+  reserve?(user: string, course: string, attemptId: string, ttlSeconds: number): Promise<Reservation | null>;
   create(input: { price: string; success: string; cancel: string; metadata: Record<string, string> }, key: string):
     Promise<{ id: string; url: string | null } | null>;
   /** Vincula sesión y pedido en servidor. Sólo hechos ya verificados. */
   bind?(user: string, order: string, sessionId: string): Promise<Bind>;
 }
 
-export function makeHandler(io: Dependencies, config: { origins: string[]; appOrigin: string; enabled: boolean; termsVersion?: string }) {
+export type HandlerConfig = {
+  origins: string[];
+  appOrigin: string;
+  enabled: boolean;
+  termsVersion?: string;
+  /**
+   * Sólo TEST: lo activa el index cuando la guarda TEST está abierta y el flag
+   * de entorno es el literal 'true'. Nunca se lee de petición, cuerpo ni query.
+   */
+  allowHttpTestOrigin?: boolean;
+};
+
+/**
+ * Origen de retorno: configuración del SERVIDOR, nunca petición. HTTPS y
+ * http://localhost:4200 conservan su comportamiento; cualquier otro HTTP
+ * exige el flag TEST explícito Y estar en el allowlist. Sin credentials,
+ * fragmento, ruta ni query: app.origin debe ser exactamente appOrigin.
+ */
+function appUrl(config: HandlerConfig): URL {
+  const app = new URL(config.appOrigin);
+  if (app.origin !== config.appOrigin || !config.origins.includes(app.origin)) throw new Error();
+  if (app.protocol === 'https:' || app.origin === 'http://localhost:4200') return app;
+  if (config.allowHttpTestOrigin === true && app.protocol === 'http:') return app;
+  throw new Error();
+}
+
+export function makeHandler(io: Dependencies, config: HandlerConfig) {
   return async (req: Request): Promise<Response> => {
     const origin = req.headers.get('origin');
     const headers: Record<string, string> = { 'Cache-Control': 'no-store', Vary: 'Origin' };
@@ -60,9 +88,7 @@ export function makeHandler(io: Dependencies, config: { origins: string[]; appOr
       // Sin reserva ni bind del servidor no se puede conciliar el pago en el
       // webhook: mejor 409 que una sesión que la BD nunca aceptaría.
       if (typeof io.reserve !== 'function' || typeof io.bind !== 'function') return reply(409, 'Compra no disponible');
-      const app = new URL(config.appOrigin);
-      if (app.origin !== config.appOrigin || !config.origins.includes(app.origin) ||
-          !(app.protocol === 'https:' || app.origin === 'http://localhost:4200')) throw new Error();
+      const app = appUrl(config);
       const offer = await io.offer(user.id, body.courseId);
       if (!offer) return reply(409, 'Compra no disponible');
       if (offer.owned) return reply(409, 'Curso ya adquirido');
@@ -70,17 +96,25 @@ export function makeHandler(io: Dependencies, config: { origins: string[]; appOr
           !/^price_[A-Za-z0-9]+$/.test(offer.provider_price_id) ||
           !Number.isSafeInteger(offer.amount_minor) || offer.amount_minor <= 0 ||
           !/^[A-Z]{3}$/.test(offer.currency)) return reply(409, 'Compra no disponible');
+      // El pedido se reserva en servidor ANTES de cualquier llamada a Stripe;
+      // su id viaja en metadata para que el webhook firme e idempotente
+      // concilie por order_id. La reserva es la fuente de la versión en BD.
+      const reservation = await io.reserve(user.id, body.courseId, body.attemptId, RESERVATION_TTL_SECONDS);
+      if (!reservation || !UUID.test(reservation.order_id)) return reply(409, 'Compra no disponible');
+      // Coherencia configuración(env)/BD, SIEMPRE antes de consultar Stripe.
+      // Si el DTO no trae la versión no se inventa ninguna: el operador debe
+      // mantener ambos valores configurados; comprobar presencia no aprueba
+      // condiciones ni otorga consentimiento.
+      if (typeof reservation.terms_version === 'string' && reservation.terms_version !== config.termsVersion) {
+        return reply(409, 'Compra no disponible');
+      }
+      const orderId = reservation.order_id;
       // Se revisa Stripe en vivo: la semilla local solo da el identificador.
       const price = await io.price(offer.provider_price_id);
       if (!price.active || price.type !== 'one_time' || price.recurring != null ||
           price.currency !== offer.currency.toLowerCase() || price.unit_amount !== offer.amount_minor) {
         return reply(409, 'Compra no disponible');
       }
-      // El pedido se reserva en servidor ANTES de la sesión; su id viaja en
-      // metadata para que el webhook firme e idempotente concilie por order_id.
-      const reservation = await io.reserve(user.id, body.courseId, body.attemptId, RESERVATION_TTL_SECONDS);
-      if (!reservation || !UUID.test(reservation.order_id)) return reply(409, 'Compra no disponible');
-      const orderId = reservation.order_id;
       // El retorno solo IDENTIFICA nuestro pedido para que /mis-cursos pueda
       // contrastarlo con la BD bajo RLS. No es una credencial: no concede nada,
       // no viaja el usuario, el importe ni el id de sesión de Stripe.

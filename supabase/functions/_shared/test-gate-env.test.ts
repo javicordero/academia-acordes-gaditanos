@@ -52,6 +52,29 @@ describe('wiring de entorno del checkout', () => {
     expect(runtime.gate.enabled).toBe(false);
     expect(await (await disabledResponse('checkout')).text()).not.toContain(KEY);
   });
+
+  it('flag HTTP: literal true exacto y sólo con guarda TEST abierta', () => {
+    const open = loadCheckoutRuntime(envOf(checkoutEnv({ CHECKOUT_ALLOW_HTTP_TEST_ORIGIN: 'true' })));
+    expect(open.gate.enabled).toBe(true);
+    expect(open.config.allowHttpTestOrigin).toBe(true);
+    for (const bad of ['1', 'TRUE', 'true ', undefined]) {
+      expect(loadCheckoutRuntime(envOf(checkoutEnv({ CHECKOUT_ALLOW_HTTP_TEST_ORIGIN: bad }))).config.allowHttpTestOrigin).toBe(false);
+    }
+    const closed = [
+      checkoutEnv({ CHECKOUT_ALLOW_HTTP_TEST_ORIGIN: 'true', CHECKOUT_MODE: 'live' }),
+      checkoutEnv({ CHECKOUT_ALLOW_HTTP_TEST_ORIGIN: 'true', CHECKOUT_MODE: undefined }),
+      checkoutEnv({ CHECKOUT_ALLOW_HTTP_TEST_ORIGIN: 'true', STRIPE_SECRET_KEY: 'sk_live_synthetic' }),
+      checkoutEnv({ CHECKOUT_ALLOW_HTTP_TEST_ORIGIN: 'true', CHECKOUT_ENABLED: undefined }),
+      checkoutEnv({ CHECKOUT_ALLOW_HTTP_TEST_ORIGIN: 'true', CHECKOUT_TERMS_VERSION: undefined }),
+    ];
+    for (const values of closed) {
+      const runtime = loadCheckoutRuntime(envOf(values));
+      expect(runtime.gate.enabled).toBe(false);
+      expect(runtime.config.allowHttpTestOrigin).toBe(false);
+    }
+    // Una clave parecida a petición/cliente no puede suplir al entorno.
+    expect(loadCheckoutRuntime(envOf({ ...checkoutEnv(), allowHttpTestOrigin: 'true' })).config.allowHttpTestOrigin).toBe(false);
+  });
 });
 
 describe('wiring de entorno del webhook', () => {

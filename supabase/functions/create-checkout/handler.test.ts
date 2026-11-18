@@ -5,6 +5,8 @@ const user = '00000000-0000-0000-0000-000000000001';
 const course = '10000000-0000-0000-0000-000000000001';
 const attempt = '20000000-0000-0000-0000-000000000001';
 const order = '40000000-0000-0000-0000-000000000001';
+// Origen DEV compartido por móvil y escritorio: exige flag TEST explícito.
+const tailscale = 'http://100.108.147.80:4200';
 const offer = { owned: false, slug: 'curso', price_id: '30000000-0000-0000-0000-000000000001', amount_minor: 100, currency: 'EUR', provider_price_id: 'price_fixture' };
 function setup() {
   const io: Dependencies = {
@@ -16,9 +18,14 @@ function setup() {
     create: vi.fn().mockResolvedValue({ id: 'cs_test_session123', url: 'https://checkout.stripe.com/c/pay/test' }),
     bind: vi.fn().mockResolvedValue('bound'),
   };
-  const config = { origins: ['http://localhost:4200'], appOrigin: 'http://localhost:4200', enabled: true, termsVersion: 'test' };
-  const call = (body: unknown = { courseId: course, attemptId: attempt }, token = 'Bearer valid') => makeHandler(io, config)(new Request('http://local', {
-    method: 'POST', headers: { authorization: token, origin: 'http://localhost:4200' }, body: JSON.stringify(body),
+  const config = { origins: ['http://localhost:4200'], appOrigin: 'http://localhost:4200', enabled: true, termsVersion: 'test', allowHttpTestOrigin: false };
+  const call = (
+    body: unknown = { courseId: course, attemptId: attempt },
+    token = 'Bearer valid',
+    origin = 'http://localhost:4200',
+    url = 'http://local',
+  ) => makeHandler(io, config)(new Request(url, {
+    method: 'POST', headers: { authorization: token, origin }, body: JSON.stringify(body),
   }));
   return { io, config, call };
 }
@@ -35,6 +42,8 @@ describe('create-checkout', () => {
     expect((await s.call({ courseId: course, attemptId: attempt, price: 1 })).status).toBe(400);
     s.config.termsVersion = '';
     expect((await s.call()).status).toBe(409);
+    expect(s.io.reserve).not.toHaveBeenCalled();
+    expect(s.io.price).not.toHaveBeenCalled();
     expect(s.io.create).not.toHaveBeenCalled();
   });
   it('rechaza oferta ausente y propiedad activa', async () => {
@@ -145,10 +154,15 @@ describe('create-checkout', () => {
     expect(calls[3][0].metadata.course_id).toBe(course2);
     expect(calls[4][0].metadata.user_id).toBe(user2);
   });
-  it('reserva el pedido antes de crear la sesión y envía order_id en metadata', async () => {
+  it('reserva el pedido antes de Stripe y envía order_id en metadata', async () => {
     const s = setup();
     expect((await s.call()).status).toBe(200);
     expect(s.io.reserve).toHaveBeenCalledWith(user, course, attempt, RESERVATION_TTL_SECONDS);
+    const [reserveAt] = vi.mocked(s.io.reserve).mock.invocationCallOrder;
+    const [priceAt] = vi.mocked(s.io.price).mock.invocationCallOrder;
+    const [createAt] = vi.mocked(s.io.create).mock.invocationCallOrder;
+    expect(reserveAt).toBeLessThan(priceAt);
+    expect(priceAt).toBeLessThan(createAt);
     const metadata = vi.mocked(s.io.create).mock.calls[0][0].metadata;
     expect(metadata).toEqual({
       user_id: user, course_id: course, price_id: offer.price_id,
@@ -159,20 +173,24 @@ describe('create-checkout', () => {
     const missing = setup();
     delete missing.io.reserve;
     expect((await missing.call()).status).toBe(409);
+    expect(missing.io.price).not.toHaveBeenCalled();
     expect(missing.io.create).not.toHaveBeenCalled();
     const failed = setup();
     vi.mocked(failed.io.reserve).mockResolvedValueOnce(null).mockResolvedValueOnce({ order_id: 'no-uuid' });
     expect((await failed.call()).status).toBe(409);
     expect((await failed.call()).status).toBe(409);
+    expect(failed.io.price).not.toHaveBeenCalled();
     expect(failed.io.create).not.toHaveBeenCalled();
   });
-  it('no reserva pedido cuando la oferta o el precio no son válidos', async () => {
+  it('la reserva va antes de Stripe: oferta inválida no reserva; precio inválido no crea sesión', async () => {
     const s = setup();
     vi.mocked(s.io.offer).mockResolvedValueOnce(null);
-    vi.mocked(s.io.price).mockResolvedValueOnce({ active: false, currency: 'eur', unit_amount: 100, type: 'one_time', recurring: null });
-    expect((await s.call()).status).toBe(409);
     expect((await s.call()).status).toBe(409);
     expect(s.io.reserve).not.toHaveBeenCalled();
+    vi.mocked(s.io.price).mockResolvedValueOnce({ active: false, currency: 'eur', unit_amount: 100, type: 'one_time', recurring: null });
+    expect((await s.call()).status).toBe(409);
+    expect(s.io.reserve).toHaveBeenCalledOnce();
+    expect(s.io.create).not.toHaveBeenCalled();
   });
   it('vincula con usuario de Auth, pedido reservado e id de sesión real', async () => {
     const s = setup();
@@ -259,5 +277,124 @@ describe('create-checkout', () => {
     delete missing.io.bind;
     expect((await missing.call()).status).toBe(409);
     expect(missing.io.create).not.toHaveBeenCalled();
+  });
+
+  it('HTTP de Tailscale cerrado por defecto; localhost y https siguen estables', async () => {
+    const denied = setup();
+    const valid = { courseId: course, attemptId: attempt };
+    expect((await denied.call(valid, 'Bearer valid', tailscale)).status).toBe(403);
+    denied.config.origins = [tailscale];
+    denied.config.appOrigin = tailscale;
+    expect((await denied.call(valid, 'Bearer valid', tailscale)).status).toBe(500);
+    expect(denied.io.create).not.toHaveBeenCalled();
+
+    const local = setup();
+    expect((await local.call(valid)).status).toBe(200);
+    const https = setup();
+    https.config.origins = ['https://academia.example'];
+    https.config.appOrigin = 'https://academia.example';
+    expect((await https.call(valid, 'Bearer valid', 'https://academia.example')).status).toBe(200);
+    expect(vi.mocked(https.io.create).mock.calls[0][0].success)
+      .toBe(`https://academia.example/mis-cursos?checkout=success&order_id=${order}`);
+  });
+
+  it('HTTP de Tailscale sólo con flag TEST + allowlist exacto; retorno canónico intacto', async () => {
+    const s = setup();
+    s.config.origins = [tailscale];
+    s.config.appOrigin = tailscale;
+    s.config.allowHttpTestOrigin = true;
+    expect((await s.call({ courseId: course, attemptId: attempt }, 'Bearer valid', tailscale)).status).toBe(200);
+    const input = vi.mocked(s.io.create).mock.calls[0][0];
+    expect(input.success).toBe(`${tailscale}/mis-cursos?checkout=success&order_id=${order}`);
+    expect(new URL(input.success).searchParams.get('order_id')).toBe(order);
+    expect(input.cancel).toBe(`${tailscale}/cursos/curso`);
+    expect(input.metadata.terms_version).toBe('test');
+    expect(input.metadata).not.toHaveProperty('accepted_terms');
+    expect(input.metadata).not.toHaveProperty('consent');
+  });
+
+  it('el flag no abre APP_ORIGIN ausente del allowlist ni un Origin ajeno', async () => {
+    const noAllow = setup();
+    noAllow.config.appOrigin = tailscale;
+    noAllow.config.allowHttpTestOrigin = true;
+    // Origin de petición permitido para aislar el APP_ORIGIN fuera del allowlist.
+    expect((await noAllow.call({ courseId: course, attemptId: attempt })).status).toBe(500);
+    expect(noAllow.io.create).not.toHaveBeenCalled();
+    const foreign = setup();
+    foreign.config.origins = [tailscale];
+    foreign.config.appOrigin = tailscale;
+    foreign.config.allowHttpTestOrigin = true;
+    expect((await foreign.call({ courseId: course, attemptId: attempt }, 'Bearer valid', 'https://evil.example')).status).toBe(403);
+    expect(foreign.io.create).not.toHaveBeenCalled();
+  });
+
+  it('URL de app con credenciales, fragmento, ruta o query no se acepta con el flag activo', async () => {
+    for (const appOrigin of [
+      'http://user:pass@100.108.147.80:4200',
+      `${tailscale}/#frag`,
+      `${tailscale}/cursos`,
+      `${tailscale}/?x=1`,
+    ]) {
+      const s = setup();
+      s.config.origins = [tailscale, appOrigin];
+      s.config.appOrigin = appOrigin;
+      s.config.allowHttpTestOrigin = true;
+      expect((await s.call({ courseId: course, attemptId: attempt }, 'Bearer valid', tailscale)).status).toBe(500);
+      expect(s.io.create).not.toHaveBeenCalled();
+    }
+  });
+
+  it('cuerpo, query y cabeceras del cliente no activan el flag ni cambian el retorno', async () => {
+    const injected = setup();
+    const bad = await makeHandler(injected.io, injected.config)(new Request('http://local?CHECKOUT_ALLOW_HTTP_TEST_ORIGIN=true', {
+      method: 'POST',
+      headers: { authorization: 'Bearer valid', origin: 'http://localhost:4200', 'x-checkout-allow-http-test-origin': 'true' },
+      body: JSON.stringify({ courseId: course, attemptId: attempt, appOrigin: tailscale, allowHttpTestOrigin: true, success_url: 'https://evil.example' }),
+    }));
+    expect(bad.status).toBe(400);
+    expect(injected.io.create).not.toHaveBeenCalled();
+
+    const s = setup();
+    const res = await makeHandler(s.io, s.config)(new Request(
+      `http://local?origin=${encodeURIComponent(tailscale)}&success_url=${encodeURIComponent('https://evil.example')}`,
+      {
+        method: 'POST',
+        headers: { authorization: 'Bearer valid', origin: 'http://localhost:4200' },
+        body: JSON.stringify({ courseId: course, attemptId: attempt }),
+      },
+    ));
+    expect(res.status).toBe(200);
+    const input = vi.mocked(s.io.create).mock.calls[0][0];
+    expect(input.success).toContain('http://localhost:4200/mis-cursos');
+    expect(input.success).not.toContain(tailscale);
+    expect(input.success).not.toContain('evil.example');
+    expect(s.config.allowHttpTestOrigin).toBe(false);
+  });
+
+  it('marcador QA: coherencia env/BD antes de Stripe, sin consentimientos inventados', async () => {
+    const marker = 'sandbox-no-contract-v1';
+    const ok = setup();
+    ok.config.termsVersion = marker;
+    vi.mocked(ok.io.reserve).mockResolvedValue({ order_id: order, terms_version: marker });
+    expect((await ok.call()).status).toBe(200);
+    const metadata = vi.mocked(ok.io.create).mock.calls[0][0].metadata;
+    expect(metadata.terms_version).toBe(marker);
+    expect(metadata).not.toHaveProperty('consent');
+    expect(metadata).not.toHaveProperty('accepted_terms');
+
+    const clash = setup();
+    clash.config.termsVersion = marker;
+    vi.mocked(clash.io.reserve).mockResolvedValue({ order_id: order, terms_version: 'config-distinta' });
+    expect((await clash.call()).status).toBe(409);
+    expect(clash.io.price).not.toHaveBeenCalled();
+    expect(clash.io.create).not.toHaveBeenCalled();
+
+    // Si el DTO no trae versión no se finge comparación: queda documentado
+    // como límite de coherencia que el operador debe resolver en configuración.
+    const absent = setup();
+    absent.config.termsVersion = marker;
+    vi.mocked(absent.io.reserve).mockResolvedValue({ order_id: order });
+    expect((await absent.call()).status).toBe(200);
+    expect(absent.io.price).toHaveBeenCalledOnce();
   });
 });
