@@ -1,0 +1,76 @@
+\set ON_ERROR_STOP on
+begin;
+insert into auth.users(id) values ('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002'),('00000000-0000-0000-0000-000000000003');
+insert into public.courses(id,slug,title,status,published_at) values
+ ('10000000-0000-0000-0000-000000000001','fixture-one','Uno','published',now()),
+ ('10000000-0000-0000-0000-000000000002','fixture-two','Dos','published',now());
+insert into public.course_prices(id,course_id,amount_minor,currency) values
+ ('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001',100,'EUR'),
+ ('20000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002',200,'EUR');
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values
+ ('20000000-0000-0000-0000-000000000001','stripe','price_fixture1'),('20000000-0000-0000-0000-000000000002','stripe','price_fixture2');
+insert into private.checkout_order_config values (true,'fixture');
+do $$ begin
+ if has_function_privilege('anon','public.bind_checkout_session(uuid,uuid,text)','execute')
+ or has_function_privilege('authenticated','public.fulfill_paid_event(text,uuid,text,uuid,integer,text,integer)','execute')
+ or has_function_privilege('public','public.fulfill_paid_event(text,uuid,text,uuid,integer,text,integer)','execute')
+ or not has_function_privilege('service_role','public.bind_checkout_session(uuid,uuid,text)','execute')
+ or not has_function_privilege('service_role','public.fulfill_paid_event(text,uuid,text,uuid,integer,text,integer)','execute') then raise exception 'privileges'; end if;
+end $$;
+set local role anon;
+do $$ begin
+ begin perform public.bind_checkout_session(null,null,null); raise exception 'access'; exception when insufficient_privilege then null; end;
+ begin perform public.fulfill_paid_event(null,null,null,null,null,null,null); raise exception 'access'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+do $$ begin
+ begin perform public.bind_checkout_session(null,null,null); raise exception 'access'; exception when insufficient_privilege then null; end;
+ begin perform public.fulfill_paid_event(null,null,null,null,null,null,null); raise exception 'access'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+select * from public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',3600);
+select * from public.reserve_checkout_order('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000002',3600);
+select * from public.reserve_checkout_order('00000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000003',3600);
+do $$ declare o uuid; o2 uuid; o3 uuid; r text; begin
+ select order_id into o from private.checkout_attempts where attempt_id='30000000-0000-0000-0000-000000000001';
+ select order_id into o2 from private.checkout_attempts where attempt_id='30000000-0000-0000-0000-000000000002';
+ select order_id into o3 from private.checkout_attempts where attempt_id='30000000-0000-0000-0000-000000000003';
+ perform public.record_stripe_event('evt_1','checkout.session.completed',false,repeat('a',64),'cs_test_1',o);
+ begin perform public.fulfill_paid_event('evt_1',o,'cs_test_1','00000000-0000-0000-0000-000000000001',100,'EUR',null); raise exception 'accepted unbound'; exception when raise_exception then if sqlerrm <> 'order mismatch' then raise; end if; end;
+ begin perform public.bind_checkout_session('00000000-0000-0000-0000-000000000002',o,'cs_test_1'); raise exception 'accepted actor'; exception when raise_exception then if sqlerrm <> 'invalid binding' then raise; end if; end;
+ if public.bind_checkout_session('00000000-0000-0000-0000-000000000001',o,'cs_test_1') <> 'bound' or public.bind_checkout_session('00000000-0000-0000-0000-000000000001',o,'cs_test_1') <> 'already_bound' then raise exception 'binding'; end if;
+ begin perform public.bind_checkout_session('00000000-0000-0000-0000-000000000001',o,'cs_test_other'); raise exception 'accepted replacement'; exception when raise_exception then if sqlerrm <> 'binding conflict' then raise; end if; end;
+ begin perform public.fulfill_paid_event('evt_missing',o,'cs_test_1','00000000-0000-0000-0000-000000000001',100,'EUR',null); raise exception 'accepted event'; exception when raise_exception then if sqlerrm <> 'event mismatch' then raise; end if; end;
+ begin perform public.fulfill_paid_event('evt_1',o,'cs_test_wrong','00000000-0000-0000-0000-000000000001',100,'EUR',null); raise exception 'accepted session'; exception when raise_exception then if sqlerrm <> 'event mismatch' then raise; end if; end;
+ begin perform public.fulfill_paid_event('evt_1',o,'cs_test_1','00000000-0000-0000-0000-000000000002',100,'EUR',null); raise exception 'accepted user'; exception when raise_exception then if sqlerrm <> 'actor mismatch' then raise; end if; end;
+ begin perform public.fulfill_paid_event('evt_1',o,'cs_test_1','00000000-0000-0000-0000-000000000001',101,'EUR',null); raise exception 'accepted amount'; exception when raise_exception then if sqlerrm <> 'order mismatch' then raise; end if; end;
+ begin perform public.fulfill_paid_event('evt_1',o,'cs_test_1','00000000-0000-0000-0000-000000000001',100,'USD',null); raise exception 'accepted currency'; exception when raise_exception then if sqlerrm <> 'order mismatch' then raise; end if; end;
+ begin perform public.fulfill_paid_event('evt_1',o,'cs_test_1','00000000-0000-0000-0000-000000000001',100,'EUR',101); raise exception 'accepted tax'; exception when raise_exception then if sqlerrm <> 'invalid payment' then raise; end if; end;
+ if exists(select 1 from public.entitlements) or (select status from public.orders where id=o) <> 'pending' or (select processed_at from private.commerce_events where external_event_id='evt_1') is not null then raise exception 'partial state'; end if;
+ if public.fulfill_paid_event('evt_1',o,'cs_test_1','00000000-0000-0000-0000-000000000001',100,'EUR',null) <> 'fulfilled' then raise exception 'fulfillment'; end if;
+ if (select amount_tax_minor from public.orders where id=o) is not null then raise exception 'invented tax'; end if;
+ if public.fulfill_paid_event('evt_1',o,'cs_test_1','00000000-0000-0000-0000-000000000001',100,'EUR',null) <> 'already_processed' then raise exception 'duplicate'; end if;
+ perform public.record_stripe_event('evt_2','checkout.session.async_payment_succeeded',false,repeat('b',64),'cs_test_1',o);
+ if public.fulfill_paid_event('evt_2',o,'cs_test_1','00000000-0000-0000-0000-000000000001',100,'EUR',10) <> 'already_paid' then raise exception 'second event'; end if;
+ if (select amount_tax_minor from public.orders where id=o) <> 10 then raise exception 'tax once'; end if;
+ begin perform public.fulfill_paid_event('evt_2',o,'cs_test_1','00000000-0000-0000-0000-000000000001',100,'EUR',11); raise exception 'tax overwrite'; exception when raise_exception then if sqlerrm <> 'order mismatch' then raise; end if; end;
+ if (select count(*) from public.entitlements where order_id=o and order_item_id=(select id from public.order_items where order_id=o) and course_id='10000000-0000-0000-0000-000000000001') <> 1 then raise exception 'source'; end if;
+ -- Un derecho anterior distinto no se reemplaza.
+ perform public.bind_checkout_session('00000000-0000-0000-0000-000000000001',o2,'cs_test_2');
+ insert into public.entitlements(user_id,course_id) values('00000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000002');
+ perform public.record_stripe_event('evt_3','checkout.session.completed',false,repeat('c',64),'cs_test_2',o2);
+ if public.fulfill_paid_event('evt_3',o2,'cs_test_2','00000000-0000-0000-0000-000000000001',200,'EUR',0) <> 'already_entitled' then raise exception 'existing entitlement'; end if;
+ if (select count(*) from public.entitlements where course_id='10000000-0000-0000-0000-000000000002') <> 1 or (select fulfillment_result from private.commerce_events where external_event_id='evt_3') <> 'already_entitled' then raise exception 'trace'; end if;
+ perform public.bind_checkout_session('00000000-0000-0000-0000-000000000003',o3,'cs_test_3');
+ perform public.record_stripe_event('evt_4','checkout.session.completed',false,repeat('d',64),'cs_test_3',o3);
+end $$;
+delete from auth.users where id='00000000-0000-0000-0000-000000000003';
+do $$ declare o uuid; begin
+ select order_id into o from private.checkout_attempts where attempt_id='30000000-0000-0000-0000-000000000003';
+ if public.fulfill_paid_event('evt_4',o,'cs_test_3','00000000-0000-0000-0000-000000000003',100,'EUR',null) <> 'requires_manual_review' then raise exception 'deleted user'; end if;
+ if (select status from public.orders where id=o) <> 'pending' or (select processed_at from private.commerce_events where external_event_id='evt_4') is not null then raise exception 'deleted user state'; end if;
+end $$;
+rollback;
