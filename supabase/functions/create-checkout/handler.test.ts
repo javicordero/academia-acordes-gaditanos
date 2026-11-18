@@ -1,15 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
-import { makeHandler, type Dependencies } from './handler';
+import { RESERVATION_TTL_SECONDS, makeHandler, type Dependencies } from './handler';
 
 const user = '00000000-0000-0000-0000-000000000001';
 const course = '10000000-0000-0000-0000-000000000001';
 const attempt = '20000000-0000-0000-0000-000000000001';
+const order = '40000000-0000-0000-0000-000000000001';
 const offer = { owned: false, slug: 'curso', price_id: '30000000-0000-0000-0000-000000000001', amount_minor: 100, currency: 'EUR', provider_price_id: 'price_fixture' };
 function setup() {
   const io: Dependencies = {
     getUser: vi.fn().mockResolvedValue({ id: user, confirmed: true }),
     offer: vi.fn().mockResolvedValue(offer),
     price: vi.fn().mockResolvedValue({ active: true, currency: 'eur', unit_amount: 100, type: 'one_time', recurring: null }),
+    // Mock explícito: la reserva real la hace la RPC reserve_checkout_order.
+    reserve: vi.fn().mockResolvedValue({ order_id: order }),
     create: vi.fn().mockResolvedValue('https://checkout.stripe.com/c/pay/test'),
   };
   const config = { origins: ['http://localhost:4200'], appOrigin: 'http://localhost:4200', enabled: true, termsVersion: 'test' };
@@ -111,5 +114,34 @@ describe('create-checkout', () => {
     expect(calls[0][0].metadata.user_id).toBe(user);
     expect(calls[3][0].metadata.course_id).toBe(course2);
     expect(calls[4][0].metadata.user_id).toBe(user2);
+  });
+  it('reserva el pedido antes de crear la sesión y envía order_id en metadata', async () => {
+    const s = setup();
+    expect((await s.call()).status).toBe(200);
+    expect(s.io.reserve).toHaveBeenCalledWith(user, course, attempt, RESERVATION_TTL_SECONDS);
+    const metadata = vi.mocked(s.io.create).mock.calls[0][0].metadata;
+    expect(metadata).toEqual({
+      user_id: user, course_id: course, price_id: offer.price_id,
+      attempt_id: attempt, terms_version: 'test', order_id: order,
+    });
+  });
+  it('sin reserva configurada o sin pedido devuelve 409 y nunca llama a Stripe', async () => {
+    const missing = setup();
+    delete missing.io.reserve;
+    expect((await missing.call()).status).toBe(409);
+    expect(missing.io.create).not.toHaveBeenCalled();
+    const failed = setup();
+    vi.mocked(failed.io.reserve).mockResolvedValueOnce(null).mockResolvedValueOnce({ order_id: 'no-uuid' });
+    expect((await failed.call()).status).toBe(409);
+    expect((await failed.call()).status).toBe(409);
+    expect(failed.io.create).not.toHaveBeenCalled();
+  });
+  it('no reserva pedido cuando la oferta o el precio no son válidos', async () => {
+    const s = setup();
+    vi.mocked(s.io.offer).mockResolvedValueOnce(null);
+    vi.mocked(s.io.price).mockResolvedValueOnce({ active: false, currency: 'eur', unit_amount: 100, type: 'one_time', recurring: null });
+    expect((await s.call()).status).toBe(409);
+    expect((await s.call()).status).toBe(409);
+    expect(s.io.reserve).not.toHaveBeenCalled();
   });
 });

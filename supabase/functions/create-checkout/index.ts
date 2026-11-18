@@ -23,6 +23,14 @@ Deno.serve(makeHandler({
     return data?.[0] ?? null;
   },
   async price(id) { return await stripe.prices.retrieve(id); },
+  // Reserva service_role: crea el pedido y el snapshot antes de la sesión.
+  async reserve(user, course, attemptId, ttlSeconds) {
+    const { data, error } = await client.rpc('reserve_checkout_order', {
+      p_actor: user, p_course: course, p_attempt: attemptId, p_ttl_seconds: ttlSeconds,
+    });
+    if (error) throw error;
+    return data?.[0] ?? null;
+  },
   async create(input, key) {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment', line_items: [{ price: input.price, quantity: 1 }],

@@ -1,9 +1,13 @@
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Vigencia de la reserva que precedes a la sesión de pago (60..86400 en la RPC). */
+export const RESERVATION_TTL_SECONDS = 900;
 export type Offer = { owned: boolean; slug: string; price_id: string; amount_minor: number; currency: string; provider_price_id: string };
 export interface Dependencies {
   getUser(token: string): Promise<{ id: string; confirmed: boolean } | null>;
   offer(user: string, course: string): Promise<Offer | null>;
   price(id: string): Promise<{ active: boolean; currency: string; unit_amount: number | null; type: string; recurring: unknown }>;
+  /** Debe existir antes de crear la sesión: el webhook concilia por order_id. */
+  reserve?(user: string, course: string, attemptId: string, ttlSeconds: number): Promise<{ order_id: string } | null>;
   create(input: { price: string; success: string; cancel: string; metadata: Record<string, string> }, key: string): Promise<string | null>;
 }
 
@@ -47,6 +51,9 @@ export function makeHandler(io: Dependencies, config: { origins: string[]; appOr
           typeof body.courseId !== 'string' || !UUID.test(body.courseId) ||
           typeof body.attemptId !== 'string' || !UUID.test(body.attemptId)) return reply(400, 'Solicitud inválida');
       if (!config.enabled || !config.termsVersion?.trim()) return reply(409, 'Compra no disponible');
+      // Sin reserva inyectada no se puede conciliar el pago en el webhook:
+      // mejor 409 que una sesión que el servidor nunca podría aceptar.
+      if (typeof io.reserve !== 'function') return reply(409, 'Compra no disponible');
       const app = new URL(config.appOrigin);
       if (app.origin !== config.appOrigin || !config.origins.includes(app.origin) ||
           !(app.protocol === 'https:' || app.origin === 'http://localhost:4200')) throw new Error();
@@ -62,6 +69,10 @@ export function makeHandler(io: Dependencies, config: { origins: string[]; appOr
           price.currency !== offer.currency.toLowerCase() || price.unit_amount !== offer.amount_minor) {
         return reply(409, 'Compra no disponible');
       }
+      // El pedido se reserva en servidor ANTES de la sesión; su id viaja en
+      // metadata para que el webhook firme y idempotente concilie por order_id.
+      const reservation = await io.reserve(user.id, body.courseId, body.attemptId, RESERVATION_TTL_SECONDS);
+      if (!reservation || !UUID.test(reservation.order_id)) return reply(409, 'Compra no disponible');
       const input = new TextEncoder().encode(`${user.id.toLowerCase()}:${body.courseId.toLowerCase()}:${body.attemptId.toLowerCase()}`);
       const digest = await crypto.subtle.digest('SHA-256', input);
       const key = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
@@ -69,7 +80,14 @@ export function makeHandler(io: Dependencies, config: { origins: string[]; appOr
         price: offer.provider_price_id,
         success: `${app.origin}/mis-cursos?checkout=success`,
         cancel: `${app.origin}/cursos/${offer.slug}`,
-        metadata: { user_id: user.id, course_id: body.courseId, price_id: offer.price_id, attempt_id: body.attemptId, terms_version: config.termsVersion },
+        metadata: {
+          user_id: user.id,
+          course_id: body.courseId,
+          price_id: offer.price_id,
+          attempt_id: body.attemptId,
+          terms_version: config.termsVersion,
+          order_id: reservation.order_id,
+        },
       }, key);
       if (!url || new URL(url).protocol !== 'https:' || new URL(url).hostname !== 'checkout.stripe.com') throw new Error();
       return Response.json({ url }, { headers });

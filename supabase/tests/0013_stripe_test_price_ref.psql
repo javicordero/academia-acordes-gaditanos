@@ -1,0 +1,146 @@
+\set ON_ERROR_STOP on
+-- Precio de prueba Stripe: lógica SQL/RLS sobre PGlite, no Supabase real.
+-- AUTÉNTICO, NO REPLICADO: el runner aplica las migraciones ANTES de ejecutar
+-- los fixtures, por lo que la llamada de 20261117240000 fue un no-op (no
+-- existía el curso con ese slug). Esta prueba crea cada curso fixture ANTES del
+-- punto de prueba e invoca LA MISMA función definida por la migración real,
+-- public.apply_stripe_test_price_ref(). No se copia aquí ningún bloque SQL de
+-- la migración; se comprueba su efecto y su idempotencia sobre datos reales.
+begin;
+
+-- UUID ficticios; sin correos ni datos personales.
+insert into auth.users(id) values ('00000000-0000-0000-0000-000000000013');
+
+-- Curso publicado con precio activo previo: no inserta, sustituye ni borra.
+insert into public.courses(id,slug,title,status,published_at) values
+  ('11000000-0000-0000-0000-000000000013','peimer-pasodoble','Precio previo','published',now());
+insert into public.course_prices(id,course_id,amount_minor,currency,is_active,valid_from,valid_to) values
+  ('21000000-0000-0000-0000-000000000013','11000000-0000-0000-0000-000000000013',250,'EUR',true,now()-interval '1 day',null);
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values
+  ('21000000-0000-0000-0000-000000000013','stripe','price_previo');
+select public.apply_stripe_test_price_ref();
+select public.apply_stripe_test_price_ref();
+do $$ begin
+  if (select count(*) from public.course_prices where course_id='11000000-0000-0000-0000-000000000013') <> 1
+    or not exists (select 1 from public.course_prices where id='21000000-0000-0000-0000-000000000013' and amount_minor=250 and currency='EUR') then
+    raise exception 'Precio activo previo modificado';
+  end if;
+  if (select count(*) from private.course_price_refs r
+        join public.course_prices p on p.id=r.course_price_id
+        where p.course_id='11000000-0000-0000-0000-000000000013') <> 1
+    or not exists (select 1 from private.course_price_refs
+        where course_price_id='21000000-0000-0000-0000-000000000013'
+          and provider='stripe' and provider_price_id='price_previo') then
+    raise exception 'Referencia previa modificada';
+  end if;
+end $$;
+delete from public.courses where id='11000000-0000-0000-0000-000000000013';
+
+-- Curso publicado sin precio: inserta una sola vez (idempotencia).
+insert into public.courses(id,slug,title,status,published_at) values
+  ('11000000-0000-0000-0000-000000000014','peimer-pasodoble','Curso prueba','published',now());
+select public.apply_stripe_test_price_ref();
+select public.apply_stripe_test_price_ref();
+do $$ begin
+  if (select count(*) from public.course_prices where course_id='11000000-0000-0000-0000-000000000014') <> 1
+    or not exists (select 1 from public.course_prices where course_id='11000000-0000-0000-0000-000000000014'
+        and amount_minor=100 and currency='EUR' and is_active and valid_from is not null and valid_to is null) then
+    raise exception 'Precio de prueba duplicado o incorrecto';
+  end if;
+  if (select count(*) from private.course_price_refs r
+        join public.course_prices p on p.id=r.course_price_id
+        where p.course_id='11000000-0000-0000-0000-000000000014') <> 1
+    or not exists (select 1 from private.course_price_refs r
+        join public.course_prices p on p.id=r.course_price_id
+        where p.course_id='11000000-0000-0000-0000-000000000014'
+          and r.provider='stripe'
+          and r.provider_price_id='price_1Ucw9AFgkhzJRwtxnyxifKAo') then
+    raise exception 'Referencia de prueba duplicada o incorrecta';
+  end if;
+end $$;
+
+-- Negativo real con SET ROLE: anon y authenticated no leen refs ni ejecutan
+-- checkout_offer; service_role sí y obtiene la oferta del comprador sin derecho.
+set local role anon;
+do $$ begin
+  begin
+    perform 1 from private.course_price_refs;
+    raise exception 'anon pudo leer referencias privadas';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform public.checkout_offer(null,null);
+    raise exception 'anon pudo ejecutar checkout_offer';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+  begin
+    perform 1 from private.course_price_refs;
+    raise exception 'authenticated pudo leer referencias privadas';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform public.checkout_offer(null,null);
+    raise exception 'authenticated pudo ejecutar checkout_offer';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role service_role;
+do $$ begin
+  perform 1 from private.course_price_refs;
+  if (select count(*) from public.checkout_offer(
+      '00000000-0000-0000-0000-000000000013','11000000-0000-0000-0000-000000000014')
+      where not owned and amount_minor=100 and currency='EUR'
+        and provider_price_id='price_1Ucw9AFgkhzJRwtxnyxifKAo') <> 1 then
+    raise exception 'Oferta de prueba incorrecta';
+  end if;
+end $$;
+reset role;
+delete from public.courses where id='11000000-0000-0000-0000-000000000014';
+
+-- Curso borrador e inexistente: no-op.
+insert into public.courses(id,slug,title,status) values
+  ('11000000-0000-0000-0000-000000000015','peimer-pasodoble','Borrador','draft');
+select public.apply_stripe_test_price_ref();
+do $$ begin
+  if exists (select 1 from public.course_prices where course_id='11000000-0000-0000-0000-000000000015') then
+    raise exception 'Borrador con precio de prueba';
+  end if;
+end $$;
+delete from public.courses where id='11000000-0000-0000-0000-000000000015';
+select public.apply_stripe_test_price_ref();
+do $$ begin
+  if exists (select 1 from private.course_price_refs
+      where provider_price_id='price_1Ucw9AFgkhzJRwtxnyxifKAo') then
+    raise exception 'Curso inexistente con referencia de prueba';
+  end if;
+end $$;
+
+-- La referencia ya pertenece a otro curso: error explícito, sin reasignar.
+insert into public.courses(id,slug,title,status,published_at) values
+  ('11000000-0000-0000-0000-000000000016','otro-curso','Otro curso','published',now()),
+  ('11000000-0000-0000-0000-000000000017','peimer-pasodoble','Destino','published',now());
+insert into public.course_prices(id,course_id,amount_minor,currency) values
+  ('21000000-0000-0000-0000-000000000016','11000000-0000-0000-0000-000000000016',100,'EUR');
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values
+  ('21000000-0000-0000-0000-000000000016','stripe','price_1Ucw9AFgkhzJRwtxnyxifKAo');
+do $$ begin
+  begin
+    perform public.apply_stripe_test_price_ref();
+    raise exception 'Se reasignó una referencia ajena';
+  exception when others then
+    if sqlerrm not like '%ya enlazado a otro curso%' then
+      raise exception 'Error inesperado: %', sqlerrm;
+    end if;
+  end;
+  if exists (select 1 from public.course_prices where course_id='11000000-0000-0000-0000-000000000017') then
+    raise exception 'Se creó precio para el curso con referencia ajena';
+  end if;
+  if (select count(*) from private.course_price_refs
+      where provider_price_id='price_1Ucw9AFgkhzJRwtxnyxifKAo'
+        and course_price_id='21000000-0000-0000-0000-000000000016') <> 1 then
+    raise exception 'Referencia ajena modificada';
+  end if;
+end $$;
+
+rollback;
