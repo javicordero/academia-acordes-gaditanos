@@ -12,7 +12,7 @@ import { Aula } from './aula';
 import { PlaybackSource, VIDEO_DEMO_CONFIG, VIDEO_DEMO_ENABLED, VideoPlaybackService } from '../video-playback';
 
 const lesson = { id: 'l', section_id: 's', slug: 'uno', title: 'Lección', content_type: 'video' as const };
-const data: AulaData = { course: { id: 'c', title: 'Curso' }, lesson, sections: [{id: 's', title: 'Bloque'}], lessons: [lesson], canTrack: true, completed: false };
+const data: AulaData = { course: { id: 'c', title: 'Curso' }, lesson, sections: [{id: 's', title: 'Bloque'}], lessons: [lesson], canTrack: true, completed: false, completedLessonIds: [] };
 const firstLesson = { ...lesson, id: 'l1', slug: 'uno' };
 const secondLesson = { ...lesson, id: 'l2', slug: 'dos' };
 const twoLessons: AulaData = {
@@ -22,6 +22,7 @@ const twoLessons: AulaData = {
   lessons: [firstLesson, secondLesson],
   canTrack: true,
   completed: false,
+  completedLessonIds: [],
 };
 
 /** Fuente firmada ficticia: no hay red, claves ni secretos en estas pruebas. */
@@ -832,5 +833,56 @@ describe('Aula', () => {
     expect(save).toHaveBeenCalledWith('u', 'l', false);
     expect(component.data()?.completed).toBe(false);
     expect(nav.querySelector('.progress-button')?.textContent?.trim()).toBe('Marcar como completada');
+  });
+
+  it('el índice recibe el progreso real sin repetir la frase «Progreso manual»', async () => {
+    const first = { ...lesson, id: 'l1', slug: 'uno', title: 'Primera' };
+    const following = { ...lesson, id: 'l2', slug: 'dos', title: 'Siguiente real' };
+    const course: AulaData = {
+      ...twoLessons, lesson: first, lessons: [first, following],
+      completed: true, completedLessonIds: ['l1'],
+    };
+    const { save } = setup(vi.fn().mockResolvedValue(course));
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const navNode = root.querySelector<HTMLElement>('app-classroom-nav')!;
+    const states = () => [...navNode.querySelectorAll<HTMLElement>('li a')]
+      .map(a => a.querySelector('.lesson-progress .sr-only')?.textContent);
+
+    expect(root.textContent).not.toContain('Progreso manual');
+    expect(root.querySelector('.progress-button')?.textContent?.trim()).toBe('Marcar como pendiente');
+    expect(states()).toEqual(['Completada', 'Pendiente']);
+    expect(component.completedIds()?.has('l1')).toBe(true);
+    expect(root.textContent).toContain('Primera lección');
+    expect(root.textContent).toContain('Siguiente: Siguiente real');
+
+    root.querySelector<HTMLButtonElement>('.progress-button')!.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(save).toHaveBeenCalledWith('u', 'l1', false);
+    expect(component.data()?.completed).toBe(false);
+    expect(component.completedIds()?.has('l1')).toBe(false);
+    expect(states()).toEqual(['Pendiente', 'Pendiente']);
+    expect(root.querySelector('.progress-button')?.textContent?.trim()).toBe('Marcar como completada');
+    expect(root.textContent).toContain('Siguiente: Siguiente real');
+    expect(root.querySelector('app-classroom-nav')).toBe(navNode);
+  });
+
+  it('al marcar como completada cambia el indicador del índice y conserva la navegación', async () => {
+    const { save } = setup(vi.fn().mockResolvedValue(data));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const state = () => root.querySelector<HTMLElement>('app-classroom-nav li a .lesson-progress .sr-only')?.textContent;
+    expect(state()).toBe('Pendiente');
+
+    root.querySelector<HTMLButtonElement>('.progress-button')!.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(save).toHaveBeenCalledWith('u', 'l', true);
+    expect(state()).toBe('Completada');
+    expect(root.textContent).not.toContain('Progreso manual');
+    expect(root.querySelector('nav[aria-label="Navegación entre lecciones"]')?.textContent).toContain('Primera lección');
   });
 });

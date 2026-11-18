@@ -5,7 +5,8 @@
   @if (navCourse(); as nav) {
     <aside class="aula-sidebar" aria-label="Índice del curso">
       <app-classroom-nav [title]="nav.title" [teacher]="nav.teacher" [sections]="nav.sections"
-        [lessons]="nav.lessons" [activeId]="activeId()" [courseId]="nav.id" [courseSlug]="courseSlug()" />
+        [lessons]="nav.lessons" [activeId]="activeId()" [completedIds]="completedIds()"
+        [courseId]="nav.id" [courseSlug]="courseSlug()" />
     </aside>
   } @else {
     <aside class="aula-sidebar aula-sidebar--skeleton" aria-label="Índice del curso" aria-hidden="true">
@@ -111,7 +112,6 @@
           </section>
 
           @if (aula.canTrack) {
-            <p role="status">Progreso manual: {{ aula.completed ? 'Completada' : 'Pendiente' }}</p>
             @if (saveError()) { <p role="alert">No se pudo guardar el progreso. Inténtalo de nuevo.</p> }
           } @else if (!auth.session()) {
             <p>Inicia sesión para consultar si puedes guardar progreso. La muestra por sí sola no lo permite.</p>

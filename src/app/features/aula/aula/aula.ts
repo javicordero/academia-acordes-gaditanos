@@ -62,6 +62,14 @@ export class Aula {
     const slug = this.lessonSlug();
     return this.data()?.lessons.find(lesson => lesson.slug === slug)?.id ?? '';
   });
+  /** Estado de progreso del índice: solo existe si hay derecho que permita seguirlo. */
+  readonly completedIds = computed<ReadonlySet<string> | null>(() => {
+    const data = this.data();
+    if (!data?.canTrack) return null;
+    const ids = new Set(data.completedLessonIds ?? []);
+    if (data.completed) ids.add(data.lesson.id); else ids.delete(data.lesson.id);
+    return ids;
+  });
   readonly orderedLessons = computed(() => {
     const data = this.data();
     return data ? data.sections.flatMap(s => data.lessons.filter(l => l.section_id === s.id)) : [];
@@ -289,7 +297,11 @@ export class Aula {
     this.saveError.set(false);
     try {
       await this.repository.save(userId, data.lesson.id, completed);
-      if (!this.destroyed && request === this.request) this.data.set({ ...data, completed });
+      if (!this.destroyed && request === this.request) {
+        const completedIds = new Set(data.completedLessonIds ?? []);
+        if (completed) completedIds.add(data.lesson.id); else completedIds.delete(data.lesson.id);
+        this.data.set({ ...data, completed, completedLessonIds: [...completedIds] });
+      }
     } catch {
       if (!this.destroyed && request === this.request) this.saveError.set(true);
     } finally {

@@ -12,6 +12,7 @@ describe('AulaRepository', () => {
       const query = {
         select: (...args: unknown[]) => record('select', ...args),
         eq: (...args: unknown[]) => record('eq', ...args),
+        in: (...args: unknown[]) => record('in', ...args),
         is: (...args: unknown[]) => record('is', ...args),
         order: (...args: unknown[]) => record('order', ...args),
         maybeSingle: result, returns: result,
@@ -40,12 +41,33 @@ describe('AulaRepository', () => {
   });
 
   it('consulta derecho y progreso propios y guarda con timestamp', async () => {
-    const {repo, calls} = setup({courses: [ok({id: 'c', title: 'Curso'})], lessons: [ok(lesson), ok([lesson])], course_sections: [ok([])], entitlements: [ok({id: 'e'})], lesson_progress: [ok({completed_at: null}), ok(null)]});
-    expect((await repo.load('curso', 'uno', 'u'))?.canTrack).toBe(true);
+    const {repo, calls} = setup({courses: [ok({id: 'c', title: 'Curso'})], lessons: [ok(lesson), ok([lesson])], course_sections: [ok([])], entitlements: [ok({id: 'e'})], lesson_progress: [ok([{lesson_id: 'l', completed_at: null}]), ok(null)]});
+    const loaded = await repo.load('curso', 'uno', 'u');
+    expect(loaded?.canTrack).toBe(true);
+    expect(loaded?.completedLessonIds).toEqual([]);
     await repo.save('u', 'l', true);
     expect(calls).toContainEqual(['entitlements', 'eq', 'user_id', 'u']);
-    expect(calls).toContainEqual(['lesson_progress', 'eq', 'lesson_id', 'l']);
+    expect(calls).toContainEqual(['lesson_progress', 'in', 'lesson_id', expect.arrayContaining(['l'])]);
     expect(calls).toContainEqual(['lesson_progress', 'upsert', expect.objectContaining({user_id: 'u', lesson_id: 'l', completed_at: expect.any(String), last_activity_at: expect.any(String)}), {onConflict: 'user_id,lesson_id'}]);
+  });
+
+  it('devuelve las lecciones completadas del curso en una sola consulta de progreso', async () => {
+    const second = {...lesson, id: 'l2', slug: 'dos'};
+    const {repo, calls} = setup({
+      courses: [ok({id: 'c', title: 'Curso'})],
+      lessons: [ok(lesson), ok([lesson, second])],
+      course_sections: [ok([{id: 's', title: 'Bloque'}])],
+      entitlements: [ok({id: 'e'})],
+      lesson_progress: [ok([
+        {lesson_id: 'l', completed_at: null},
+        {lesson_id: 'l2', completed_at: '2026-11-18T10:00:00Z'},
+      ])],
+    });
+    const loaded = await repo.load('curso', 'uno', 'u');
+    expect(loaded?.completed).toBe(false);
+    expect(loaded?.completedLessonIds).toEqual(['l2']);
+    expect(calls.filter(c => c[0] === 'lesson_progress' && c[1] === 'select')).toHaveLength(1);
+    expect(calls).toContainEqual(['lesson_progress', 'in', 'lesson_id', ['l', 'l2']]);
   });
 
   it('devuelve denegada sin distinguir ausencia y propaga errores', async () => {

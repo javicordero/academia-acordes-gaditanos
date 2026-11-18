@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 import { ClassroomNav } from './classroom-nav';
 
 describe('Índice del aula', () => {
-  async function setup(contentType: 'pdf' | 'video' = 'pdf') {
+  async function setup(contentType: 'pdf' | 'video' = 'pdf', completedIds: ReadonlySet<string> | null = null) {
     await TestBed.configureTestingModule({ imports: [ClassroomNav], providers: [provideRouter([])] }).compileComponents();
     const fixture = TestBed.createComponent(ClassroomNav);
     fixture.componentRef.setInput('title', 'Curso');
@@ -14,6 +14,7 @@ describe('Índice del aula', () => {
     fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
     fixture.componentRef.setInput('lessons', [{ id: 'l', section_id: 's', title: 'Lección', slug: 'leccion', content_type: contentType }]);
     fixture.componentRef.setInput('activeId', 'l');
+    if (completedIds !== null) fixture.componentRef.setInput('completedIds', completedIds);
     fixture.detectChanges();
     return { fixture, root: fixture.nativeElement as HTMLElement };
   }
@@ -214,5 +215,102 @@ describe('Índice del aula', () => {
     expect(root.querySelector('nav')).toBe(navNode);
     expect(root.querySelector('a[aria-current="page"]')?.textContent).toContain('Segunda');
     expect(root.querySelector<HTMLButtonElement>('.block-toggle')?.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('distingue cada lección completada de la pendiente con icono y nombre accesible', async () => {
+    await TestBed.configureTestingModule({ imports: [ClassroomNav], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ClassroomNav);
+    const lessons = [
+      { id: 'l1', section_id: 's', title: 'Primera', slug: 'uno', content_type: 'video' as const },
+      { id: 'l2', section_id: 's', title: 'Segunda', slug: 'dos', content_type: 'pdf' as const },
+    ];
+    fixture.componentRef.setInput('title', 'Curso');
+    fixture.componentRef.setInput('courseId', 'curso');
+    fixture.componentRef.setInput('courseSlug', 'curso');
+    fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
+    fixture.componentRef.setInput('lessons', lessons);
+    fixture.componentRef.setInput('activeId', 'l1');
+    fixture.componentRef.setInput('completedIds', new Set(['l1']));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const links = [...root.querySelectorAll<HTMLAnchorElement>('li a')];
+    expect(links.length).toBe(2);
+
+    const first = links[0].querySelector<HTMLElement>('.lesson-progress')!;
+    const second = links[1].querySelector<HTMLElement>('.lesson-progress')!;
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(first.classList.contains('lesson-progress--done')).toBe(true);
+    expect(first.querySelector('svg path[d="M3 8.5 6.3 12 13 4.5"]')).not.toBeNull();
+    expect(first.querySelector('svg circle')).toBeNull();
+    expect(first.querySelector('.sr-only')?.textContent).toBe('Completada');
+    expect(links[0].textContent).toContain('Completada');
+
+    expect(second.classList.contains('lesson-progress--done')).toBe(false);
+    expect(second.querySelector('svg circle')).not.toBeNull();
+    expect(second.querySelector('svg path[d="M3 8.5 6.3 12 13 4.5"]')).toBeNull();
+    expect(second.querySelector('.sr-only')?.textContent).toBe('Pendiente');
+    expect(links[1].textContent).toContain('Pendiente');
+  });
+
+  it('refleja marcar y desmarcar sin recrear el índice', async () => {
+    const { fixture, root } = await setup('video', new Set());
+    const navNode = root.querySelector('nav')!;
+    const state = () => root.querySelector<HTMLElement>('li a .lesson-progress')!;
+    expect(state().querySelector('.sr-only')?.textContent).toBe('Pendiente');
+
+    fixture.componentRef.setInput('completedIds', new Set(['l']));
+    fixture.detectChanges();
+    expect(state().classList.contains('lesson-progress--done')).toBe(true);
+    expect(state().querySelector('.sr-only')?.textContent).toBe('Completada');
+
+    fixture.componentRef.setInput('completedIds', new Set());
+    fixture.detectChanges();
+    expect(state().classList.contains('lesson-progress--done')).toBe(false);
+    expect(state().querySelector('.sr-only')?.textContent).toBe('Pendiente');
+    expect(root.querySelector('nav')).toBe(navNode);
+  });
+
+  it('conserva foco, cajón, bloques plegados e indicadores al cambiar de lección', async () => {
+    await TestBed.configureTestingModule({ imports: [ClassroomNav], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ClassroomNav);
+    const lessons = [
+      { id: 'l1', section_id: 's', title: 'Primera', slug: 'uno', content_type: 'video' as const },
+      { id: 'l2', section_id: 's', title: 'Segunda', slug: 'dos', content_type: 'video' as const },
+    ];
+    fixture.componentRef.setInput('title', 'Curso');
+    fixture.componentRef.setInput('courseId', 'curso');
+    fixture.componentRef.setInput('courseSlug', 'curso');
+    fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
+    fixture.componentRef.setInput('lessons', lessons);
+    fixture.componentRef.setInput('activeId', 'l1');
+    fixture.componentRef.setInput('completedIds', new Set(['l1', 'l2']));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const menu = root.querySelector<HTMLButtonElement>('.menu')!;
+    const navNode = root.querySelector('nav')!;
+    const toggle = root.querySelector<HTMLButtonElement>('.block-toggle')!;
+    toggle.click(); fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    menu.click(); fixture.detectChanges();
+    expect(navNode.classList.contains('open')).toBe(true);
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const second = [...root.querySelectorAll<HTMLAnchorElement>('li a')]
+      .find(a => a.textContent?.includes('Segunda'))!;
+    second.click(); fixture.detectChanges();
+    fixture.componentRef.setInput('activeId', 'l2');
+    fixture.componentRef.setInput('completedIds', new Set(['l1']));
+    fixture.detectChanges();
+
+    expect(root.querySelector('nav')).toBe(navNode);
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(menu);
+    expect(root.querySelector<HTMLButtonElement>('.block-toggle')?.getAttribute('aria-expanded')).toBe('false');
+    const states = [...root.querySelectorAll<HTMLElement>('li a')]
+      .map(a => a.querySelector<HTMLElement>('.lesson-progress .sr-only')?.textContent);
+    expect(states).toEqual(['Completada', 'Pendiente']);
   });
 });

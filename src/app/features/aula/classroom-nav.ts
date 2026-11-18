@@ -61,6 +61,21 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
                   </span>
                   <span class="sr-only">{{ lesson.content_type === 'video' ? 'Vídeo' : lesson.content_type === 'pdf' ? 'PDF' : 'Texto' }}:</span>
                   <span class="lesson-title">{{ lesson.title }}</span> @if (lesson.is_free_preview) { <small>Muestra</small> }
+                  @if (completedIds(); as doneIds) {
+                    <span class="lesson-progress" [class.lesson-progress--done]="doneIds.has(lesson.id)">
+                      @if (doneIds.has(lesson.id)) {
+                        <svg class="lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                          <path d="M3 8.5 6.3 12 13 4.5" />
+                        </svg>
+                        <span class="sr-only">Completada</span>
+                      } @else {
+                        <svg class="lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                          <circle cx="8" cy="8" r="5.75" />
+                        </svg>
+                        <span class="sr-only">Pendiente</span>
+                      }
+                    </span>
+                  }
                 </a></li>
               }
             }
@@ -110,6 +125,17 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     .lesson-icon { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; flex:none; }
     .lesson-icon svg { width:100%; height:100%; }
     .lesson-title { min-width:0; }
+    /* Estado de progreso: forma (check/círculo) y texto oculto, no solo color. */
+    .lesson-progress {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:18px; height:18px; flex:none; margin-inline-start:auto; color:var(--muted);
+    }
+    .lesson-progress--done { color:var(--accent); }
+    .lesson-progress__icon {
+      width:1rem; height:1rem; fill:none; stroke:currentColor;
+      stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;
+    }
+    .lesson-progress--done .lesson-progress__icon { stroke-width:2.2; }
     li a[aria-current=page] { background:#f1e9db; font-weight:700; border-left:3px solid var(--accent); }
     small { font-weight:400; }
 
@@ -158,6 +184,8 @@ export class ClassroomNav {
   readonly sections = input.required<Section[]>();
   readonly lessons = input.required<Lesson[]>();
   readonly activeId = input.required<string>();
+  /** Estado real de progreso del curso; `null` cuando no hay progreso que mostrar. */
+  readonly completedIds = input<ReadonlySet<string> | null>(null);
   readonly courseId = input.required<string>();
   readonly courseSlug = input('');
   readonly admin = input(false);
