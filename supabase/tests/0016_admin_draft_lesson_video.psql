@@ -1,0 +1,111 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID, GUID y library ficticios, sin datos reales ni PII.
+-- a = comprador con derecho; b = alumno sin derecho; d = admin.
+insert into auth.users (id) values
+  ('00000000-0000-0000-0000-00000000000a'),
+  ('00000000-0000-0000-0000-00000000000b'),
+  ('00000000-0000-0000-0000-00000000000d');
+insert into public.user_roles (user_id, role) values ('00000000-0000-0000-0000-00000000000d', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values
+  ('10000000-0000-0000-0000-000000000001', 'admin-video-one', 'Uno', 'published', now()),
+  ('10000000-0000-0000-0000-000000000002', 'admin-video-draft', 'Dos', 'draft', null);
+insert into public.course_sections (id, course_id, title, position) values
+  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Sección', 1),
+  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'Sección', 1);
+-- 1 publicada con derecho; 2 muestra pública; 3 lección borrador; 4 borrador
+-- marcado como muestra; 5 lección publicada en curso borrador; 6 GUID malo.
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview) values
+  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'one', 'One', 1, true, false),
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'two', 'Two', 2, true, true),
+  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'three', 'Three', 3, false, false),
+  ('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'four', 'Four', 4, false, true),
+  ('30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', 'five', 'Five', 1, true, false),
+  ('30000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'six', 'Six', 5, false, false);
+insert into public.entitlements (user_id, course_id) values
+  ('00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001');
+-- Metadatos private: obra de servidor, antes del cambio de rol.
+insert into private.lesson_videos (lesson_id, provider_video_id, provider_library_id, duration_seconds, status) values
+  ('30000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '812678', 95, 'ready'),
+  ('30000000-0000-0000-0000-000000000002', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', null, 12, 'ready'),
+  ('30000000-0000-0000-0000-000000000003', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '812678', 33, 'ready'),
+  ('30000000-0000-0000-0000-000000000004', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '812678', 44, 'ready'),
+  ('30000000-0000-0000-0000-000000000005', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '812678', 55, 'ready'),
+  ('30000000-0000-0000-0000-000000000006', 'guid-invalido', '812678', 30, 'ready');
+-- anon y authenticated no pueden ejecutar la RPC directamente.
+set local role anon;
+do $$ begin
+  begin perform public.server_lesson_video(null, null); raise exception 'anon ejecutó'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+  begin perform public.server_lesson_video(null, null); raise exception 'authenticated ejecutó'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- service_role: evalúa las reglas con p_user_id de Auth.
+set local role service_role;
+do $$ declare a uuid := '00000000-0000-0000-0000-00000000000a';
+  b uuid := '00000000-0000-0000-0000-00000000000b';
+  d uuid := '00000000-0000-0000-0000-00000000000d';
+  paid uuid := '30000000-0000-0000-0000-000000000001';
+  free uuid := '30000000-0000-0000-0000-000000000002';
+  draft uuid := '30000000-0000-0000-0000-000000000003';
+  draft_free uuid := '30000000-0000-0000-0000-000000000004';
+  course_draft uuid := '30000000-0000-0000-0000-000000000005';
+  bad_guid uuid := '30000000-0000-0000-0000-000000000006';
+  r jsonb;
+begin
+  -- Admin: borradores; preview refleja el flag, no el permiso.
+  r := public.server_lesson_video(d, draft);
+  if r is null or (r->>'preview')::boolean is not false
+  or (r->>'course_id') <> '10000000-0000-0000-0000-000000000001' then raise exception 'Admin borrador: %', r; end if;
+  if r->'video'->>'provider' <> 'bunny'
+  or r->'video'->>'video_id' <> 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+  or (r->'video'->>'duration_seconds')::integer <> 33 then raise exception 'Vídeo borrador admin: %', r; end if;
+  r := public.server_lesson_video(d, draft_free);
+  if r is null or (r->>'preview')::boolean is not true then raise exception 'Admin borrador muestra: %', r; end if;
+  r := public.server_lesson_video(d, course_draft);
+  if r is null or (r->>'preview')::boolean is not false
+  or r->'video'->>'video_id' <> 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+  then raise exception 'Admin curso borrador: %', r; end if;
+  -- La validación de metadatos sigue vigente también para admin.
+  r := public.server_lesson_video(d, bad_guid);
+  if r is null or (r->'video') <> 'null'::jsonb then raise exception 'GUID inválido en borrador: %', r; end if;
+  -- Admin en publicado: mismo resultado de siempre.
+  r := public.server_lesson_video(d, paid);
+  if r is null or (r->>'preview')::boolean is not false
+  or (r->'video'->>'duration_seconds')::integer <> 95 then raise exception 'Admin publicado: %', r; end if;
+  r := public.server_lesson_video(d, free);
+  if r is null or (r->>'preview')::boolean is not true then raise exception 'Admin muestra: %', r; end if;
+  -- Sin borradores para alumnos, con o sin derecho; ni para p_user_id nulo.
+  if public.server_lesson_video(a, draft) is not null
+  or public.server_lesson_video(a, draft_free) is not null
+  or public.server_lesson_video(a, course_draft) is not null
+  or public.server_lesson_video(b, draft) is not null
+  or public.server_lesson_video(null, draft) is not null
+  or public.server_lesson_video(null, draft_free) is not null
+  or public.server_lesson_video(null, course_draft) is not null
+  or public.server_lesson_video(null, bad_guid) is not null
+  then raise exception 'Borrador filtrado a alumno/anon'; end if;
+  -- Sin regresión en publicados.
+  r := public.server_lesson_video(b, free);
+  if r is null or (r->>'preview')::boolean is not true then raise exception 'Muestra pública: %', r; end if;
+  r := public.server_lesson_video(null, free);
+  if r is null or (r->>'preview')::boolean is not true
+  or r->'video'->>'video_id' <> 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' then raise exception 'Muestra anon: %', r; end if;
+  r := public.server_lesson_video(a, paid);
+  if r is null or (r->>'preview')::boolean is not false
+  or (r->'video'->>'duration_seconds')::integer <> 95 then raise exception 'Comprador: %', r; end if;
+  if public.server_lesson_video(b, paid) is not null
+  or public.server_lesson_video(null, paid) is not null then raise exception 'Sin derecho'; end if;
+end $$;
+-- Derecho revocado: vuelve a denegar la lección publicada no-muestra.
+reset role;
+update public.entitlements set revoked_at = now() where user_id = '00000000-0000-0000-0000-00000000000a';
+set local role service_role;
+do $$ begin
+  if public.server_lesson_video('00000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Revocado'; end if;
+end $$;
+reset role;
+rollback;

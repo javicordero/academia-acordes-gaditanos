@@ -1,0 +1,133 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID y library ficticios, sin datos reales ni PII.
+insert into auth.users (id) values
+  ('00000000-0000-0000-0000-00000000000b'),
+  ('00000000-0000-0000-0000-00000000000d');
+-- b existe en Auth pero no tiene fila en user_roles: no es admin.
+insert into public.user_roles (user_id, role) values
+  ('00000000-0000-0000-0000-00000000000d', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values
+  ('10000000-0000-0000-0000-000000000001', 'link-one', 'Uno', 'published', now());
+insert into public.course_sections (id, course_id, title, position) values
+  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Sección', 1);
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview) values
+  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'one', 'One', 1, true, false),
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'two', 'Two', 2, true, false);
+
+-- anon y authenticated no pueden ejecutar la RPC.
+set local role anon;
+do $$ begin
+  begin
+    perform public.server_link_lesson_video(null, null, null, null, null, null);
+    raise exception using message = 'anon ejecutó la RPC', errcode = '57014';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+  begin
+    perform public.server_link_lesson_video(null, null, null, null, null, null);
+    raise exception using message = 'authenticated ejecutó la RPC', errcode = '57014';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+-- service_role alcanza la RPC, pero el p_user_id debe ser admin real.
+set local role service_role;
+do $$
+declare
+  admin uuid := '00000000-0000-0000-0000-00000000000d';
+  student uuid := '00000000-0000-0000-0000-00000000000b';
+  lesson1 uuid := '30000000-0000-0000-0000-000000000001';
+  lesson2 uuid := '30000000-0000-0000-0000-000000000002';
+  video1 uuid := '11111111-1111-4111-8111-111111111111';
+  video2 uuid := '22222222-2222-4222-8222-222222222222';
+  library text := '901234';
+  r jsonb;
+  bad text;
+  rejected boolean;
+begin
+  rejected := false;
+  begin
+    perform public.server_link_lesson_video(student, lesson1, library, video1, 60, 'ready');
+  exception when insufficient_privilege then rejected := true;
+  end;
+  if not rejected then raise exception 'Un alumno pudo vincular vídeo'; end if;
+  if exists (select 1 from private.lesson_videos where lesson_id = lesson1) then
+    raise exception 'El alumno escribió una fila';
+  end if;
+
+  -- Admin escribe; la primera respuesta es 'linked' y guarda solo datos privados.
+  r := public.server_link_lesson_video(admin, lesson1, library, video1, 112, 'ready');
+  if r->>'linkage' <> 'linked' or r->>'status' <> 'ready' then raise exception 'Primera escritura: %', r; end if;
+  if not exists (
+    select 1 from private.lesson_videos
+    where lesson_id = lesson1 and provider = 'bunny'
+      and provider_video_id = video1::text and provider_library_id = library
+      and duration_seconds = 112 and status = 'ready'
+  ) then raise exception 'Fila no guardada'; end if;
+
+  -- Idempotencia por lesson_id: misma fila, respuesta 'linked_yet'.
+  r := public.server_link_lesson_video(admin, lesson1, library, video1, 112, 'ready');
+  if r->>'linkage' <> 'linked_yet' then raise exception 'No idempotente: %', r; end if;
+  if (select count(*) from private.lesson_videos where lesson_id = lesson1) <> 1 then
+    raise exception 'Se duplicó la fila';
+  end if;
+
+  -- 'processing' también es almacenable y se expone como 'processing'.
+  r := public.server_link_lesson_video(admin, lesson1, library, video2, 10, 'processing');
+  if r->>'status' <> 'processing' or r->>'linkage' <> 'linked_yet' then raise exception 'Procesamiento: %', r; end if;
+  if (select status from private.lesson_videos where lesson_id = lesson1) <> 'processing' then
+    raise exception 'No se guardó processing';
+  end if;
+
+  -- El mismo vídeo no puede quedar vinculado a otra lección.
+  rejected := false;
+  begin
+    perform public.server_link_lesson_video(admin, lesson2, library, video2, 60, 'ready');
+  exception when sqlstate 'P0001' then rejected := true;
+  end;
+  if not rejected then raise exception 'No se detectó el conflicto de GUID'; end if;
+  if exists (select 1 from private.lesson_videos where lesson_id = lesson2) then
+    raise exception 'El conflicto escribió una fila ajena';
+  end if;
+  if (select provider_video_id from private.lesson_videos where lesson_id = lesson1) <> video2::text then
+    raise exception 'El conflicto sobrescribió la fila original';
+  end if;
+
+  -- Estados inválidos se rechazan sin escribir.
+  foreach bad in array array['disabled', 'finished', 'ready ', ''] loop
+    rejected := false;
+    begin
+      perform public.server_link_lesson_video(admin, lesson1, library, video2, 10, bad);
+    exception when invalid_parameter_value then rejected := true;
+    end;
+    if not rejected then raise exception 'Estado inválido aceptado: %', bad; end if;
+  end loop;
+
+  rejected := false;
+  begin
+    perform public.server_link_lesson_video(admin, lesson1, library, video2, -1, 'ready');
+  exception when invalid_parameter_value then rejected := true;
+  end;
+  if not rejected then raise exception 'Duración negativa aceptada'; end if;
+
+  rejected := false;
+  begin
+    perform public.server_link_lesson_video(admin, lesson1, '12a678', video2, 10, 'ready');
+  exception when invalid_parameter_value then rejected := true;
+  end;
+  if not rejected then raise exception 'Library no numérica aceptada'; end if;
+
+  rejected := false;
+  begin
+    perform public.server_link_lesson_video(admin, '40000000-0000-4000-8000-000000000001', library, video2, 10, 'ready');
+  exception when no_data_found then rejected := true;
+  end;
+  if not rejected then raise exception 'Lección inexistente aceptada'; end if;
+end $$;
+reset role;
+rollback;

@@ -1,0 +1,114 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos. UUID ficticios, sin datos reales ni PII.
+-- a = comprador con derecho; b = sin derecho; d = admin.
+insert into auth.users (id) values
+('00000000-0000-0000-0000-00000000000a'),
+('00000000-0000-0000-0000-00000000000b'),
+('00000000-0000-0000-0000-00000000000d');
+insert into public.user_roles (user_id, role) values ('00000000-0000-0000-0000-00000000000d', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values
+('10000000-0000-0000-0000-000000000001', 'video-one', 'Uno', 'published', now()),
+('10000000-0000-0000-0000-000000000002', 'video-draft', 'Borrador', 'draft', null);
+insert into public.course_sections (id, course_id, title, position) values
+('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Sección', 1),
+('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Sección', 2),
+('20000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 'Sección', 1);
+-- 1: lección con vídeo; 2: muestra gratuita; 3: no lista; 4: borrador; 5: curso borrador; 6: GUID malo; 7: library mala.
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview) values
+('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'one', 'One', 1, true, false),
+('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'two', 'Two', 2, true, true),
+('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'three', 'Three', 3, true, false),
+('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'four', 'Four', 4, false, false),
+('30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000003', 'five', 'Five', 1, true, false),
+('30000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'six', 'Six', 3, true, false),
+('30000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'seven', 'Seven', 4, true, false);
+insert into public.entitlements (user_id, course_id) values
+('00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001');
+-- Metadatos private: obra de servidor, antes del cambio de rol.
+insert into private.lesson_videos (lesson_id, provider_video_id, provider_library_id, duration_seconds, status) values
+('30000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', '812678', 95, 'ready'),
+('30000000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', null, 12, 'ready'),
+('30000000-0000-0000-0000-000000000003', '33333333-3333-3333-3333-333333333333', '812678', 30, 'pending'),
+('30000000-0000-0000-0000-000000000006', '4444444-4444-4444-4444-444444444444', '812678', 30, 'ready'),
+('30000000-0000-0000-0000-000000000007', '77777777-7777-7777-7777-777777777777', '12a678', 30, 'ready');
+-- Control positivo de que la barrera es ajena a RLS: b no ve lecciones en catálogo.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', true);
+do $$ begin
+ if exists (select 1 from public.lessons where id = '30000000-0000-0000-0000-000000000001') then raise exception 'RLS debería ocultar la lección'; end if;
+end $$;
+reset role;
+-- anon y authenticated no pueden ejecutar la RPC directamente.
+set local role anon;
+do $$ begin
+ begin perform public.server_lesson_video(null, null); raise exception 'anon ejecutó'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+ begin perform public.server_lesson_video(null, null); raise exception 'authenticated ejecutó'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+-- service_role: evaluación de reglas.
+set local role service_role;
+do $$ declare a uuid := '00000000-0000-0000-0000-00000000000a';
+  b uuid := '00000000-0000-0000-0000-00000000000b';
+  d uuid := '00000000-0000-0000-0000-00000000000d';
+  paid uuid := '30000000-0000-0000-0000-000000000001';
+  free uuid := '30000000-0000-0000-0000-000000000002';
+  r jsonb;
+begin
+ -- Sin derecho en lección no-muestra: sin fila. Anon y authenticated son p_user_id nulos aquí.
+ if public.server_lesson_video(b, paid) is not null
+ or public.server_lesson_video(null, paid) is not null then raise exception 'Sin derecho'; end if;
+ -- Muestra gratuita: fila con preview=true y vídeo poblado, para cualquier p_user_id.
+ r := public.server_lesson_video(b, free);
+ if r is null or (r->>'preview')::boolean is not true
+ or (r->>'course_id') <> '10000000-0000-0000-0000-000000000001' then raise exception 'Muestra'; end if;
+ if r->'video'->>'provider' <> 'bunny' or r->'video'->>'library_id' <> '812678'
+ or r->'video'->>'video_id' <> '22222222-2222-2222-2222-222222222222'
+ or (r->'video'->>'duration_seconds')::integer <> 12 then raise exception 'Vídeo muestra'; end if;
+ -- Comprador con derecho activo en lección no-muestra: preview=false.
+ r := public.server_lesson_video(a, paid);
+ if r is null or (r->>'preview')::boolean is not false
+ or (r->'video'->>'duration_seconds')::integer <> 95 then raise exception 'Comprador'; end if;
+ -- Admin sin compra: fila (preview=false) en lección publicada de curso publicado.
+ r := public.server_lesson_video(d, paid);
+ if r is null or (r->>'preview')::boolean is not false then raise exception 'Admin'; end if;
+ -- Vídeo no listo: preview visible, pero video null.
+ r := public.server_lesson_video(d, '30000000-0000-0000-0000-000000000003');
+ if r is null or r ? 'preview' is false or (r->'video') <> 'null'::jsonb then raise exception 'No ready -> %', r; end if;
+ -- GUID inválido y library inválida: video null, nunca basura.
+ if (public.server_lesson_video(d, '30000000-0000-0000-0000-000000000006')->'video') <> 'null'::jsonb
+ or (public.server_lesson_video(d, '30000000-0000-0000-0000-000000000007')->'video') <> 'null'::jsonb
+ then raise exception 'Metadatos inválidos'; end if;
+ -- Lección borrador y curso borrador: admin SÍ los ve (sin vídeo, porque no
+ -- hay metadatos private para ellos), con preview=false = is_free_preview.
+ r := public.server_lesson_video(d, '30000000-0000-0000-0000-000000000004');
+ if r is null or (r->>'preview')::boolean is not false
+ or (r->>'course_id') <> '10000000-0000-0000-0000-000000000001'
+ or (r->'video') <> 'null'::jsonb then raise exception 'Borrador admin'; end if;
+ r := public.server_lesson_video(d, '30000000-0000-0000-0000-000000000005');
+ if r is null or (r->>'preview')::boolean is not false
+ or (r->>'course_id') <> '10000000-0000-0000-0000-000000000002'
+ or (r->'video') <> 'null'::jsonb then raise exception 'Curso borrador admin'; end if;
+ -- Alumno (con y sin derecho) y anon siguen sin ver ningún borrador.
+ if public.server_lesson_video(a, '30000000-0000-0000-0000-000000000004') is not null
+ or public.server_lesson_video(a, '30000000-0000-0000-0000-000000000005') is not null
+ or public.server_lesson_video(b, '30000000-0000-0000-0000-000000000004') is not null
+ or public.server_lesson_video(null, '30000000-0000-0000-0000-000000000004') is not null
+ or public.server_lesson_video(null, '30000000-0000-0000-0000-000000000005') is not null
+ then raise exception 'Borradores filtrados'; end if;
+ -- (La fila nunca puede guardar duración negativa: CHECK entera la tabla. La
+ --  normalización a null es defensa en profundidad y no se prueba por UPDATE.)
+end $$;
+-- Derecho revocado: vuelve a denegar la lección no-muestra.
+reset role;
+update public.entitlements set revoked_at = now() where user_id = '00000000-0000-0000-0000-00000000000a';
+set local role service_role;
+do $$ begin
+ if public.server_lesson_video('00000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-000000000001') is not null then raise exception 'Revocado'; end if;
+end $$;
+reset role;
+rollback;
