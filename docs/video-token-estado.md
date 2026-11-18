@@ -10,6 +10,11 @@ La función sigue exigiendo **sesión verificada y derecho activo** (o rol admin
 para vista previa) antes de emitir nada. La autorización real está en la RPC de
 servidor y en RLS; el modo descrito abajo no la relaja.
 
+Estado comprobado hoy: el servidor firma con `BUNNY_STREAM_TOKEN_AUTH_KEY`,
+`BUNNY_ALLOW_UNSIGNED_EMBED` está desactivado y la autenticación por token de
+Bunny está activa. La comprobación se limitó a la configuración y a la carga del
+reproductor; no equivale a una reproducción completa de principio a fin.
+
 - Con `BUNNY_STREAM_TOKEN_AUTH_KEY` configurada: se firma exactamente como
   siempre. La respuesta 200 es `{ embedUrl, expiresAt, notice }`, con `token` y
   `expires` dentro de la URL y `expiresAt` en segundos Unix. No cambia nada.
@@ -62,3 +67,24 @@ el aula muestra un estado honesto; nunca se concede acceso sin firma por
 defecto. La clave de firma y la API key de Bunny viven solo como secretos de
 Edge Functions en Supabase: no se escriben en el repositorio, en
 `environment.local.ts`, en el chat ni en filas públicas.
+
+## Orígenes permitidos (CORS)
+
+La función solo refleja `Access-Control-Allow-Origin` para orígenes explícitos.
+Se configuran en `VIDEO_TOKEN_ALLOWED_ORIGINS` como una lista separada por
+comas; si la variable no está definida, el origen permitido por defecto es
+`http://localhost:4200`. No se admiten comodines (`*`) y esta lista no relaja
+la autenticación ni las políticas RLS: la sesión y el derecho se siguen
+comprobando en el servidor.
+
+Para pruebas desde otro dispositivo (por ejemplo, a través de Tailscale) se
+añade el origen de desarrollo concreto, sin sustituir el de localhost:
+
+```
+VIDEO_TOKEN_ALLOWED_ORIGINS=http://localhost:4200,http://<ip-tailscale>:4200
+```
+
+`<ip-tailscale>` es un marcador de posición: la IP real solo se usa en el
+entorno de desarrollo, nunca en el repositorio. Los orígenes son datos públicos,
+no secretos; las claves y el flag sin firma se configuran por separado, como se
+describe arriba.

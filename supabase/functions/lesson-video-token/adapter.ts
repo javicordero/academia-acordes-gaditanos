@@ -17,8 +17,11 @@ export function createDependencies(client: {
       return (data ?? null) as VideoRow | null;
     },
     async sign(seed) {
-      const { createHash } = await import('node:crypto');
-      return createHash('sha256').update(seed).digest('hex');
+      const digest = await globalThis.crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(seed),
+      );
+      return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
     },
   };
 }
