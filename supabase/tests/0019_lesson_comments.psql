@@ -1,0 +1,215 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID y correos ficticios de example.invalid, sin PII real.
+-- a = con derecho; b = sin derecho; d = admin; r = derecho revocado.
+insert into auth.users (id, email) values
+ ('00000000-0000-0000-0000-00000000000a', 'alumna.uno@example.invalid'),
+ ('00000000-0000-0000-0000-00000000000b', 'alumno.dos@example.invalid'),
+ ('00000000-0000-0000-0000-00000000000d', 'admin.tres@example.invalid'),
+ ('00000000-0000-0000-0000-00000000000e', 'alumno.revocado@example.invalid');
+-- El trigger on_auth_user_created ya creó los perfiles: solo se actualiza el nombre visible.
+update public.profiles set display_name = case id
+ when '00000000-0000-0000-0000-00000000000a' then 'Alumna Uno'
+ when '00000000-0000-0000-0000-00000000000b' then null
+ when '00000000-0000-0000-0000-00000000000d' then null
+ when '00000000-0000-0000-0000-00000000000e' then null
+end;
+insert into public.user_roles (user_id, role) values
+ ('00000000-0000-0000-0000-00000000000d', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values
+ ('10000000-0000-0000-0000-000000000001', 'comentarios-uno', 'Uno', 'published', now()),
+ ('10000000-0000-0000-0000-000000000002', 'comentarios-borrador', 'Borrador', 'draft', null);
+insert into public.course_sections (id, course_id, title, position) values
+ ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Sección A', 0),
+ ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Sección B', 1),
+ ('20000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', 'Sección C', 0);
+-- 1: de pago; 2: muestra; 3: otra de pago; 4: borrador; 5: curso borrador.
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview) values
+ ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'paga', 'Paga', 0, true, false),
+ ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'muestra', 'Muestra', 0, true, true),
+ ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'otra', 'Otra', 1, true, false),
+ ('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'borrador', 'Borrador', 1, false, false),
+ ('30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000003', 'curso-borrador', 'Curso borrador', 0, true, false);
+insert into public.entitlements (user_id, course_id, revoked_at) values
+ ('00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', null),
+ ('00000000-0000-0000-0000-00000000000e', '10000000-0000-0000-0000-000000000001', now());
+-- Semilla directa (obra de servidor): orden deliberado 1, 3, 2 por created_at.
+insert into public.lesson_comments (id, lesson_id, author_id, parent_id, body, created_at) values
+ ('40000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', null, 'Primera', now() - interval '3 minutes'),
+ ('40000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000d', null, 'Del admin', now() - interval '1 minute'),
+ ('40000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', '40000000-0000-0000-0000-000000000001', 'Respuesta', now() - interval '2 minutes'),
+ ('40000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000b', null, 'Muestra', now()),
+ ('40000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-00000000000a', null, 'Otra lección', now()),
+ ('40000000-0000-0000-0000-000000000006', '30000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-00000000000d', null, 'Borrador admin', now()),
+ ('40000000-0000-0000-0000-000000000007', '30000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-00000000000d', null, 'Curso borrador admin', now());
+create temp table lc_baseline as
+select
+ (select count(*) from public.orders) as orders,
+ (select count(*) from public.entitlements) as entitlements,
+ (select count(*) from public.lesson_progress) as progress,
+ (select count(*) from public.user_roles) as roles;
+
+-- Grants: tabla sin privilegios de cliente; RPC solo authenticated.
+do $$
+begin
+  if has_table_privilege('anon', 'public.lesson_comments', 'SELECT')
+  or has_table_privilege('authenticated', 'public.lesson_comments', 'SELECT')
+  or has_table_privilege('authenticated', 'public.lesson_comments', 'INSERT')
+  or has_table_privilege('authenticated', 'public.lesson_comments', 'UPDATE')
+  or has_table_privilege('authenticated', 'public.lesson_comments', 'DELETE') then
+    raise exception 'grant de tabla inesperado';
+  end if;
+  if not has_table_privilege('service_role', 'public.lesson_comments', 'SELECT')
+  or not has_table_privilege('service_role', 'public.lesson_comments', 'INSERT') then
+    raise exception 'service_role sin grants de tabla';
+  end if;
+  if has_function_privilege('anon', 'public.list_lesson_comments(uuid)', 'EXECUTE')
+  or has_function_privilege('anon', 'public.create_lesson_comment(uuid,text,uuid)', 'EXECUTE')
+  or has_function_privilege('service_role', 'public.list_lesson_comments(uuid)', 'EXECUTE')
+  or has_function_privilege('service_role', 'public.create_lesson_comment(uuid,text,uuid)', 'EXECUTE') then
+    raise exception 'EXECUTE inesperado';
+  end if;
+  if not has_function_privilege('authenticated', 'public.list_lesson_comments(uuid)', 'EXECUTE')
+  or not has_function_privilege('authenticated', 'public.create_lesson_comment(uuid,text,uuid)', 'EXECUTE') then
+    raise exception 'authenticated sin EXECUTE';
+  end if;
+end $$;
+set local role anon;
+do $$ begin
+  begin perform public.list_lesson_comments('30000000-0000-0000-0000-000000000001'); raise exception 'anon ejecutó list'; exception when insufficient_privilege then null; end;
+  begin perform public.create_lesson_comment('30000000-0000-0000-0000-000000000001', 'x'); raise exception 'anon ejecutó create'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+  begin perform 1 from public.lesson_comments limit 1; raise exception 'authenticated leyó la tabla'; exception when insufficient_privilege then null; end;
+  begin insert into public.lesson_comments (lesson_id, author_id, body)
+    values ('30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'x');
+    raise exception 'authenticated insertó en la tabla'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+-- Listar: alumno con derecho ve 3 filas en orden created_at ASC, id ASC,
+-- con badge por autor y sin correos.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a"}', true);
+do $$
+declare r record; n int := 0; v_ids uuid[] := '{}';
+begin
+  for r in select * from public.list_lesson_comments('30000000-0000-0000-0000-000000000001') loop
+    n := n + 1;
+    v_ids := v_ids || r.id;
+    if r.body = 'Del admin' then
+      if r.author_is_admin is not true or r.author_display_name <> 'Administrador' then raise exception 'badge admin'; end if;
+    else
+      if r.author_is_admin is not false then raise exception 'badge alumno'; end if;
+      if r.author_display_name <> 'Alumna Uno' then raise exception 'display_name'; end if;
+    end if;
+    if position('@' in coalesce(r.author_display_name, '')) > 0 then raise exception 'email filtrado'; end if;
+  end loop;
+  if n <> 3 then raise exception 'list esperaba 3, got %', n; end if;
+  if v_ids <> array[
+    '40000000-0000-0000-0000-000000000001'::uuid,
+    '40000000-0000-0000-0000-000000000003'::uuid,
+    '40000000-0000-0000-0000-000000000002'::uuid
+  ] then raise exception 'orden de list'; end if;
+end $$;
+-- Sin derecho / revocado: 0 filas en lección de pago. Muestra sí para autenticado.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', true);
+do $$ begin
+  if exists (select 1 from public.list_lesson_comments('30000000-0000-0000-0000-000000000001')) then raise exception 'b vio lección de pago'; end if;
+  if (select count(*) from public.list_lesson_comments('30000000-0000-0000-0000-000000000002')) <> 1 then raise exception 'b vio muestra'; end if;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000e"}', true);
+do $$ begin
+  if exists (select 1 from public.list_lesson_comments('30000000-0000-0000-0000-000000000001')) then raise exception 'revocado vio lección'; end if;
+end $$;
+-- Admin ve y lista borradores (lección y curso). Alumno con derecho, no.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000d"}', true);
+do $$ begin
+  if (select count(*) from public.list_lesson_comments('30000000-0000-0000-0000-000000000004')) <> 1 then raise exception 'admin borrador lección'; end if;
+  if (select count(*) from public.list_lesson_comments('30000000-0000-0000-0000-000000000005')) <> 1 then raise exception 'admin curso borrador'; end if;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a"}', true);
+do $$ begin
+  if exists (select 1 from public.list_lesson_comments('30000000-0000-0000-0000-000000000004')) then raise exception 'alumno vio borrador'; end if;
+  if exists (select 1 from public.list_lesson_comments('30000000-0000-0000-0000-000000000005')) then raise exception 'alumno vio curso borrador'; end if;
+end $$;
+-- Sesión requerida: authenticated sin claim no ve ni la muestra.
+select set_config('request.jwt.claims', '', true);
+do $$ begin
+  if exists (select 1 from public.list_lesson_comments('30000000-0000-0000-0000-000000000002')) then raise exception 'sin sesión vio muestra'; end if;
+  if exists (select 1 from public.create_lesson_comment('30000000-0000-0000-0000-000000000002', 'x')) then raise exception 'sin sesión escribió'; end if;
+end $$;
+reset role;
+
+-- Crear: recorte, respuesta de 1 nivel y longitud límite.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a"}', true);
+do $$
+declare r record;
+begin
+  select * into r from public.create_lesson_comment('30000000-0000-0000-0000-000000000001', '  Hola recortado  ');
+  if not found or r.body <> 'Hola recortado' or r.parent_id is not null
+  or r.author_display_name <> 'Alumna Uno' or r.author_is_admin is not false then
+    raise exception 'crear alumno';
+  end if;
+  select * into r from public.create_lesson_comment('30000000-0000-0000-0000-000000000001', 'Respuesta nueva', '40000000-0000-0000-0000-000000000001');
+  if not found or r.parent_id <> '40000000-0000-0000-0000-000000000001' then raise exception 'respuesta raíz'; end if;
+  select * into r from public.create_lesson_comment('30000000-0000-0000-0000-000000000001', repeat('y', 2000));
+  if not found or char_length(r.body) <> 2000 then raise exception 'limite 2000'; end if;
+  -- Padre de otra lección y respuesta a respuesta: rechazados.
+  begin
+    perform public.create_lesson_comment('30000000-0000-0000-0000-000000000001', 'x', '40000000-0000-0000-0000-000000000005');
+    raise exception 'padre de otra lección aceptado';
+  exception when foreign_key_violation then null; end;
+  begin
+    perform public.create_lesson_comment('30000000-0000-0000-0000-000000000001', 'x', '40000000-0000-0000-0000-000000000003');
+    raise exception 'respuesta a respuesta aceptada';
+  exception when foreign_key_violation then null; end;
+  -- Cuerpo vacío y mayor a 2000: rechazados.
+  begin
+    perform public.create_lesson_comment('30000000-0000-0000-0000-000000000001', '   ');
+    raise exception 'body vacío aceptado';
+  exception when check_violation then null; end;
+  begin
+    perform public.create_lesson_comment('30000000-0000-0000-0000-000000000001', repeat('z', 2001));
+    raise exception 'body largo aceptado';
+  exception when check_violation then null; end;
+end $$;
+-- Sin acceso: create devuelve 0 filas, sin error que revele el motivo.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', true);
+do $$ begin
+  if exists (select 1 from public.create_lesson_comment('30000000-0000-0000-0000-000000000001', 'x')) then raise exception 'b escribió en pago'; end if;
+  if (select count(*) from public.create_lesson_comment('30000000-0000-0000-0000-000000000002', 'Desde muestra')) <> 1 then raise exception 'b no escribió en muestra'; end if;
+end $$;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000e"}', true);
+do $$ begin
+  if exists (select 1 from public.create_lesson_comment('30000000-0000-0000-0000-000000000001', 'x')) then raise exception 'revocado escribió'; end if;
+end $$;
+-- Admin: escribe en borrador y el badge sale de user_roles, no del claim.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000d"}', true);
+do $$
+declare r record;
+begin
+  select * into r from public.create_lesson_comment('30000000-0000-0000-0000-000000000004', 'Vista previa');
+  if not found or r.author_is_admin is not true or r.author_display_name <> 'Administrador'
+  or position('@' in r.author_display_name) > 0 then raise exception 'crear admin'; end if;
+end $$;
+reset role;
+
+-- Conteo real y asertos de que no se crearon derechos, pedidos, progreso ni roles.
+do $$
+declare v_total int;
+begin
+  select count(*) into v_total from public.lesson_comments;
+  -- 7 semilla + 3 del alumno con derecho + 1 de muestra + 1 del admin = 12.
+  if v_total <> 12 then raise exception 'conteo de comentarios: %', v_total; end if;
+  if (select count(*) from public.orders) <> (select orders from lc_baseline)
+  or (select count(*) from public.entitlements) <> (select entitlements from lc_baseline)
+  or (select count(*) from public.lesson_progress) <> (select progress from lc_baseline)
+  or (select count(*) from public.user_roles) <> (select roles from lc_baseline) then
+    raise exception 'se crearon objetos de comercio, progreso o rol';
+  end if;
+end $$;
+rollback;

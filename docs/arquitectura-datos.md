@@ -140,6 +140,40 @@ cancionero no se modifica.
   y con la lógica SQL/RLS en PGlite. No se ha comprobado con Auth, PostgREST ni
   RLS reales de Supabase; las pruebas no usan derechos ni roles reales.
 
+## Comentarios por lección (backend mínimo)
+
+La migración `20261118160000_lesson_comments.sql` y la prueba
+`supabase/tests/0019_lesson_comments.psql` añaden el backend mínimo de
+comentarios por lección. No es el foro completo ni sustituye al servicio único
+de conversación pendiente; este bloque no incluye interfaz Angular.
+
+| Objeto | Función |
+| --- | --- |
+| `public.lesson_comments` | `id`, `lesson_id`, `author_id`, `parent_id`, `body` (1..2000 tras `btrim`) y `created_at`. Borrado en cascada con lección, autor y padre. |
+| `public.list_lesson_comments(p_lesson_id uuid)` | Devuelve `id`, `parent_id`, `body`, `created_at`, `author_display_name` y `author_is_admin`, ordenados por `created_at ASC, id ASC`. |
+| `public.create_lesson_comment(p_lesson_id uuid, p_body text, p_parent_id uuid default null)` | Inserta y devuelve la misma forma. Sin acceso devuelve 0 filas. |
+
+La tabla tiene RLS activo **sin políticas** y sin grants para `anon` ni
+`authenticated`; `service_role` conserva todos. Las dos RPC son
+`security definer`, con `set search_path = ''`, y solo `authenticated` recibe
+`EXECUTE` (sin PUBLIC, anon ni service_role). Comprueban `auth.uid()` en
+servidor y exigen admin real en `public.user_roles` o lección publicada de
+curso publicado con muestra gratuita o derecho activo (`revoked_at is null`).
+El admin también ve y escribe en borradores. `anon` queda denegado por GRANT;
+una sesión sin derecho, sin claim o con derecho revocado obtiene 0 filas sin
+revelar el motivo ni si la lección existe. `author_is_admin` se calcula en BD
+desde `user_roles`; el nombre visible es `nullif(btrim(display_name),'')` con
+fallback `'Alumno'` o `'Administrador'`, nunca el correo.
+
+Decisiones de alcance: se requiere sesión (la muestra gratuita es
+autenticada); un solo nivel de respuestas, pues `parent_id` debe ser raíz de la
+misma lección; cuerpo recortado de 1 a 2000 caracteres. No hay edición, borrado,
+moderación, notificaciones, tiempo real ni contadores. No se publican cursos ni
+lecciones y las RPC no crean derechos, pedidos ni progreso. La migración **no se
+ha aplicado a ningún proyecto remoto**: la verificación fue `npm run test:sql`
+(PGlite), que valida lógica SQL/RLS, **no** Auth, PostgREST ni RLS reales de
+Supabase.
+
 ## Principios
 
 1. **La base de datos decide.** Angular puede ocultar botones, pero la
@@ -214,6 +248,7 @@ existente. Aplicar la migración en cada entorno antes de desplegar este cliente
 | `public.order_items` | Líneas con título e importe congelados. | Financiero; lectura propia. |
 | `public.entitlements` | Derecho de acceso por usuario y curso, revocable. | Acceso; lectura propia, escritura solo servidor. |
 | `public.lesson_progress` | Progreso manual del alumno. | Solo el propio usuario. |
+| `public.lesson_comments` | Comentarios por lección, con un nivel de respuestas; acceso solo por RPC. | Nombre visible sin correo; RLS sin políticas y sin grants de cliente. |
 | `private.lesson_videos` | ID de Bunny, duración y estado del vídeo. | Sí, solo servidor. |
 | `private.lesson_resources` | Bucket y ruta de PDFs, tablaturas, audios, etc. | Sí, solo servidor. |
 | `private.commerce_events` | ID externo de webhook y estado de procesamiento. | Sí, solo servidor. |
@@ -239,6 +274,8 @@ denegado; **Admin** = permitido si `private.is_admin()`.
 | Pedido / líneas | — | Propio | Propio | — | Sí |
 | Derecho de acceso | — | Propio | Propio | — | Sí |
 | Progreso propio | — | — | Lectura y escritura | — | Sí |
+| Comentarios de lección vía RPC | — | Muestra, sí | Sí | Sí | — |
+| `public.lesson_comments` (tabla) | — | — | — | — | Sí |
 | Vídeo / rutas de recursos | — | — | — | — | Sí |
 | Crear/editar/borrar catálogo | — | — | — | Sí | Sí |
 | Eventos de comercio | — | — | — | — | Sí |
@@ -297,7 +334,8 @@ Alcance previsto:
 - Vista previa de borradores antes de publicar. Los borradores no son públicos.
 - Metadatos de vídeo (ID de Bunny, duración, estado) y documentos anexos.
 - Respuestas a preguntas de alumnos, **unificadas con el foro** cuando se
-  implemente. No se crea un sistema de comentarios paralelo.
+  implemente. El backend mínimo de comentarios por lección descrito arriba es
+  la base de ese servicio único; no se crea un sistema paralelo.
 - Una sola versión inicial con rol `admin`. No se inventan permisos operativos de
   instructor, moderador ni profesor; se añadirán cuando se definan.
 
@@ -398,8 +436,9 @@ se deben usar credenciales reales en pruebas locales.
 
 ## Fuera de alcance y pendientes
 
-- Foro, dudas por lección, moderación y notificaciones: fase posterior, misma
-  cuenta; no hay tablas ni sistema de comentarios paralelo.
+- Foro completo, dudas unificadas, moderación y notificaciones: fase posterior,
+  misma cuenta. El backend mínimo de comentarios por lección ya descrito no es
+  ese foro y no incluye borrado, moderación, tiempo real ni contadores.
 - Packs, cupones, cuestionario inicial, rutas de aprendizaje, eventos y
   ejercicios: sin tablas en esta migración.
 - Reproducción privada, capítulos, reanudación y emisión de tokens: pendientes.
