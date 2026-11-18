@@ -69,4 +69,54 @@ describe('PublicCoursesRepository', () => {
     TestBed.configureTestingModule({ providers: [{ provide: SUPABASE_CLIENT, useValue: { from: () => query } }] });
     await expect(TestBed.inject(PublicCoursesRepository).list()).rejects.toThrow('failed');
   });
+
+  describe('acceso al curso', () => {
+    function setupAccess(rows: unknown[] | { data: null; error: { message: string } }) {
+      const calls: unknown[][] = [];
+      const query = {
+        select: vi.fn(() => query),
+        eq: vi.fn((...args: unknown[]) => { calls.push(['eq', ...args]); return query; }),
+        returns: vi.fn().mockResolvedValue(Array.isArray(rows) ? { data: rows, error: null } : rows),
+      };
+      const from = vi.fn(() => query);
+      TestBed.configureTestingModule({ providers: [{ provide: SUPABASE_CLIENT, useValue: { from } as unknown as SupabaseClient }] });
+      return { repo: TestBed.inject(PublicCoursesRepository), query, from, calls };
+    }
+
+    it('distingue derecho activo, revocado y ausente solo con los campos necesarios', async () => {
+      const { repo, query, from } = setupAccess([{ revoked_at: null }]);
+      expect(await repo.access('c1', 'u1')).toBe('granted');
+      expect(from).toHaveBeenCalledWith('entitlements');
+      expect(query.select).toHaveBeenCalledWith('revoked_at');
+      expect(query.select).not.toHaveBeenCalledWith('revocation_reason');
+      expect(query.select).not.toHaveBeenCalledWith('id, revoked_at');
+    });
+
+    it('un derecho revocado no concede acceso', async () => {
+      const { repo } = setupAccess([{ revoked_at: '2026-01-01T00:00:00Z' }]);
+      expect(await repo.access('c1', 'u1')).toBe('revoked');
+    });
+
+    it('un admin sin fila de derecho no obtiene acceso', async () => {
+      const { repo } = setupAccess([]);
+      expect(await repo.access('c1', 'admin')).toBe('none');
+    });
+
+    it('si hay varias filas y alguna activa, concede acceso', async () => {
+      const { repo } = setupAccess([{ revoked_at: '2025-01-01T00:00:00Z' }, { revoked_at: null }]);
+      expect(await repo.access('c1', 'u1')).toBe('granted');
+    });
+
+    it('traduce un error del SDK a failed y no a «sin acceso»', async () => {
+      const { repo } = setupAccess({ data: null, error: { message: 'detalle interno' } });
+      await expect(repo.access('c1', 'u1')).rejects.toThrow('failed');
+    });
+
+    it('filtra siempre por el propio usuario, sin confiar en el rol', async () => {
+      const { repo, calls } = setupAccess([]);
+      await repo.access('c1', 'u1');
+      expect(calls).toContainEqual(['eq', 'user_id', 'u1']);
+      expect(calls).toContainEqual(['eq', 'course_id', 'c1']);
+    });
+  });
 });

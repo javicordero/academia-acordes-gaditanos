@@ -1,3 +1,4 @@
 .description { white-space: pre-wrap; overflow-wrap: anywhere; }
 section { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 1rem; margin: 1rem 0; }
+.access.granted { border-color: currentColor; }
 button { font: inherit; padding: .45rem; }

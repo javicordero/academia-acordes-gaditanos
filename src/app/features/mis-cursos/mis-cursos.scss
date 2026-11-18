@@ -1,4 +1,5 @@
-﻿.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; list-style: none; padding: 0; }
+﻿.notice { border: 2px solid currentColor; border-radius: .5rem; padding: 1rem; margin: 1rem 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; list-style: none; padding: 0; }
 .cards li { border: 1px solid currentColor; border-radius: .5rem; padding: 1rem; }
 .links { display: flex; flex-wrap: wrap; gap: 1rem; }
 progress { max-width: 100%; }
