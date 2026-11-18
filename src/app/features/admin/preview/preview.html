@@ -1,18 +1,28 @@
 <section class="page admin-workspace" aria-labelledby="preview-heading">
-  <h1 #heading id="preview-heading" tabindex="-1">Vista previa del aula</h1>
+  <!-- Único anuncio de cambio de lección: vacío en carga inicial y reintentos. -->
+  <p class="sr-only" aria-live="polite" aria-atomic="true">{{ announcement() }}</p>
+  <h1 #heading id="preview-heading" tabindex="-1">{{ headingLabel() }}</h1>
   <p><strong>Vista previa de administración. No implica compra ni matrícula.</strong></p>
   <p><a class="preview-action" routerLink="/admin">Volver a administración y cursos</a></p>
   @switch (state()) {
-    @case ('loading') { <p role="status">Cargando lección…</p> }
+    @case ('loading') {
+      <p class="sr-only">Cargando lección…</p>
+      <div class="content-skeleton" aria-hidden="true"></div>
+    }
     @case ('denied') { <p>Esta lección no está disponible o no tienes acceso.</p> }
-    @case ('error') { <p role="alert">No se pudo cargar la vista previa. Comprueba la conexión y vuelve a intentarlo.</p> }
+    @case ('error') {
+      <p role="alert">No se pudo cargar la vista previa. Comprueba la conexión y vuelve a intentarlo.</p>
+      <button type="button" (click)="retry()">Reintentar</button>
+    }
     @case ('ready') {
       @if (data(); as aula) {
         @if (aula.lesson; as lesson) {
-          <div class="layout">
-            <app-classroom-nav [title]="aula.course.title" [sections]="aula.sections" [lessons]="aula.lessons"
-              [activeId]="lesson.id" [courseId]="courseId()" [admin]="true" />
-            <article>
+          <div class="aula-layout">
+            <aside class="aula-sidebar" aria-label="Índice del curso">
+              <app-classroom-nav [title]="aula.course.title" [sections]="aula.sections" [lessons]="aula.lessons"
+                [activeId]="lesson.id" [courseId]="courseId()" [admin]="true" />
+            </aside>
+            <article class="aula-content">
               @if (lesson.content_type === 'video') { <div class="video-stage">
                 <strong>Vídeo de la lección</strong>
                 @if (notice(); as note) { <p class="video-notice">{{ note }}</p> }
@@ -50,17 +60,23 @@
               @else { <p>Esta lección no tiene contenido escrito.</p> }
               <app-lesson-materials [lessonId]="lesson.id" [courseId]="courseId()" [returnUrl]="'/admin/vista-previa/' + courseId() + '/' + lesson.id" [primary]="lesson.content_type === 'pdf'" />
               <section><h3>Dudas y comentarios de esta lección</h3><p>Esta función está pendiente de implementación.</p></section>
-              <nav aria-label="Navegación entre lecciones">
-                @if (previous(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]">Anterior: {{ item.title }}</a> }
+              <nav class="lesson-nav" aria-label="Navegación entre lecciones">
+                @if (previous(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]" (click)="prepareLessonChange()">Anterior: {{ item.title }}</a> }
                 @else { <span>Primera lección</span> }
-                <button type="button" disabled aria-describedby="preview-progress">Marcar como completada</button>
-                @if (next(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]">Siguiente: {{ item.title }}</a> }
+                <div class="progress-control">
+                  <button type="button" class="progress-button" disabled>Marcar como completada</button>
+                  <p class="progress-note">En la vista previa no se guarda progreso de alumno.</p>
+                </div>
+                @if (next(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]" (click)="prepareLessonChange()">Siguiente: {{ item.title }}</a> }
                 @else { <span>Última lección</span> }
               </nav>
-              <p id="preview-progress">En la vista previa no se guarda progreso de alumno.</p>
             </article>
           </div>
-        } @else { <h2>{{ aula.course.title }}</h2><p>Añade una lección para abrir la vista previa del aula.</p> }
+        } @else {
+          <h2>{{ aula.course.title }}</h2>
+          <p>Añade una lección para abrir la vista previa del aula.</p>
+          <a class="preview-action" [routerLink]="['/admin', 'curso', courseId(), 'estructura']">Ir a la estructura del curso</a>
+        }
       }
     }
   }

@@ -133,4 +133,23 @@ describe('LessonMaterials', () => {
     const third = c.prepareDownload(item); fixture.destroy();
     resolve(url); await third; expect(c.links()).toEqual({});
   });
+  it('usa un título genérico y una sola acción real de descarga', async () => {
+    service.list.mockResolvedValue([item]);
+    service.download.mockResolvedValue(url);
+    const fixture = await setup(), root: HTMLElement = fixture.nativeElement;
+    await fixture.componentInstance.prepareDownload(item); fixture.detectChanges();
+    const heading = root.querySelector<HTMLElement>('#materials-heading')!;
+    expect(heading.textContent).toContain('Materiales de la lección');
+    expect(heading.textContent).not.toContain('Materiales PDF');
+    expect(root.textContent).toContain('Lección: Lección');
+    const downloadActions = [...root.querySelectorAll('button, a')].filter(el =>
+      (el.getAttribute('aria-label') ?? el.textContent ?? '').includes('Descargar PDF'));
+    expect(downloadActions).toHaveLength(1);
+    expect(root.querySelectorAll('[role=status]')).toHaveLength(1);
+  });
+  it('explica el estado vacío sin ofrecer acciones falsas', async () => {
+    const fixture = await setup(), root: HTMLElement = fixture.nativeElement;
+    expect(root.textContent).toContain('No hay materiales para esta lección.');
+    expect(root.querySelector('li button, li a')).toBeNull();
+  });
 });

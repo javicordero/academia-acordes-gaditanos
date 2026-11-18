@@ -1,9 +1,19 @@
+/* Estilos locales del wrapper: el layout, la navegación y el foco visible los
+   aporta la hoja del aula que ya comparte este componente. */
 .preview-action {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
   padding-inline: .5rem;
 }
-nav[aria-label="Navegación entre lecciones"] { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
-nav[aria-label="Navegación entre lecciones"] > * { min-height: 44px; display: inline-flex; align-items: center; }
-.video-notice { overflow-wrap: anywhere; max-width: 100%; }
+
+/* Explicación del botón deshabilitado junto al control, sin aria-describedby
+   apuntando a un nodo que un botón no enfocable no puede alcanzar. */
+.progress-control { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; }
+.progress-note { margin: 0; color: var(--muted); font-size: .875rem; }
+
+.video-notice { overflow-wrap: anywhere; }
+
+@media (max-width: 47.999rem) {
+  .progress-control { width: 100%; }
+}

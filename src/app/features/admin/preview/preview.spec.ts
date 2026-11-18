@@ -1,23 +1,16 @@
-import { Component, input, signal } from '@angular/core';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { DomSanitizer } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { vi } from 'vitest';
+import { SUPABASE_CONFIG } from '../../../../environments/supabase-config';
 import { AuthService } from '../../../core/auth/auth.service';
+import { LessonResources } from '../../../shared/lesson-resources/lesson-resources';
 import { AulaRepository } from '../../aula/aula-repository';
-import { LessonMaterials } from '../../aula/lesson-materials/lesson-materials';
 import { PlaybackSource, VideoPlaybackService } from '../../aula/video-playback';
 import { PreviewRepository } from './preview-repository';
 import { Preview } from './preview';
-
-@Component({ selector: 'app-lesson-materials', template: '' })
-class MaterialsStub {
-  readonly lessonId = input.required<string>();
-  readonly courseId = input.required<string>();
-  readonly returnUrl = input.required<string>();
-  readonly primary = input(false);
-}
 
 /** Fuente firmada ficticia: no hay red, claves ni secretos en estas pruebas. */
 function fakeSource(notice = 'Aviso del proveedor', expiresAt?: number): PlaybackSource {
@@ -53,9 +46,12 @@ describe('Vista previa administrativa', () => {
   let authStatus: ReturnType<typeof signal<'loading' | 'authenticated' | 'anonymous' | 'unconfigured'>>;
   let source: ReturnType<typeof vi.fn>;
   let progressSave: ReturnType<typeof vi.fn>;
+  const resources = { list: vi.fn(), download: vi.fn() };
 
   beforeEach(async () => {
     load.mockReset();
+    resources.list.mockReset(); resources.download.mockReset();
+    resources.list.mockResolvedValue([]); resources.download.mockResolvedValue(null);
     session = signal<{ user: { id: string } } | null>({ user: { id: 'admin' } });
     authStatus = signal<'loading' | 'authenticated' | 'anonymous' | 'unconfigured'>('authenticated');
     source = vi.fn(() => null);
@@ -67,12 +63,13 @@ describe('Vista previa administrativa', () => {
         { path: 'admin/vista-previa/:courseId/:lessonId', component: Preview },
         { path: 'admin/vista-previa/:courseId', component: Preview },
       ]),
-      { provide: AuthService, useValue: { session, status: authStatus, isAdmin: signal(true) } },
+      { provide: AuthService, useValue: { session, status: authStatus, error: signal<string | null>(null), isAdmin: signal(true) } },
       { provide: PreviewRepository, useValue: { load } },
       { provide: VideoPlaybackService, useValue: { sourceForLesson: source } },
       { provide: AulaRepository, useValue: { load: vi.fn(), save: progressSave } },
+      { provide: LessonResources, useValue: resources },
+      { provide: SUPABASE_CONFIG, useValue: { url: 'https://example.test', publishableKey: 'fake' } },
     ] });
-    TestBed.overrideComponent(Preview, { remove: { imports: [LessonMaterials] }, add: { imports: [MaterialsStub] } });
     harness = await RouterTestingHarness.create();
   });
 
@@ -101,12 +98,16 @@ describe('Vista previa administrativa', () => {
     expect(root.querySelector('app-lesson-materials')).not.toBeNull();
   });
 
-  it('explica cuando el curso no tiene lecciones', async () => {
+  it('explica el estado vacío y ofrece una acción real para crear la primera lección', async () => {
     load.mockResolvedValueOnce({ course, sections: [], lessons: [], lesson: null });
     await harness.navigateByUrl(path(), Preview);
-    await harness.fixture.whenStable();
-    expect(harness.routeNativeElement?.textContent).toContain('Curso borrador');
-    expect(harness.routeNativeElement?.textContent).toContain('Añade una lección');
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    expect(root.textContent).toContain('Curso borrador');
+    expect(root.textContent).toContain('Añade una lección para abrir la vista previa');
+    const action = root.querySelector<HTMLAnchorElement>('a[href="/admin/curso/' + courseId + '/estructura"]');
+    expect(action?.textContent).toContain('Ir a la estructura del curso');
+    expect(root.querySelector('button')).toBeNull();
   });
 
   it('rechaza una lección ajena que el repositorio no encuentra en el curso', async () => {
@@ -117,24 +118,27 @@ describe('Vista previa administrativa', () => {
     expect(harness.routeNativeElement?.textContent).not.toContain('Primera');
   });
 
-  it('navega por las lecciones del curso y conserva el foco en el contenido', async () => {
-    await harness.navigateByUrl(path(firstId), Preview);
+  it('al pulsar Anterior/Siguiente enfoca el h1 y anuncia el cambio sin robar foco al cargar', async () => {
+    const component = await harness.navigateByUrl(path(firstId), Preview);
     await harness.fixture.whenStable(); harness.detectChanges();
-    // El montaje automático del vídeo no roba el foco al reproductor.
+    // Carga inicial: sin foco robado y sin anuncio de cambio de lección.
     expect(document.activeElement === document.body || document.activeElement?.id === 'preview-heading').toBe(true);
-    const h2 = harness.routeNativeElement?.querySelector<HTMLElement>('article h2')!;
-    h2.focus();
-    const next = harness.routeNativeElement?.querySelector('nav[aria-label="Navegación entre lecciones"] a');
-    expect(next?.textContent).toContain('Siguiente: Segunda');
-    expect(next?.getAttribute('href')).toBe(path(secondId));
-    await harness.navigateByUrl(path(secondId), Preview);
+    expect(component.announcement()).toBe('');
+
+    harness.routeNativeElement!.querySelector<HTMLAnchorElement>('nav[aria-label="Navegación entre lecciones"] a')!.click();
     await harness.fixture.whenStable(); harness.detectChanges();
-    // El montaje automático del vídeo no roba el foco al reproductor.
-    expect(document.activeElement === document.body || document.activeElement?.id === 'preview-heading').toBe(true);
-    const previous = harness.routeNativeElement?.querySelector('nav[aria-label="Navegación entre lecciones"] a');
-    expect(previous?.textContent).toContain('Anterior: Primera');
-    expect(previous?.getAttribute('href')).toBe(path(firstId));
+    await harness.fixture.whenStable(); harness.detectChanges();
     expect(TestBed.inject(Router).url).toBe(path(secondId));
+    expect(document.activeElement?.id).toBe('preview-heading');
+    expect(component.announcement()).toContain('Segunda');
+    expect(harness.routeNativeElement?.querySelector('article h2')?.textContent).toContain('Segunda');
+
+    harness.routeNativeElement!.querySelector<HTMLAnchorElement>('nav[aria-label="Navegación entre lecciones"] a')!.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(TestBed.inject(Router).url).toBe(path(firstId));
+    expect(document.activeElement?.id).toBe('preview-heading');
+    expect(component.announcement()).toContain('Primera');
   });
 
   it('descarta una carga antigua cuando cambian los parámetros', async () => {
@@ -328,14 +332,16 @@ describe('Vista previa administrativa', () => {
     expect(document.activeElement).not.toBe(iframe);
   });
 
-  it('mantiene el progreso deshabilitado y no escribe en ningún repositorio de progreso', async () => {
+  it('explica el progreso deshabilitado junto al botón, sin aria-describedby inalcanzable', async () => {
     await harness.navigateByUrl(path(firstId), Preview);
     await harness.fixture.whenStable(); harness.detectChanges();
     const root = harness.routeNativeElement!;
-    const progress = root.querySelector<HTMLButtonElement>('nav[aria-label="Navegación entre lecciones"] button')!;
+    const control = root.querySelector<HTMLElement>('.progress-control')!;
+    const progress = control.querySelector<HTMLButtonElement>('button')!;
     expect(progress.disabled).toBe(true);
-    expect(progress.getAttribute('aria-describedby')).toBe('preview-progress');
-    expect(root.textContent).toContain('En la vista previa no se guarda progreso de alumno.');
+    expect(progress.hasAttribute('aria-describedby')).toBe(false);
+    expect(control.querySelector('.progress-note')?.textContent).toContain('En la vista previa no se guarda progreso de alumno.');
+    expect(root.querySelector('#preview-progress')).toBeNull();
     progress.click();
     expect(progressSave).not.toHaveBeenCalled();
   });
@@ -404,5 +410,62 @@ describe('Vista previa administrativa', () => {
     await harness.fixture.whenStable(); harness.detectChanges();
     expect(harness.routeNativeElement?.querySelector('iframe')).not.toBeNull();
     expect(document.activeElement).toBe(back);
+  });
+
+  it('muestra el error con un reintento que vuelve a pedir los datos de verdad', async () => {
+    load.mockRejectedValueOnce(new Error('red')).mockResolvedValueOnce({ course, sections, lessons, lesson: first });
+    const component = await harness.navigateByUrl(path(firstId), Preview);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(component.state()).toBe('error');
+    expect(load).toHaveBeenCalledTimes(1);
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('No se pudo cargar la vista previa');
+    const retry = [...root.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Reintentar')!;
+    expect(retry).toBeTruthy();
+
+    retry.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(component.state()).toBe('ready');
+    expect(harness.routeNativeElement?.querySelector('article h2')?.textContent).toContain('Primera');
+    expect(component.announcement()).toBe('');
+    expect(document.activeElement === document.body || document.activeElement?.id === 'preview-heading').toBe(true);
+  });
+
+  it('reserva altura al cargar y no duplica anuncios de estado', async () => {
+    authStatus.set('loading');
+    await harness.navigateByUrl(path(firstId), Preview);
+    harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('.content-skeleton')).not.toBeNull();
+    expect(root.querySelector('.content-skeleton')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.textContent).toContain('Cargando lección');
+    expect(root.querySelectorAll('[role=status]')).toHaveLength(0);
+    expect(root.querySelector('[aria-live="polite"]')?.textContent?.trim()).toBe('');
+
+    authStatus.set('authenticated');
+    harness.detectChanges();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    // El wrapper no añade role=status: el anuncio de cambio es solo aria-live.
+    const announcement = root.querySelector<HTMLElement>('p[aria-live="polite"]')!;
+    expect(announcement.hasAttribute('role')).toBe(false);
+    expect(announcement.textContent?.trim()).toBe('');
+    // Los estados de los hijos (vídeo y materiales del aula) son distintos entre sí.
+    const statuses = [...root.querySelectorAll('[role=status]')].map(e => e.textContent?.trim());
+    expect(new Set(statuses).size).toBe(statuses.length);
+  });
+
+  it('integra los materiales del aula con título genérico y una sola acción de descarga', async () => {
+    resources.list.mockResolvedValueOnce([{ id: 'r', title: 'Apuntes', kind: 'pdf' }]);
+    resources.download.mockResolvedValueOnce('https://example.test/storage/v1/object/sign/lesson-pdfs/' +
+      courseId + '/' + firstId + '/r/file.pdf?token=fake');
+    await harness.navigateByUrl(path(firstId), Preview);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const materials = harness.routeNativeElement!.querySelector<HTMLElement>('app-lesson-materials')!;
+    expect(materials.textContent).toContain('Materiales de la lección');
+    expect(materials.textContent).not.toContain('Materiales PDF');
+    const downloadActions = [...materials.querySelectorAll('button, a')].filter(el =>
+      (el.getAttribute('aria-label') ?? el.textContent ?? '').includes('Descargar PDF'));
+    expect(downloadActions).toHaveLength(1);
   });
 });

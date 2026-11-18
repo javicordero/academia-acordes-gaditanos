@@ -7,15 +7,16 @@ import { LessonResources, PdfResource } from '../../../shared/lesson-resources/l
 @Component({
   selector: 'app-lesson-materials', imports: [FormsModule], changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section aria-labelledby="materials-heading">
-      <h3 #heading id="materials-heading" tabindex="-1">Materiales PDF · {{ lessonTitle() }}</h3>
+    <section aria-labelledby="materials-heading" class="materials-panel">
+      <h3 #heading id="materials-heading" tabindex="-1">Materiales de la lección</h3>
+      <p class="materials-context">Lección: {{ lessonTitle() }}</p>
       <button type="button" (click)="closed.emit()">Volver a estructura</button>
-      <p aria-live="polite">{{ status() }}</p>
+      <p class="materials-status" aria-live="polite">{{ status() }}</p>
       @if (error()) { <p role="alert">{{ error() }}</p> }
-      @if (loading()) { <p role="status">Cargando materiales…</p> }
+      @if (loading()) { <p>Cargando materiales…</p> }
       @else {
         @if (listFailed()) { <button type="button" [disabled]="loading() || busy()" (click)="reload()">Recargar lista</button> }
-        @else if (!items().length) { <p>No hay materiales PDF.</p> }
+        @else if (!items().length) { <p>No hay materiales para esta lección.</p> }
         @else {
           <p>Descargar para abrirlo en tu equipo. Los enlaces caducan en un máximo de 60 segundos y pueden compartirse hasta entonces.</p>
           <ul>@for (item of items(); track item.id) { <li>
@@ -45,11 +46,20 @@ import { LessonResources, PdfResource } from '../../../shared/lesson-resources/l
         </fieldset>
       </form>
       @if (pending()) {
-        <p role="status">Hay una reserva pendiente. La publicación no está confirmada.</p>
+        <p>Hay una reserva pendiente. La publicación no está confirmada.</p>
         <button type="button" [disabled]="busy()" (click)="retry()">Reintentar validación</button>
       }
     </section>`,
-  styles: `fieldset { display: grid; gap: .5rem; } section { margin-block: 1rem; }`
+  styles: `
+    .materials-panel { margin-block: 1rem; display: grid; gap: .5rem; }
+    .materials-context { margin: 0; color: var(--muted); }
+    .materials-status:empty { display: none; }
+    fieldset { display: grid; gap: .5rem; min-width: 0; }
+    ul { display: grid; gap: .75rem; padding-inline-start: 1.25rem; }
+    li { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .75rem; min-width: 0; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+    @media (min-width: 48rem) { .materials-panel { max-width: 60ch; } }
+  `
 })
 export class LessonMaterials {
   readonly courseId = input.required<string>(); readonly lessonId = input.required<string>(); readonly lessonTitle = input.required<string>();
