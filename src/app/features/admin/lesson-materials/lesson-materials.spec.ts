@@ -152,4 +152,16 @@ describe('LessonMaterials', () => {
     expect(root.textContent).toContain('No hay materiales para esta lección.');
     expect(root.querySelector('li button, li a')).toBeNull();
   });
+  it('acepta IDs y returnUrl opcionales y no consulta el servicio sin contexto', async () => {
+    const fixture = TestBed.createComponent(LessonMaterials);
+    fixture.componentRef.setInput('returnUrl', '/admin/curso/curso/estructura');
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(service.list).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.returnUrl()).toBe('/admin/curso/curso/estructura');
+    fixture.componentRef.setInput('courseId', course);
+    fixture.componentRef.setInput('lessonId', lesson);
+    fixture.componentRef.setInput('lessonTitle', 'Lección');
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(service.list).toHaveBeenCalledTimes(1);
+  });
 });

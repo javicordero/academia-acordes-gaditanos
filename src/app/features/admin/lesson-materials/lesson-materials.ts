@@ -62,7 +62,10 @@ import { LessonResources, PdfResource } from '../../../shared/lesson-resources/l
   `
 })
 export class LessonMaterials {
-  readonly courseId = input.required<string>(); readonly lessonId = input.required<string>(); readonly lessonTitle = input.required<string>();
+  /** IDs opcionales: los aporta el host al embeber el panel o la ruta histórica.
+   *  `returnUrl` se acepta por compatibilidad; la navegación la decide el host. */
+  readonly courseId = input(''); readonly lessonId = input(''); readonly lessonTitle = input('');
+  readonly returnUrl = input('');
   readonly closed = output<void>();
   private readonly service = inject(LessonResources); private readonly auth = inject(AuthService); private readonly destroy = inject(DestroyRef);
   private readonly config = inject(SUPABASE_CONFIG);
@@ -88,7 +91,8 @@ export class LessonMaterials {
       this.items.set([]); this.error.set(''); this.status.set(''); this.pending.set(null); this.publishedPendingRefresh.set(null); this.busy.set(false); this.file = null; this.title = '';
       this.invalidTitle.set(false); this.invalidFile.set(false);
       untracked(() => { const fileInput = this.fileInput(); if (fileInput) fileInput.nativeElement.value = ''; });
-      if (user) void this.load(version, course, lesson, user); else { this.loading.set(false); this.listFailed.set(true); }
+      if (user && course && lesson) void this.load(version, course, lesson, user);
+      else { this.loading.set(false); this.listFailed.set(true); }
     });
   }
   private current(v: number, c: string, l: string, u: string): boolean {

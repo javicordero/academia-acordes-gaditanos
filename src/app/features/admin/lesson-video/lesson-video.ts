@@ -85,6 +85,8 @@ export class LessonVideo {
   readonly lessonId = input('');
   readonly lessonTitle = input('');
   readonly courseId = input('');
+  /** Compatibilidad con hosts que pasan la ruta de origen; el host decide la navegación. */
+  readonly returnUrl = input('');
 
   private readonly route = inject(ActivatedRoute, { optional: true });
   // La ruta puede reutilizar este componente al pasar de :lessonId a otro:

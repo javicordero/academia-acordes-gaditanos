@@ -1,9 +1,16 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
+import { Router, provideRouter } from '@angular/router';
 
 import { vi } from 'vitest';
 import { Structure } from './structure';
 import { StructureRepository } from '../structure-repository';
+import { LessonVideo } from '../lesson-video/lesson-video';
+import { LessonMaterials } from '../lesson-materials/lesson-materials';
+import { AuthService } from '../../../core/auth/auth.service';
+import { SUPABASE_CLIENT } from '../../../core/supabase/supabase-client';
+import { LessonResources } from '../../../shared/lesson-resources/lesson-resources';
 
 describe('Structure', () => {
   const repo = {
@@ -16,6 +23,9 @@ describe('Structure', () => {
   const makeLesson = (id: string, title: string) => ({ id, course_id: 'course', section_id: 'section',
     slug: title.toLowerCase(), title, summary: null, content_md: null, position: 0,
     duration_seconds: null, is_free_preview: false, is_published: false, content_type: 'video' as const });
+  const invoke = vi.fn();
+  const listMaterials = vi.fn();
+  const session = signal<{ user: { id: string } } | null>({ user: { id: 'admin' } });
   beforeEach(() => {
     vi.resetAllMocks();
     repo.list.mockResolvedValue({ sections: [section], lessons: [] });
@@ -23,7 +33,18 @@ describe('Structure', () => {
     repo.saveLesson.mockResolvedValue(undefined);
     repo.reorderCourseSections.mockResolvedValue(undefined);
     repo.reorderSectionLessons.mockResolvedValue(undefined);
-    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: StructureRepository, useValue: repo }] });
+    session.set({ user: { id: 'admin' } });
+    invoke.mockResolvedValue({ data: { state: 'none', hasVideo: false,
+      limits: { maxBytes: 1000, allowedMimeTypes: ['video/mp4'] } }, error: null });
+    listMaterials.mockResolvedValue([]);
+    TestBed.configureTestingModule({ providers: [
+      provideRouter([]),
+      { provide: StructureRepository, useValue: repo },
+      { provide: AuthService, useValue: { session: session.asReadonly() } },
+      { provide: SUPABASE_CLIENT, useValue: { functions: { invoke } } },
+      { provide: LessonResources, useValue: { list: listMaterials, prepare: vi.fn(), upload: vi.fn(),
+        finalize: vi.fn(), download: vi.fn() } },
+    ] });
   });
   async function setup() {
     const fixture = TestBed.createComponent(Structure);
@@ -633,5 +654,130 @@ describe('Structure', () => {
     expect(fold().getAttribute('aria-expanded')).toBe('false');
     expect(fold().hasAttribute('aria-controls')).toBe(false);
     expect(fixture.nativeElement.querySelector('#lessons-sa')).toBeNull();
+  });
+
+  const inspectableLesson = '22222222-2222-2222-2222-222222222222';
+
+  async function withLessonInTabs() {
+    const lesson = makeLesson(inspectableLesson, 'Lección');
+    repo.list.mockResolvedValueOnce({ sections: [section], lessons: [lesson] });
+    const fixture = await setup();
+    fixture.componentInstance.editLesson(section, lesson);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    return { fixture, lesson };
+  }
+
+  it('integra vídeo y materiales en el inspector sin navegar al abrir sus pestañas', async () => {
+    const { fixture, lesson } = await withLessonInTabs();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate');
+    const tab = (id: string) => fixture.nativeElement.querySelector(`#${id}`) as HTMLButtonElement;
+    expect([...fixture.nativeElement.querySelectorAll('[role="tab"]')]
+      .map(item => item.textContent?.trim())).toEqual(['Datos', 'Vídeo', 'Materiales']);
+    expect(tab('tab-datos').getAttribute('aria-selected')).toBe('true');
+    expect(fixture.nativeElement.querySelector('app-lesson-video')).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-lesson-materials')).toBeNull();
+    expect(tab('tab-video').hasAttribute('aria-controls')).toBe(false);
+    expect(tab('tab-materiales').hasAttribute('aria-controls')).toBe(false);
+
+    tab('tab-video').click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(navigate).not.toHaveBeenCalled();
+    const video = fixture.debugElement.query(By.directive(LessonVideo));
+    expect(video).not.toBeNull();
+    expect(video.componentInstance.lessonId()).toBe(lesson.id);
+    expect(video.componentInstance.courseId()).toBe('course');
+    expect(document.activeElement?.id).toBe('tab-video');
+    expect(tab('tab-video').getAttribute('aria-controls')).toBe('panel-video');
+    expect(fixture.nativeElement.querySelector('#panel-video').hasAttribute('hidden')).toBe(false);
+    expect(fixture.nativeElement.querySelector('#panel-datos').hasAttribute('hidden')).toBe(true);
+
+    tab('tab-materiales').click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(navigate).not.toHaveBeenCalled();
+    const materials = fixture.debugElement.query(By.directive(LessonMaterials));
+    expect(materials).not.toBeNull();
+    expect(materials.componentInstance.lessonId()).toBe(lesson.id);
+    expect(document.activeElement?.id).toBe('tab-materiales');
+    expect(tab('tab-materiales').getAttribute('aria-controls')).toBe('panel-materiales');
+    expect(fixture.nativeElement.querySelector('#panel-video').hasAttribute('hidden')).toBe(true);
+    navigate.mockRestore();
+  });
+
+  it('conserva un único guardado de datos tras recorrer las pestañas', async () => {
+    const { fixture, lesson } = await withLessonInTabs();
+    for (const id of ['tab-video', 'tab-materiales', 'tab-datos']) {
+      (fixture.nativeElement.querySelector(`#${id}`) as HTMLButtonElement).click();
+      fixture.detectChanges(); await fixture.whenStable();
+    }
+    fixture.componentInstance.lessonTitle = 'Cambio';
+    await fixture.componentInstance.saveLesson();
+    expect(repo.saveLesson).toHaveBeenCalledTimes(1);
+    expect(repo.saveLesson).toHaveBeenCalledWith('course', 'section', {
+      title: 'Cambio', content_type: 'video', is_free_preview: false, is_published: false,
+    }, 1, lesson, undefined);
+  });
+
+  it('monta vídeo y materiales solo al abrirlos y no repite sus lecturas al volver', async () => {
+    const { fixture } = await withLessonInTabs();
+    const tab = (id: string) => fixture.nativeElement.querySelector(`#${id}`) as HTMLButtonElement;
+    const statusCalls = () => invoke.mock.calls.filter(call => call[1]?.body?.['action'] === 'status').length;
+    expect(statusCalls()).toBe(0);
+    expect(listMaterials).not.toHaveBeenCalled();
+
+    tab('tab-video').click(); fixture.detectChanges(); await fixture.whenStable();
+    expect(statusCalls()).toBe(1);
+    tab('tab-datos').click(); fixture.detectChanges(); await fixture.whenStable();
+    const mountedVideo = fixture.debugElement.query(By.directive(LessonVideo)).componentInstance;
+    tab('tab-video').click(); fixture.detectChanges(); await fixture.whenStable();
+    expect(fixture.debugElement.query(By.directive(LessonVideo)).componentInstance).toBe(mountedVideo);
+    expect(statusCalls()).toBe(1);
+
+    tab('tab-materiales').click(); fixture.detectChanges(); await fixture.whenStable();
+    expect(listMaterials).toHaveBeenCalledTimes(1);
+    tab('tab-datos').click(); fixture.detectChanges(); await fixture.whenStable();
+    tab('tab-materiales').click(); fixture.detectChanges(); await fixture.whenStable();
+    expect(listMaterials).toHaveBeenCalledTimes(1);
+  });
+
+  it('recorre las pestañas con el teclado conservando aria-selected y el foco', async () => {
+    const { fixture } = await withLessonInTabs();
+    const tab = (id: string) => fixture.nativeElement.querySelector(`#${id}`) as HTMLButtonElement;
+    tab('tab-datos').focus();
+    tab('tab-datos').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(document.activeElement?.id).toBe('tab-video');
+    expect(tab('tab-datos').getAttribute('tabindex')).toBe('-1');
+    expect(tab('tab-video').getAttribute('aria-selected')).toBe('true');
+    expect(tab('tab-video').getAttribute('aria-controls')).toBe('panel-video');
+    expect(fixture.nativeElement.querySelector('#panel-video').getAttribute('aria-labelledby')).toBe('tab-video');
+
+    tab('tab-video').dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(document.activeElement?.id).toBe('tab-materiales');
+    tab('tab-materiales').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(document.activeElement?.id).toBe('tab-datos');
+    expect(fixture.nativeElement.querySelector('#panel-datos').hasAttribute('hidden')).toBe(false);
+  });
+
+  it('el acceso histórico de materiales abre su pestaña y el cierre vuelve a datos', async () => {
+    const { fixture, lesson } = await withLessonInTabs();
+    fixture.componentInstance.lessonTitle = 'Sin guardar';
+    fixture.componentInstance.openMaterials(lesson);
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(fixture.componentInstance.activeTab()).toBe('materiales');
+    expect(document.activeElement?.id).toBe('materials-heading');
+    expect(fixture.componentInstance.lessonTitle).toBe('Sin guardar');
+    fixture.componentInstance.closeMaterials();
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(fixture.componentInstance.activeTab()).toBe('datos');
+    expect(document.activeElement?.textContent).toContain('Estructura:');
+  });
+
+  it('deja los enlaces directos como acceso secundario dentro de opciones plegadas', async () => {
+    const { fixture } = await withLessonInTabs();
+    const legacy = fixture.nativeElement.querySelector('.inspector-legacy') as HTMLElement;
+    expect(legacy).not.toBeNull();
+    expect((legacy.querySelector('summary') as HTMLElement).textContent).toContain('Enlaces directos');
+    expect(legacy.querySelector('a[aria-label="Vídeo de la lección Lección"]')).not.toBeNull();
+    expect(legacy.querySelector('button[aria-label="Materiales PDF de Lección"]')).not.toBeNull();
   });
 });

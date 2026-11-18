@@ -173,6 +173,20 @@ describe('LessonVideo · subida Bunny desde el panel', () => {
     expect(fixture.componentInstance.uploadState()).toBe('idle');
   });
 
+  it('admite entrada embebida con returnUrl opcional y sin parámetros de ruta', async () => {
+    const fixture = TestBed.createComponent(LessonVideo);
+    fixture.componentRef.setInput('lessonId', lesson);
+    fixture.componentRef.setInput('courseId', course);
+    fixture.componentRef.setInput('returnUrl', '/admin/curso/curso/estructura');
+    fixture.detectChanges();
+    await settle(fixture);
+    expect(fixture.componentInstance.effectiveLessonId()).toBe(lesson);
+    expect(fixture.componentInstance.effectiveCourseId()).toBe(course);
+    expect(fixture.componentInstance.returnUrl()).toBe('/admin/curso/curso/estructura');
+    expect(invoke).toHaveBeenCalledWith('video-upload', { body: { action: 'status', lessonId: lesson } });
+    expect(prepareCalls()).toHaveLength(0);
+  });
+
   it('con vídeo ya asociado bloquea la subida y conserva el formulario de GUID', async () => {
     defaultStatus = { data: { state: 'ready', hasVideo: true, limits, durationSeconds: 120 }, error: null };
     const fixture = await setup();

@@ -17,9 +17,6 @@
       <p class="structure-hint">Añade una lección para abrir la vista previa del aula.</p>
     }
   </div>
-  @if (materials(); as selected) {
-    <app-lesson-materials [courseId]="course().id" [lessonId]="selected.id" [lessonTitle]="selected.title" (closed)="closeMaterials()" />
-  }
   <div class="structure-workspace">
     <section class="outline" aria-labelledby="outline-heading">
       <h3 id="outline-heading">Contenido del curso</h3>
@@ -142,34 +139,66 @@
           </div>
         </form>
       } @else if (lessonEditor(); as editing) {
-        <form (ngSubmit)="saveLesson()" novalidate aria-labelledby="lesson-editor-heading" (keydown.escape)="cancelEditor()">
+        <div class="lesson-editor">
           <h4 id="lesson-editor-heading">{{ editing.lesson ? 'Editar lección' : 'Nueva lección' }} · {{ editing.section.title }}</h4>
-          <label for="lesson-title">Título de la lección</label>
-          <input #lessonInput id="lesson-title" name="lessonTitle" [(ngModel)]="lessonTitle" (ngModelChange)="clearField('lessonTitle')" required maxlength="160" [attr.aria-invalid]="invalid().lessonTitle" [attr.aria-describedby]="invalid().lessonTitle ? 'lesson-title-error' : null">
-          @if (invalid().lessonTitle) { <p id="lesson-title-error" role="alert">El título debe tener entre 1 y 160 caracteres.</p> }
-          <label for="lesson-type">Tipo de lección</label>
-          <select id="lesson-type" name="contentType" [(ngModel)]="contentType" (ngModelChange)="clearField('contentType')" required [attr.aria-invalid]="invalid().contentType" [attr.aria-describedby]="invalid().contentType ? 'lesson-type-error' : null">
-            <option value="video">Vídeo</option><option value="pdf">PDF</option><option value="text">Texto</option>
-          </select>
-          @if (invalid().contentType) { <p id="lesson-type-error" role="alert">Selecciona un tipo de lección válido.</p> }
-          @if (contentType === 'pdf') { <p class="structure-hint">Guarda la lección y añade sus archivos desde Materiales PDF.</p> }
-          <label class="inspector-check"><input name="preview" type="checkbox" [(ngModel)]="preview"> Lección de muestra gratuita</label>
-          <label class="inspector-check"><input name="published" type="checkbox" [(ngModel)]="published"> Lección publicada</label>
-          <div class="inspector-actions">
-            <button type="submit" [disabled]="saving()">Guardar lección</button>
-            <button type="button" [disabled]="saving()" (click)="cancelEditor()">Cancelar</button>
-          </div>
-          @if (editing.lesson; as lesson) {
-            <div class="inspector-links" role="group" aria-label="Accesos de la lección">
-              <a class="structure-link" [routerLink]="['/admin/vista-previa', course().id, lesson.id]" [attr.aria-label]="'Ver en el aula ' + lesson.title">Ver en el aula</a>
-              @if (canOpenMaterials(lesson)) {
-                <a class="structure-link" [routerLink]="['/admin', course().id, lesson.id, 'video']" [attr.aria-label]="'Vídeo de la lección ' + lesson.title">Vídeo de la lección</a>
-                <button type="button" [disabled]="saving()" (click)="openMaterials(lesson)" [attr.aria-label]="'Materiales PDF de ' + lesson.title">Materiales PDF</button>
-                <a class="structure-link" [routerLink]="['/admin', 'curso', course().id, 'leccion', lesson.id]" [attr.aria-label]="'Gestionar vídeo y materiales de ' + lesson.title">Gestionar vídeo y materiales</a>
-              }
+          <p class="structure-hint">Los datos, el vídeo y los materiales se gestionan aquí, sin salir de esta pantalla.</p>
+          @if (editing.lesson) {
+            <div class="inspector-tabs" role="tablist" aria-label="Secciones de la lección" (keydown)="onTabKeydown($event)">
+              <button #inspectorTab type="button" role="tab" id="tab-datos" data-tab="datos"
+                aria-controls="panel-datos" [attr.aria-selected]="activeTab() === 'datos'"
+                [attr.tabindex]="activeTab() === 'datos' ? 0 : -1" (click)="selectTab('datos')">Datos</button>
+              <button #inspectorTab type="button" role="tab" id="tab-video" data-tab="video"
+                [attr.aria-controls]="videoLoaded() ? 'panel-video' : null" [attr.aria-selected]="activeTab() === 'video'"
+                [attr.tabindex]="activeTab() === 'video' ? 0 : -1" (click)="selectTab('video')">Vídeo</button>
+              <button #inspectorTab type="button" role="tab" id="tab-materiales" data-tab="materiales"
+                [attr.aria-controls]="materialsLoaded() ? 'panel-materiales' : null" [attr.aria-selected]="activeTab() === 'materiales'"
+                [attr.tabindex]="activeTab() === 'materiales' ? 0 : -1" (click)="selectTab('materiales')">Materiales</button>
             </div>
           }
-        </form>
+          <div class="inspector-tabpanel" id="panel-datos" [attr.role]="editing.lesson ? 'tabpanel' : null"
+            [attr.aria-labelledby]="editing.lesson ? 'tab-datos' : null" [hidden]="activeTab() !== 'datos'">
+            <form (ngSubmit)="saveLesson()" novalidate aria-labelledby="lesson-editor-heading" (keydown.escape)="cancelEditor()">
+              <label for="lesson-title">Título de la lección</label>
+              <input #lessonInput id="lesson-title" name="lessonTitle" [(ngModel)]="lessonTitle" (ngModelChange)="clearField('lessonTitle')" required maxlength="160" [attr.aria-invalid]="invalid().lessonTitle" [attr.aria-describedby]="invalid().lessonTitle ? 'lesson-title-error' : null">
+              @if (invalid().lessonTitle) { <p id="lesson-title-error" role="alert">El título debe tener entre 1 y 160 caracteres.</p> }
+              <label for="lesson-type">Tipo de lección</label>
+              <select id="lesson-type" name="contentType" [(ngModel)]="contentType" (ngModelChange)="clearField('contentType')" required [attr.aria-invalid]="invalid().contentType" [attr.aria-describedby]="invalid().contentType ? 'lesson-type-error' : null">
+                <option value="video">Vídeo</option><option value="pdf">PDF</option><option value="text">Texto</option>
+              </select>
+              @if (invalid().contentType) { <p id="lesson-type-error" role="alert">Selecciona un tipo de lección válido.</p> }
+              @if (contentType === 'pdf') { <p class="structure-hint">Guarda la lección y añade sus archivos desde la pestaña Materiales.</p> }
+              <label class="inspector-check"><input name="preview" type="checkbox" [(ngModel)]="preview"> Lección de muestra gratuita</label>
+              <label class="inspector-check"><input name="published" type="checkbox" [(ngModel)]="published"> Lección publicada</label>
+              <div class="inspector-actions">
+                <button type="submit" [disabled]="saving()">Guardar lección</button>
+                <button type="button" [disabled]="saving()" (click)="cancelEditor()">Cancelar</button>
+              </div>
+            </form>
+          </div>
+          @if (editing.lesson; as lesson) {
+            @if (videoLoaded()) {
+              <div class="inspector-tabpanel" id="panel-video" role="tabpanel" aria-labelledby="tab-video" [hidden]="activeTab() !== 'video'">
+                <app-lesson-video [courseId]="course().id" [lessonId]="lesson.id" [lessonTitle]="lesson.title" [returnUrl]="'/admin/curso/' + course().id + '/estructura'" />
+              </div>
+            }
+            @if (materialsLoaded()) {
+              <div class="inspector-tabpanel" id="panel-materiales" role="tabpanel" aria-labelledby="tab-materiales" [hidden]="activeTab() !== 'materiales'">
+                <app-lesson-materials [courseId]="course().id" [lessonId]="lesson.id" [lessonTitle]="lesson.title" [returnUrl]="'/admin/curso/' + course().id + '/estructura'" (closed)="closeMaterials()" />
+              </div>
+            }
+            <details class="inspector-legacy">
+              <summary>Enlaces directos (opcionales)</summary>
+              <div class="inspector-links" role="group" aria-label="Accesos de la lección">
+                <a class="structure-link" [routerLink]="['/admin/vista-previa', course().id, lesson.id]" [attr.aria-label]="'Ver en el aula ' + lesson.title">Ver en el aula</a>
+                @if (canOpenMaterials(lesson)) {
+                  <a class="structure-link" [routerLink]="['/admin', course().id, lesson.id, 'video']" [attr.aria-label]="'Vídeo de la lección ' + lesson.title">Vídeo de la lección</a>
+                  <button type="button" class="structure-link" [disabled]="saving()" (click)="openMaterials(lesson)" [attr.aria-label]="'Materiales PDF de ' + lesson.title">Materiales PDF</button>
+                  <a class="structure-link" [routerLink]="['/admin', 'curso', course().id, 'leccion', lesson.id]" [attr.aria-label]="'Gestionar vídeo y materiales de ' + lesson.title">Gestionar vídeo y materiales</a>
+                }
+              </div>
+            </details>
+          }
+        </div>
       } @else {
         <p class="inspector-empty">Selecciona un bloque o una lección para editarlo.</p>
       }

@@ -4,9 +4,13 @@ import { RouterLink } from '@angular/router';
 import { Course } from '../courses-repository';
 import { Lesson, Section, StructureRepository } from '../structure-repository';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
+import { LessonVideo } from '../lesson-video/lesson-video';
 import { isLessonContentType } from '../../../shared/lesson-content-type';
 
 const NO_LESSONS: Lesson[] = [];
+
+type LessonTab = 'datos' | 'video' | 'materiales';
+const LESSON_TABS: readonly LessonTab[] = ['datos', 'video', 'materiales'];
 
 type DragItem =
   | { kind: 'section'; id: string }
@@ -32,7 +36,7 @@ function lessonSlug(title: string, lessons: Lesson[]): string {
 
 @Component({
   selector: 'app-structure',
-  imports: [FormsModule, LessonMaterials, RouterLink],
+  imports: [FormsModule, LessonMaterials, LessonVideo, RouterLink],
   templateUrl: './structure.html',
   styleUrl: './structure.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -82,20 +86,59 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
   readonly invalid = signal({ sectionTitle: false, lessonTitle: false, contentType: false });
   readonly sectionEditor = signal<Section | 'new' | null>(null);
   readonly lessonEditor = signal<{ section: Section; lesson?: Lesson } | null>(null);
-  readonly materials = signal<Lesson | null>(null);
+
+  /** Las secciones pesadas se montan solo al abrirlas y se conservan ocultas
+   *  mientras la lección siga seleccionada: así no se repite una consulta de
+   *  estado de vídeo ni una lista de materiales en cada cambio de pestaña. */
+  readonly activeTab = signal<LessonTab>('datos');
+  readonly videoLoaded = signal(false);
+  readonly materialsLoaded = signal(false);
   private readonly materialsPanel = viewChild(LessonMaterials);
+  private readonly inspectorTabs = viewChildren<ElementRef<HTMLButtonElement>>('inspectorTab');
+
   canOpenMaterials(lesson: Lesson): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(lesson.id) &&
       this.lessons().includes(lesson);
   }
-  openMaterials(lesson: Lesson): void {
-    if (this.saving() || !this.canOpenMaterials(lesson)) return;
-    this.materials.set(lesson);
+
+  /** Cambia de sección dentro del inspector: nunca navega a otra pantalla. */
+  selectTab(tab: LessonTab): void {
+    this.activeTab.set(tab);
+    if (tab === 'video') this.videoLoaded.set(true);
+    if (tab === 'materiales') this.materialsLoaded.set(true);
+    if (this.destroyRef.destroyed) return;
     afterNextRender(() => {
-      if (!this.destroyRef.destroyed && this.materials()?.id === lesson.id) this.materialsPanel()?.focusHeading();
+      if (this.destroyRef.destroyed) return;
+      const button = this.inspectorTabs()
+        .find(item => item.nativeElement.dataset['tab'] === tab)?.nativeElement;
+      this.focusVisible(button, true);
     }, { injector: this.injector });
   }
-  closeMaterials(): void { this.materials.set(null); this.focus('heading'); }
+
+  /** Roving tabindex: flechas y Inicio/Fin recorren las pestañas, como en ARIA. */
+  onTabKeydown(event: KeyboardEvent): void {
+    const current = this.activeTab();
+    const index = LESSON_TABS.indexOf(current);
+    let next: LessonTab | undefined;
+    switch (event.key) {
+      case 'ArrowRight': next = LESSON_TABS[(index + 1) % LESSON_TABS.length]; break;
+      case 'ArrowLeft': next = LESSON_TABS[(index - 1 + LESSON_TABS.length) % LESSON_TABS.length]; break;
+      case 'Home': next = LESSON_TABS[0]; break;
+      case 'End': next = LESSON_TABS[LESSON_TABS.length - 1]; break;
+      default: return;
+    }
+    event.preventDefault();
+    this.selectTab(next);
+  }
+
+  openMaterials(lesson: Lesson): void {
+    if (this.saving() || !this.canOpenMaterials(lesson)) return;
+    this.selectTab('materiales');
+    afterNextRender(() => {
+      if (!this.destroyRef.destroyed && this.activeTab() === 'materiales') this.materialsPanel()?.focusHeading();
+    }, { injector: this.injector });
+  }
+  closeMaterials(): void { this.selectTab('datos'); this.focus('heading'); }
   sectionTitle = '';
   sectionSummary = '';
   lessonTitle = '';
@@ -510,6 +553,7 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
     if (this.saving()) return;
     const selection = this.selected();
     this.sectionEditor.set(null); this.lessonEditor.set(null); this.selected.set(null);
+    this.activeTab.set('datos');
     this.error.set(''); this.clearValidation();
     if (selection) this.focusOutline(this.outlineKey(selection.kind, selection.id));
     else this.focus('heading');
@@ -519,6 +563,7 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
     this.lessonEditor.set(null);
     this.sectionTitle = section?.title ?? '';
     this.sectionSummary = section?.summary ?? '';
+    this.activeTab.set('datos');
     this.clearValidation(); this.error.set('');
     this.sectionEditor.set(section ?? 'new');
     this.selected.set(section ? { kind: 'section', id: section.id } : null);
@@ -530,6 +575,7 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
     this.lessonTitle = lesson?.title ?? '';
     this.contentType = lesson ? lesson.content_type : 'video';
     this.preview = lesson?.is_free_preview ?? false; this.published = lesson?.is_published ?? false;
+    this.activeTab.set('datos');
     this.clearValidation(); this.error.set(''); this.lessonEditor.set({ section, lesson });
     this.selected.set(lesson ? { kind: 'lesson', id: lesson.id, sectionId: section.id } : null);
     if (lesson) this.expandSection(section.id);
