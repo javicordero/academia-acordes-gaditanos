@@ -1,6 +1,11 @@
-# Recepción del webhook: implementación local, sin desplegar
+# Recepción del webhook: desplegado en DEV, verificado en TEST
 
-**Estado real:** la versión inicial desplegada en DEV sigue **deshabilitada** (`enabled: false`). En local la decisión la toma una guarda TEST fail-closed, con todos los flags apagados y **aún no redeployada**. El `whsec` de test está configurado bajo el **NOMBRE** de la variable `STRIPE_WEBHOOK_SECRET`, pero su **validez no ha sido verificada**; no hay cuenta, claves ni pruebas con Stripe real. Nada de lo descrito aquí significa que los pagos estén listos.
+**Estado real:** el webhook está desplegado en DEV y verificado en TEST: la firma
+se validó de forma indirecta con una compra real en modo TEST, que dejó pedido
+pagado, derecho activo y evento procesado (verificado en DEV/TEST). La guarda
+TEST fail-closed mantiene `enabled` solo en TEST y reversible; no hay E2E en
+producción ni Stripe live (decisión pendiente). Nada de lo descrito aquí
+significa que los pagos comerciales estén listos.
 
 La firma se verifica con Stripe SDK 23.1.0 (misma versión que checkout) y se rechazan cuerpo alterado, firma ausente, fechas fuera de tolerancia y `livemode` distinto del esperado (sólo test). Se registra el id y tipo de evento, modo, hash SHA-256 de los bytes originales, sesión y pedido; nunca el payload, correos ni datos de pago. Los tipos no soportados y los eventos que no cumplen las comprobaciones comerciales se ack con 200 sin concesión.
 
@@ -22,8 +27,8 @@ La doble concesión se evita en tres capas: el registro previo devuelve `process
 
 ## Guard TEST local y variables de entorno
 
-Los módulos `supabase/functions/_shared/test-gates.ts` y `test-gate-env.ts` son
-**sólo locales, aún no redeployados**. El index local pasa únicamente `Deno.env`
+Los módulos `supabase/functions/_shared/test-gates.ts` y `test-gate-env.ts`
+están **desplegados en DEV y verificados en TEST**. El index local pasa únicamente `Deno.env`
 del servidor: nunca petición, cuerpo ni configuración Angular. No hay flags
 activados en este repositorio.
 
@@ -31,7 +36,7 @@ activados en este repositorio.
 |---|---|---|
 | `STRIPE_WEBHOOK_ENABLED` | string `'true'` exacto | ausente ⇒ cerrado |
 | `CHECKOUT_MODE` | exactamente `'test'`; `'live'`, otra casing o ausente cierran | ausente ⇒ cerrado |
-| `STRIPE_WEBHOOK_SECRET` | prefijo `whsec_` con sufijo sin whitespace; la forma criptográfica la valida Stripe | guardado bajo el NOMBRE, validez no probada |
+| `STRIPE_WEBHOOK_SECRET` | prefijo `whsec_` con sufijo sin whitespace; la forma criptográfica la valida Stripe | configurado en DEV, firma verificada en TEST |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | presencia para el cliente de servidor (`clientAvailable`) | ausentes ⇒ cerrado |
 | `STRIPE_SECRET_KEY` | opcional; si se pasa debe ser `sk_test_...` real, sin `sk_test_unused`, `pk_`, `sk_live_` ni espacios | el placeholder del SDK nunca satisface la guarda |
 
@@ -40,8 +45,9 @@ sigue siendo el 503 de siempre. El webhook **puede activarse en TEST sin checkou
 ni términos** para probar la firma; eso no crea compras ni derechos.
 `expectedLiveMode` es `false` fijo, sin variable de entorno que lo cambie.
 Migraciones aplicadas en DEV según informe: 19/20/21/22/24/25/28; el historial
-de la CLI **no está reconciliado**. No se afirma E2E ni validez del `whsec`.
+de la CLI **no está reconciliado**. La compra E2E en TEST sí se completó y el
+evento quedó procesado (verificado en DEV/TEST); no hay E2E en producción.
 
 ## Pruebas y gate de activación
 
-`npm run test:functions` cubre firma sintética con SDK real, mocks puros de E/S y sin red: no prueba Supabase, PostgREST ni Stripe real. La lógica SQL se valida con PGlite (`npm run test:sql`), sin concurrencia real. Antes de activar: aplicar y revisar las migraciones en Supabase local, configurar el `whsec` y el resto de secretos a mano, decidir el entorno y el modo, revisar conciliación de pagos asíncronos, reembolsos y contracargos, cerrar fiscalidad/legal, hacer pruebas de integración en sandbox con Stripe y de seguridad, y poner `verify_jwt = false` **sólo en esta función**. La página de éxito nunca concede acceso.
+`npm run test:functions` cubre firma sintética con SDK real, mocks puros de E/S y sin red: no prueba Supabase, PostgREST ni Stripe real. La lógica SQL se valida con PGlite (`npm run test:sql`), sin concurrencia real. La prueba de integración en sandbox con Stripe ya se hizo: firma verificada de forma indirecta y evento procesado (verificado en DEV/TEST); no hay E2E en producción. Antes de activar en producción: revisar conciliación de pagos asíncronos, reembolsos y contracargos, cerrar fiscalidad/legal, completar la verificación de seguridad y decidir el entorno y el modo (decisión pendiente), y poner `verify_jwt = false` **sólo en esta función**. La página de éxito nunca concede acceso.

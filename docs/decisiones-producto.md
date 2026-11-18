@@ -33,9 +33,9 @@ Sustituye a la entrada «Vídeo provisional» de «Confirmado por el usuario».
   Function) tras verificar sesión y derecho activo, o rol admin para vista
   previa. Nunca claves de firma, API key de Bunny ni tokens de larga duración en
   el cliente o el repositorio.
-- **Secretos:** Library API key y Token authentication signing key viven en los
-  secretos de Edge Functions de Supabase; ambas quedan pendientes de configurar
-  a mano (ninguna está aún configurada) y jamás en el repo, el chat,
+- **Configuración de servidor:** ya está aplicada en DEV (token authentication
+  activo y modo sin firma apagado); la región, los vídeos y los derechos siguen
+  pendientes (decisión pendiente). Nada de esto en el repositorio, el chat,
   `environment.local.ts` ni filas públicas.
 - **Metadatos:** `private.lesson_videos` guarda como mínimo `lesson_id`,
   `provider` = 'bunny', el library ID, el GUID del vídeo, estado de procesamiento
@@ -43,15 +43,16 @@ Sustituye a la entrada «Vídeo provisional» de «Confirmado por el usuario».
 - **Límites:** token de embed de corta duración; el enlace puede compartirse
   hasta caducar. No es DRM ni impide grabar la pantalla: no se promete protección
   absoluta.
-- **Desarrollo:** `video-demo.local.ts` (YouTube, ignorado) permanece como
-  *fallback* de maquetación solo cuando Bunny no esté configurado; se sustituye
-  por el adaptador Bunny sin eliminarlo de golpe. El reproductor sigue el
-  contrato desacoplado `VideoPlaybackProvider`/servicio inyectable.
+- **Desarrollo:** `video-demo.local.ts` (YouTube, ignorado) queda solo como
+  *fallback* de maquetación en desarrollo, con Bunny ya configurado y verificado
+  en DEV. El reproductor sigue el contrato desacoplado
+  `VideoPlaybackProvider`/servicio inyectable.
 - **Coste:** mínimo aproximado 1 USD/mes y consumo variable; el trial de
   20 USD/14 días es un dato, no un plan gratuito permanente. No se contrata ni
   se añade tarjeta sin autorización explícita del promotor.
-- **Activación incremental:** primero código y pruebas con mocks, después los
-  secretos a mano en Supabase y solo entonces la verificación real.
+- **Activación incremental:** código y pruebas con mocks, configuración en
+  Supabase y verificación real: **hecho en DEV**; queda la comprobación en
+  producción (decisión pendiente).
 - **Muestra:** biblioteca de desarrollo 812678; `COLGAOS.mp4` es contenido propio
   del promotor y será el vídeo de la primera lección del curso real. Ningún vídeo
   se descarga ni copia al repo; los `*.mp4` pesados no se versionan. Sin copiar
@@ -147,8 +148,10 @@ normativo de agentes. Se conserva la fecha de registro original del documento.
 - Reglas que se mantienen: `price_...` no entra en el bundle Angular; el
   navegador solo recibe la URL de checkout; la página de éxito no concede acceso;
   el acceso se concede por webhook firmado e idempotente; el checkout `enabled`
-  sigue en `false` hasta completar la validación E2E en modo test.
-- Pendiente antes de cobrar con usuarios: completar fulfillment, integrar el
-  webhook desplegándolo en Supabase con su `whsec` real de test, probar compra con
-  tarjeta 4242 de test, y validar condiciones legales/fiscales (D3, D4, D16 de
-  la hoja de ruta).
+  solo está activo en TEST y es reversible (verificado en DEV/TEST).
+- Hecho en TEST: fulfillment integrado, webhook desplegado en Supabase y compra
+  E2E completada con pedido pagado, derecho activo y evento procesado. No hay E2E
+  en producción ni Stripe live.
+- Pendiente antes de cobrar con usuarios: condiciones legales/fiscales (D3, D4),
+  precios definitivos (D7), copia de seguridad (D16) y el resto de decisiones
+  abiertas (decisión pendiente).

@@ -5,8 +5,9 @@ fase levanta el proyecto Angular y su shell navegable, con **autenticación real
 de Supabase** (registro, acceso, salida, confirmación y recuperación por correo)
 y gestión editorial de cursos en `/admin`. Incluye el modelo de datos y permisos inicial,
 versionado y probado en local. La migración inicial se aplicó al proyecto de
-desarrollo con autorización explícita; siguen pendientes Auth configurado en la
-nube, datos semilla, pagos, vídeo y comunidad.
+desarrollo con autorización explícita. La compra y el vídeo están verificados en
+DEV/TEST; siguen pendientes la configuración de Auth en la nube, los precios
+definitivos y el foro completo (decisión pendiente).
 
 El plan de producto completo está en `docs/plan-maestro.md`. Es una propuesta
 viva: las decisiones pendientes no se dan por cerradas.
@@ -29,9 +30,10 @@ administradora en `/admin`, abre la estructura del curso y pulsa «Vista previa
 del aula» o «Ver en el aula» junto a la lección. La vista previa no registra
 progreso ni concede compras o matrículas; el acceso a borradores depende de RLS.
 El prototipo del aula comparte el índice de bloques entre la vista de alumno y
-la administrativa. Los materiales son los ya autorizados; las dudas solo
-reservan un espacio visual y todavía no permiten publicar. El futuro foro y las
-dudas compartirán una única conversación asociada a la lección.
+la administrativa. Los materiales son los ya autorizados. Las dudas por lección
+están implementadas y verificadas en DEV (herencia por RLS/RPC, admin con
+distintivo y hilos anidados); no hay foro completo. El futuro foro y las dudas
+compartirán una única conversación asociada a la lección.
 
 El editor permite elegir el tipo provisional de lección: vídeo, PDF o texto.
 Para PDF, guarda primero la lección y adjunta sus documentos desde «Materiales
@@ -58,7 +60,7 @@ secretos, el servidor responde 503 y no guarda nada. El estado local y los
 pasos pendientes están en `docs/video-admin-estado.md`.
 En la estructura del curso, cada lección guardada ofrece «Vídeo de la lección» junto a «Materiales PDF»; las lecciones nuevas sin guardar no lo muestran.
 
-- Desde esta misma ruta se puede subir el vídeo a Bunny con `tus-js-client@4.3.1` (MIT): la Edge Function `video-upload` concede una firma TUS temporal, el cliente solo envía bytes tras elegir archivo y pulsar «Subir a Bunny», muestra el aviso de coste y el progreso real, y «Detener» pausa sin borrar el vídeo remoto. Probado con mocks en jsdom: sin Bunny real, sin subidas ni costes. El contrato de servidor y su documentación (`docs/video-upload-estado.md`) corresponden al bloque backend.
+- Desde esta misma ruta se puede subir el vídeo a Bunny con `tus-js-client@4.3.1` (MIT): la Edge Function `video-upload` concede una firma TUS temporal, el cliente solo envía bytes tras elegir archivo y pulsar «Subir a Bunny», muestra el aviso de coste y el progreso real, y «Detener» pausa sin borrar el vídeo remoto. Probado primero con mocks en jsdom y después en real: un vídeo de prueba se subió por TUS desde `/admin` y quedó listo en Bunny (verificado en DEV). El contrato de servidor y su documentación (`docs/video-upload-estado.md`) corresponden al bloque backend.
 
 > **Documentación privada:** el repositorio será público. `docs/plan-maestro.md`
 > se aporta localmente y **no se publica**; está incluido en `.gitignore` junto
@@ -178,9 +180,14 @@ npm run config:init
 ## Botón de compra TEST (maquetación)
 
 La UI de compra solo se muestra si `checkoutTestEnabled: true` en la
-configuración local ignorada; por defecto es `false` y no aparece. Es solo un
-aviso visual: no habilita cobros ni accesos, que dependen siempre del gate del
-servidor. El cliente no fija importes ni condiciones comerciales.
+configuración local ignorada; por defecto es `false` y no aparece. El botón es
+un aviso visual: el cobro y el acceso dependen siempre del gate del servidor y
+del webhook firmado. La compra de prueba en Stripe TEST ya se completó y dejó
+pedido pagado, derecho activo y evento procesado (verificado en DEV/TEST): el
+acceso TEST funciona. La compra real sigue desactivada hasta resolver las
+decisiones legales, de precios y de copia de seguridad (decisión pendiente). No
+hay E2E en producción ni Stripe live. El cliente no fija importes ni condiciones
+comerciales.
 
 ## Vídeo de prueba local
 
@@ -210,24 +217,28 @@ a Bunny), `true` usa la reproducción Bunny con firma emitida en servidor.
 
 El proveedor de vídeo **elegido es Bunny Stream** (decisión del 2026-11-18),
 sustituyendo la política anterior de YouTube solo como demo y Mux en evaluación.
-La reproducción usará siempre un URL/token firmado emitido en servidor tras
+La reproducción usa siempre un URL/token firmado emitido en servidor tras
 comprobar sesión y derecho activo (o rol admin para vista previa); ninguna
-clave de firma, API key ni token de larga duración llegará al cliente, y la
-integración real sigue pendiente. El mapa local `video-demo.local.ts` (YouTube,
-ignorado) se mantiene únicamente como *fallback* de maquetación mientras Bunny no
-esté configurado; no protege contenido de pago y se sustituirá por el adaptador
-Bunny conservando el reproductor desacoplado del proveedor con el contrato
-`VideoPlaybackProvider`. Bunny no es gratuito (mínimo aproximado 1 USD/mes y
+clave de firma, API key ni token de larga duración llega al cliente. La
+integración real está verificada en DEV: Bunny configurado, vídeo de prueba
+subido y listo, token authentication activo y modo sin firma apagado. El mapa
+local `video-demo.local.ts` (YouTube, ignorado) queda solo como *fallback* de
+maquetación en desarrollo; no protege contenido de pago. El reproductor sigue
+desacoplado del proveedor con el contrato `VideoPlaybackProvider`. Bunny no es gratuito (mínimo aproximado 1 USD/mes y
 consumo variable) y no se contrata ni se añade tarjeta sin autorización explícita
 del promotor; el vídeo de muestra `COLGAOS.mp4` es contenido propio y nunca se
 versiona en el repositorio. Velocidad, reanudación y bucle A–B quedan para
 evaluar según el proveedor; el progreso continúa siendo manual e independiente
 del visionado.
 
-El adaptador Bunny y su provider ya están en código: el flag público `videoPlaybackBunny` (por defecto `false`, sin secretos) se activa solo tras desplegar la Edge Function y configurar Bunny; hasta entonces el aula muestra un estado honesto (`docs/video-estado.md`).
+El adaptador Bunny y su provider están en código y el flag público
+`videoPlaybackBunny` ya se usó en DEV (por defecto `false` en la plantilla); la
+Edge Function y la configuración de Bunny están operativas en desarrollo. Para
+producción, el orden y el estado detallado están en `docs/video-estado.md`
+(decisión pendiente).
 
-Para probar la integración real, una persona autorizada debe configurar en el
-panel de Supabase (no se ha tocado la nube en este bloque):
+Para reproducir la integración en otro entorno, una persona autorizada debe
+configurar en el panel de Supabase:
 
 - Site URL de desarrollo: `http://localhost:4200`.
 - Redirect URL: `http://localhost:4200/auth/callback` (y el patrón con
@@ -275,15 +286,15 @@ RLS y servidor siguen decidiendo.
 - Retorno de compra **en local**: la URL de éxito lleva solo el `order_id`
   reservado y `/mis-cursos` contrasta pedidos y derechos propios por RLS sin
   conceder acceso; comprueba `pending`/`confirmed`/`error` con cuatro intentos
-  acotados (1500/3000/6000 ms) y reintento manual. Sin botón de compra, sin E2E
-  real y sin flags ni términos inventados; el despliegue remoto lo decide el
-  operador cloud.
+  acotados (1500/3000/6000 ms) y reintento manual. La compra TEST se completó de
+  extremo a extremo (verificado en DEV/TEST); no hay E2E en producción y el
+  despliegue remoto lo decide el operador cloud.
 - Modelo SQL inicial de la academia en `supabase/migrations/`: cursos, bloques,
   lecciones, muestra gratuita, precios, pedidos, derechos de acceso y progreso.
 - RLS inicial y pruebas de autorización en `supabase/tests/`. La migración
   inicial sí se ha aplicado, con autorización explícita, al proyecto de
-   desarrollo `academia-acordes-gaditanos-dev`, verificada por catálogo; pagos y
-   datos semilla siguen pendientes.
+   desarrollo `academia-acordes-gaditanos-dev`, verificada por catálogo; ya hay
+   curso y lecciones publicados usados en las pruebas en DEV/TEST.
 - Pruebas del shell y de las rutas (render, títulos y 404), además de pruebas
   unitarias con mocks del SDK para sesión, roles, guards, formularios, callback
   PKCE y seguridad de `returnUrl`.
@@ -304,9 +315,10 @@ El detalle está en [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
 - Los IDs de vídeo, rutas de recursos, precios de proveedor y eventos de comercio
   viven en el esquema `private`, no expuesto a la API.
 - El rol admin se guarda en una tabla server-only y no se puede autoasignar.
-- El panel editorial `/admin` dispone de gestión de cursos, bloques y lecciones mediante RLS, sin
-  subidas ni datos de ejemplo. El foro y las dudas por lección se posponen y compartirán un único
-  servicio de conversación, no comentarios paralelos.
+- El panel editorial `/admin` dispone de gestión de cursos, bloques y lecciones mediante RLS, con
+  subida de vídeo y reordenación verificadas en DEV. Las dudas por lección están
+  implementadas (verificado en DEV); el foro completo sigue en fase posterior y
+  compartirá un único servicio de conversación, no comentarios paralelos.
 - El registro no pide nombre visible: el trigger actual crea `public.profiles`
   solo con el identificador y no copia metadatos; `display_name` es de
   actualización futura. El registro no crea rol admin.
@@ -318,16 +330,18 @@ El detalle está en [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md).
 
 La ruta `/admin` es lazy y exige sesión y rol `admin`. Permite gestionar cursos,
 bloques y lecciones mediante el cliente Supabase y RLS. Las lecciones pueden
-guardarse como borrador o publicarse y marcarse como muestra. Los elementos se
-añaden al final: reordenar está pendiente y no se ofrecen borrados destructivos.
-Los bloques de un curso publicado son visibles. La vista previa administrativa
-está implementada localmente para lecciones guardadas, también borradores. La
-interfaz de subida de PDF está implementada; no se gestionan precios ni subidas
-de vídeo. El Markdown se guarda como texto, sin representación HTML.
+guardarse como borrador o publicarse y marcarse como muestra. El editor se ha
+rediseñado a dos paneles con un panel de estilos unificado; la reordenación con
+arrastrar y soltar usa una RPC atómica y está verificada en DEV. No se ofrecen
+borrados destructivos. Los bloques de un curso publicado son visibles. La vista
+previa administrativa está implementada localmente para lecciones guardadas,
+también borradores. Las interfaces de subida de PDF y de vídeo están
+implementadas y verificadas en DEV; los precios definitivos siguen pendientes
+(decisión pendiente). El Markdown se guarda como texto, sin representación HTML.
 
 El acceso y la gestión de cursos se han probado con una cuenta administradora
-real; la nueva gestión de estructura solo se ha probado localmente con mocks.
-La aplicación no permite autoasignar el rol admin.
+real; la estructura y la subida de vídeo se han verificado en DEV. La
+aplicación no permite autoasignar el rol admin.
 
 ## Estructura
 
@@ -367,28 +381,32 @@ AGENTS.md                             # instrucciones para agentes
 
 ## Integraciones pendientes
 
-Todavía no están implementadas ni configuradas:
+Estado verificado en DEV/TEST y lo que sigue pendiente:
 
-- La integración de estructura no se ha comprobado en PostgREST real; las
-  pruebas automatizadas del cliente usan mocks.
-- Datos semilla y despliegue del frontend. Las funciones de PDF existen; otras
-  integraciones de servidor siguen pendientes. El esquema y la RLS inicial
-  están versionados y se aplicaron a desarrollo con autorización explícita.
-- Stripe Checkout y webhook firmado e idempotente; ninguna página de éxito
-  concede acceso por sí sola. No hay precios ni claves reales.
-- Integración real de Bunny Stream (proveedor ya elegido): token de embed de
-  corta duración emitido en servidor tras comprobar sesión y derecho activo (o
-  rol admin para vista previa), guardado de GUID y metadatos en
-  `private.lesson_videos`. Pendiente de configurar a mano los secretos de Bunny
-  (Library API key y signing key) como secretos de Edge Functions en Supabase, y
-  de la verificación de reproducción real con el vídeo de muestra `COLGAOS.mp4`.
-  El token no es DRM: el enlace puede compartirse hasta que caduque y no impide
-  grabar la pantalla.
-- Panel `/admin`: reordenación, precios, subida de vídeo y respuestas a
-  preguntas (estas últimas junto al foro) siguen pendientes. La vista previa
-  local no acredita una prueba E2E de compra ni un despliegue de producción.
-- Catálogo real de cursos, lecciones, materiales, progreso y ejercicios.
-- Foro, dudas por lección, moderación y notificaciones.
+- La reordenación de estructura está implementada con RPC atómica; las pruebas
+  automatizadas del cliente usan mocks y no sustituyen la verificación en
+  producción.
+- Despliegue del frontend. Ya hay curso y lecciones publicados para probar aula
+  y acceso. Las funciones de PDF existen; otras integraciones de servidor
+  siguen pendientes. El esquema y la RLS inicial están versionados y se
+  aplicaron a desarrollo con autorización explícita.
+- Stripe Checkout y webhook firmado e idempotente están implementados y
+  verificados en TEST (pedido pagado, derecho activo y evento procesado en modo
+  TEST); la página de éxito no concede acceso por sí sola. Los precios
+  definitivos y Stripe live siguen pendientes (decisión pendiente).
+- Bunny Stream (proveedor elegido) configurado y verificado en DEV: token de
+  reproducción firmado en servidor, vídeo de prueba subido y listo, token
+  authentication activo y modo sin firma apagado. YouTube solo queda como flag
+  local de desarrollo. El token no es DRM: el enlace puede compartirse hasta
+  que caduque y no impide grabar la pantalla.
+- Panel `/admin`: reordenación, vista previa y subida de vídeo funcionan en DEV;
+  siguen pendientes los precios definitivos y las respuestas a preguntas (junto
+  al foro), además del diseño definitivo (decisión pendiente). La prueba E2E se
+  hizo en TEST; no hay E2E en producción.
+- Ampliación del catálogo y ejercicios; el curso y las lecciones publicados ya
+  se usan en DEV/TEST.
+- Foro completo, moderación y notificaciones; las dudas por lección ya están
+  implementadas (verificado en DEV).
 - Portada con presentación del profesor; estructura y contenido pendientes de la
   fase de diseño definitivo, sin datos inventados.
 - Analítica propia y textos legales.

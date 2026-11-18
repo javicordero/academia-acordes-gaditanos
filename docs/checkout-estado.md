@@ -1,18 +1,18 @@
 # Estado del checkout (fundación)
 
-Registro público y breve de alcance. Describe una **fundación preparada en local**,
-no un flujo de pago operativo. No contiene claves de cuenta, precios reales ni
-datos de prueba de Stripe. Pedidos, snapshot y webhook están versionados, pero
-**no desplegados ni probados en real**; no hay cobros ni consentimiento activo.
+Registro público y breve de alcance. Describe una **fundación verificada en
+DEV/TEST**, no un flujo de cobro comercial activo. No contiene claves de cuenta,
+precios reales ni datos de prueba de Stripe. Pedidos, snapshot y webhook están
+versionados y probados en TEST (pedido pagado, derecho activo y evento
+procesado); no hay E2E en producción ni consentimiento legal aprobado.
 
 ## Estado actual
 
-- La sesión de pago sigue **cerrada**. La versión inicial desplegada en DEV
-  mantiene el literal `enabled: false`; en local esa decisión pasa por una guarda
-  TEST con fail-closed, pero **sin flags explícitos sigue respondiendo 409** y no
-  crea sesiones. No es un bloqueo permanente: se mantiene hasta que se cumplan
-  las precondiciones de abajo.
-- Orden implementado en código, **no activo**: identidad de Auth →
+- La sesión de pago está **abierta solo en TEST y es reversible**: `enabled` se
+  activó en DEV para la compra de prueba (verificado en DEV/TEST), con guarda
+  fail-closed y modo TEST. Sin esos flags sigue respondiendo 409 y no crea
+  sesiones. Stripe live sigue desactivado (decisión pendiente).
+- Orden implementado en código, **activo solo en TEST**: identidad de Auth →
   `reserve_checkout_order` reserva el pedido → se consulta el precio real a
   Stripe y se comprueban `active`, `one_time`, importe y moneda → se crea la
   sesión con `metadata.order_id` y clave de idempotencia canónica →
@@ -30,14 +30,14 @@ datos de prueba de Stripe. Pedidos, snapshot y webhook están versionados, pero
   usuario/curso/intento: un reintento recupera la misma sesión y la misma
   snapshot. Los metadatos enviados al proveedor contienen solo identificadores y
   la versión de condiciones; **no incluyen correos ni otros datos personales**.
-- La versión inicial desplegada en DEV sigue deshabilitada. Los secretos del
-  proveedor se leen en servidor desde variables de entorno; no hay claves ni
-  precios reales en el repositorio.
+- La versión desplegada en DEV se habilitó solo para TEST (reversible); la
+  configuración del proveedor se lee en servidor desde variables de entorno; no
+  hay claves ni precios reales en el repositorio.
 
 ## Guard TEST local y variables de entorno
 
-Los módulos `supabase/functions/_shared/test-gates.ts` y `test-gate-env.ts` son
-**sólo locales, aún no redeployados**. Los index locales pasan únicamente
+Los módulos `supabase/functions/_shared/test-gates.ts` y `test-gate-env.ts`
+están **desplegados en DEV y verificados en TEST**. Los index locales pasan únicamente
 `Deno.env` del servidor: nunca leen petición, cuerpo ni configuración Angular.
 No hay ningún flag activado en este repositorio.
 
@@ -56,9 +56,10 @@ respuesta sigue siendo el 409 «Compra no disponible» de siempre. La fila de
 términos en BD está **ausente** y la decisión legal sigue **pendiente**: no se ha
 fabricado ni insertado versión alguna. Las migraciones aplicadas en DEV, según
 informe, son 19/20/21/22/24/25/28, pero el historial de la CLI **no está
-reconciliado**. No se afirma prueba E2E ni cobro real.
+reconciliado**. La compra E2E en TEST sí se completó (verificado en DEV/TEST);
+no hay cobro real ni E2E en producción.
 
-### Prueba técnica DEV (sandbox, sin condiciones aprobadas)
+### Prueba técnica DEV (sandbox verificado en TEST, sin condiciones aprobadas)
 
 Esta rama existe únicamente para verificar el flujo técnico en DEV con Stripe
 en modo TEST. No es una apertura comercial: aquí no se aprueban precios, no se
@@ -113,9 +114,9 @@ No se crea nueva migración ni fila de consentimiento. Si la reserva devuelve
 `CHECKOUT_TERMS_VERSION` **antes de cualquier llamada a Stripe** y responde 409
 si difieren; si el DTO no lo incluye, no se finge la comparación: queda como
 límite de coherencia que el operador debe resolver configurando ambos valores.
-El webhook no se modifica en este bloque: conserva su guarda TEST separada.
-Estos cambios locales están pendientes de revisión: no se han desplegado ni
-aplicado a base remota, y no se ha ejecutado ninguna prueba de cobro.
+El webhook conserva su guarda TEST separada y ya se verificó con el pago real en
+TEST (verificado en DEV/TEST). Estos cambios están desplegados en DEV; la
+aplicación a otros entornos y la decisión legal siguen pendientes.
 
 ### Retorno del pago (sólo marcas locales)
 
@@ -125,10 +126,9 @@ comprobación es **sólo lectura**: contrasta pedidos y derechos propios bajo RL
 (`orders`, `order_items`, `entitlements`), distingue `pending`, `confirmed`,
 `notavailable` y `error`, y **nunca concede acceso**: la query no grant. Los
 estados `pending` se reintentan como máximo cuatro veces con esperas acotadas de
-1500/3000/6000 ms y, si agotan, solo hay reintento manual. No hay botón de
-compra, prueba E2E real ni flags `enabled`/términos inventados: la decisión
-remota sigue en manos del operador cloud y no se registra aquí ningún cambio de
-estado desplegado.
+1500/3000/6000 ms y, si agotan, solo hay reintento manual. La compra E2E en TEST
+sí se completó (verificado en DEV/TEST); no hay E2E en producción y la decisión
+remota sigue en manos del operador cloud.
 
 ### Retorno cancelado y sesión expirada (código local)
 
@@ -159,8 +159,8 @@ como «expirada». El reintento ante 422 vuelve a preguntar a Stripe; no crea
 reserva ni sesión nueva. No se modifica ninguna orden pagada, derecho, snapshot
 ni binding, y no se toca el webhook. No hay migración nueva para checkout: la prueba SQL
 `0018` cubre el contrato ya desplegado de intento conocido/conflicto/TTL/derecho
-activo. No hay política de reembolso, impago tardío ni precios nuevos; no se ha
-probado con Stripe real ni se afirma E2E.
+activo. No hay política de reembolso, impago tardío ni precios nuevos; la prueba
+se hizo con Stripe en modo TEST (verificado en DEV/TEST), no en producción.
 
 ## Verificación
 
@@ -175,6 +175,8 @@ probado con Stripe real ni se afirma E2E.
 - Prueba SQL de la oferta con **PGlite en memoria** (`npm run test:sql`), sobre
   migraciones y `supabase/tests/*.psql`, con `ROLLBACK`. Esto valida lógica SQL y
   permisos, no Supabase/Auth/PostgREST reales.
+- Compra E2E en Stripe TEST realizada por el usuario (verificado en DEV/TEST):
+  pedido pagado, derecho activo y evento procesado. No hay E2E en producción.
 
 ## Precondiciones para habilitar el cobro (futuro)
 
@@ -188,8 +190,8 @@ No se activará el flujo hasta que existan, al menos:
   simultáneas.
 - **Legal**: snapshot inmutable de condiciones y registro de consentimiento, con
   la decisión pendiente resuelta.
-- **Modo de prueba**: verificación en modo test del proveedor antes de cualquier
-  cobro real.
+- **Modo de prueba**: verificación en modo TEST ya realizada (verificado en
+  DEV/TEST); Stripe live y el cobro real siguen pendientes (decisión pendiente).
 
 Estas decisiones siguen pendientes en el plan de producto; este documento no las
 da por cerradas ni promete protección absoluta ni disponibilidad perpetua.

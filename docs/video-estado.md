@@ -18,12 +18,12 @@ El único interruptor es `videoPlaybackBunny`, configuración pública que vive 
 - `true` — sigue la integración Bunny con URL/token firmado emitido en
   servidor, sin claves ni identificadores de vídeo en el cliente.
 
-La copia local de desarrollo está en `false` para no consumir Bunny mientras se
-prueba la maquetación. La plantilla versionada y el valor por defecto siguen
-siendo `false` (producción segura, sin demo). Volver a Bunny consiste en poner
-esa única variable a `true`: no se tocan migraciones, Edge Functions, secretos
-ni datos privados. El coste de Bunny (almacenamiento y transferencia), si se
-activa, es independiente del reproductor y no es cero.
+En DEV la integración Bunny está activa y verificada: vídeo de prueba subido y
+listo, token authentication activo y modo sin firma apagado (verificado en DEV).
+La plantilla versionada y el valor por defecto siguen siendo `false` (producción
+segura, sin demo); YouTube queda solo como flag local de desarrollo. El coste de
+Bunny (almacenamiento y transferencia) es independiente del reproductor y no es
+cero.
 
 ## Qué existe hoy
 
@@ -45,7 +45,7 @@ activa, es independiente del reproductor y no es cero.
 
 Todo lo anterior es **SQL local**, ejercitado con PGlite (`npm run test:sql`).
 
-## Cliente Angular (código local, no desplegado)
+## Cliente Angular (código local, verificado en DEV)
 
 - Adaptador `BunnyStreamPlaybackProvider` desacoplado tras
   `VideoPlaybackProvider`, con validación estricta de la respuesta firmada.
@@ -68,27 +68,32 @@ Todo lo anterior es **SQL local**, ejercitado con PGlite (`npm run test:sql`).
 
 ## Qué NO está hecho
 
-- **Nada aplicado en la nube**: no hay proyecto Supabase remoto migrado.
+- Despliegue de producción: hay un proyecto Supabase de desarrollo migrado y
+  funciones desplegadas, pero nada aplicado en producción.
 - Las Edge Functions (`lesson-video-token`, `link-lesson-video`) están
-  versionadas con pruebas con mocks, pero **no desplegadas ni probadas en real**.
-- **Token authentication de Bunny está activo** en la biblioteca (comprobado hoy).
-- **`COLGAOS` no está vinculado** aún a la primera lección del curso real.
-- Secretos de Bunny (Library API key y signing key) no configurados: van a
-  mano como secretos de Edge Functions, nunca al repositorio, al chat,
-  `environment.local.ts` ni a filas públicas.
-- La comprobación visual en móvil o con Bunny real sigue pendiente; aquí solo
-  se han ejecutado pruebas unitarias locales con mocks.
+  desplegadas y probadas en DEV (verificado en DEV/TEST).
+- **Token authentication de Bunny está activo** y el modo sin firma está apagado
+  (verificado en DEV).
+- Vídeo de prueba subido por TUS desde `/admin` y listo en Bunny (verificado en
+  DEV); el vídeo definitivo sigue sujeto a decisión pendiente.
+- La configuración de servidor ya está aplicada en DEV; nada de ella en el
+  repositorio, el chat, `environment.local.ts` ni filas públicas.
+- La comprobación visual en móvil sigue pendiente; la reproducción con Bunny
+  real sí se verificó en DEV, no en producción.
 - `VideoPlaybackService.expiresAt()` queda como API latente sin consumidores: el
   aula usa `PlaybackSource.expiresAt`. No se refactoriza en este cambio.
 
 ## Gate: orden obligatorio
 
+En DEV estos pasos ya se ejecutaron y verificaron (verificado en DEV); en
+producción siguen siendo el orden obligatorio (decisión pendiente):
+
 1. Revisar y aplicar migraciones en un proyecto Supabase supervisado.
 2. Desplegar la Edge Function firmante y probarla de extremo a extremo
    (sesión + derecho + admin).
-3. Configurar a mano los secretos de Bunny en Supabase.
+3. Aplicar la configuración de Bunny en Supabase.
 4. **Solo entonces** activar «Embed view token authentication» en la
-   biblioteca de Bunny y vincular `COLGAOS`.
+   biblioteca de Bunny y vincular el vídeo definitivo.
 5. Después de comprobar la reproducción real, activar el flag público
    `videoPlaybackBunny` en la configuración (o en `environment.local.ts` en
    desarrollo). Antes, el aula permanece en estado honesto sin Bunny.
