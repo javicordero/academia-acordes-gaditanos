@@ -1,102 +1,178 @@
 <h2 #heading tabindex="-1">Estructura: {{ course().title }}</h2>
 <button type="button" [disabled]="saving()" (click)="closed.emit()">Volver a cursos</button>
-<p>Los nuevos bloques y lecciones se añaden al final. Arrastra para reordenar bloques y lecciones de un mismo bloque, o usa «Subir» y «Bajar». En móvil usa las flechas: el arrastre táctil no es fiable.</p>
-<p>Los bloques son visibles en cursos publicados. Las lecciones se pueden mantener como borrador; no se eliminan desde este panel.</p>
+<p class="structure-intro">Selecciona un bloque o una lección en el árbol y edítalo en el inspector, a la derecha (debajo en móvil). Arrastra el tirador para reordenar, o usa «Subir» y «Bajar»: el arrastre táctil no es fiable. No se pueden mover lecciones entre bloques ni borrarlas desde aquí.</p>
+<p class="structure-intro">Los bloques son visibles en cursos publicados. Una lección en borrador no se muestra al alumno; el estado se cambia en el inspector.</p>
 @if (error()) { <p class="feedback feedback--error" role="alert">{{ error() }}</p> }
-@if (notice()) { <p role="status">{{ notice() }}</p> }
+@if (notice()) { <p class="structure-notice" role="status">{{ notice() }}</p> }
 @if (loading()) {
-  <p role="status">Cargando estructura…</p>
+  <p>Cargando estructura…</p>
 } @else if (loadFailed()) {
   <button type="button" (click)="load()">Reintentar</button>
 } @else {
-  <button type="button" [disabled]="saving()" (click)="load()">Recargar estructura</button>
-  @if (lessons().length) {
-    <a [routerLink]="['/admin/vista-previa', course().id]">Vista previa del aula</a>
-  } @else {
-    <p>Añade una lección para abrir la vista previa del aula.</p>
-  }
-  <button class="button" type="button" [disabled]="saving()" (click)="editSection()">Añadir bloque</button>
-  @if (sectionEditor()) {
-    <form (ngSubmit)="saveSection()" novalidate aria-labelledby="section-editor-heading">
-      <h3 id="section-editor-heading">{{ sectionEditor() === 'new' ? 'Nuevo bloque' : 'Editar bloque' }}</h3>
-      <label for="section-title">Título del bloque</label>
-      <input #sectionInput id="section-title" name="sectionTitle" [(ngModel)]="sectionTitle" (ngModelChange)="clearField('sectionTitle')" required maxlength="120" [attr.aria-invalid]="invalid().sectionTitle" [attr.aria-describedby]="invalid().sectionTitle ? 'section-title-error' : null">
-      @if (invalid().sectionTitle) { <p id="section-title-error" role="alert">El título debe tener entre 1 y 120 caracteres.</p> }
-      <label for="section-summary">Resumen del bloque</label>
-      <textarea id="section-summary" name="sectionSummary" [(ngModel)]="sectionSummary"></textarea>
-      <button type="submit" [disabled]="saving()">Guardar bloque</button>
-      <button type="button" [disabled]="saving()" (click)="cancelEditor()">Cancelar</button>
-    </form>
-  }
-  @if (lessonEditor(); as editing) {
-    <form (ngSubmit)="saveLesson()" novalidate aria-labelledby="lesson-editor-heading">
-      <h3 id="lesson-editor-heading">{{ editing.lesson ? 'Editar lección' : 'Nueva lección' }} · {{ editing.section.title }}</h3>
-      <label for="lesson-title">Título de la lección</label>
-      <input #lessonInput id="lesson-title" name="lessonTitle" [(ngModel)]="lessonTitle" (ngModelChange)="clearField('lessonTitle')" required maxlength="160" [attr.aria-invalid]="invalid().lessonTitle" [attr.aria-describedby]="invalid().lessonTitle ? 'lesson-title-error' : null">
-      @if (invalid().lessonTitle) { <p id="lesson-title-error" role="alert">El título debe tener entre 1 y 160 caracteres.</p> }
-      <label for="lesson-type">Tipo de lección</label>
-      <select id="lesson-type" name="contentType" [(ngModel)]="contentType" (ngModelChange)="clearField('contentType')" required [attr.aria-invalid]="invalid().contentType" [attr.aria-describedby]="invalid().contentType ? 'lesson-type-error' : null">
-        <option value="video">Vídeo</option><option value="pdf">PDF</option><option value="text">Texto</option>
-      </select>
-      @if (invalid().contentType) { <p id="lesson-type-error" role="alert">Selecciona un tipo de lección válido.</p> }
-      @if (contentType === 'pdf') { <p>Guarda la lección y añade sus archivos desde Materiales PDF.</p> }
-      <label><input name="preview" type="checkbox" [(ngModel)]="preview"> Lección de muestra gratuita</label>
-      <label><input name="published" type="checkbox" [(ngModel)]="published"> Lección publicada</label>
-      <button type="submit" [disabled]="saving()">Guardar lección</button>
-      <button type="button" [disabled]="saving()" (click)="cancelEditor()">Cancelar</button>
-    </form>
-  }
+  <div class="structure-toolbar">
+    <button type="button" [disabled]="saving()" (click)="load()">Recargar estructura</button>
+    @if (lessons().length) {
+      <a class="structure-link" [routerLink]="['/admin/vista-previa', course().id]">Vista previa del aula</a>
+    } @else {
+      <p class="structure-hint">Añade una lección para abrir la vista previa del aula.</p>
+    }
+  </div>
   @if (materials(); as selected) {
     <app-lesson-materials [courseId]="course().id" [lessonId]="selected.id" [lessonTitle]="selected.title" (closed)="closeMaterials()" />
   }
-  @if (!sections().length) { <p>No hay bloques en este curso.</p> }
-  @for (section of orderedSections(); track section.id; let i = $index) {
-    @let sectionLessons = lessonsFor(section.id);
-    <section class="structure-section" [class.structure-section--dragover]="sameTarget(dropTarget(), { kind: 'section', id: section.id })"
-      [attr.aria-dropeffect]="dropEffect('section', section.id)"
-      (dragenter)="dragSectionEnter($event)" (dragover)="dragSectionOver($event, section)" (dragleave)="dragLeave($event)"
-      (drop)="dropSection($event, section)">
-      <h3>{{ section.title }}</h3>
-      @if (section.summary) { <p>{{ section.summary }}</p> }
-      <h4 class="visually-hidden">Bloque {{ section.title }}: arrastra para moverlo</h4>
-      <div class="structure-drag" draggable="true" [attr.aria-grabbed]="ariaGrabbed('section', section.id)"
-        (dragstart)="dragSectionStart($event, section)" (dragend)="dragEnd()">
-        <span class="structure-drag__handle" aria-hidden="true">⋮⋮</span> {{ section.title }}
-      </div>
-      <button type="button" [disabled]="saving()" (click)="editSection(section)" [attr.aria-label]="'Editar bloque ' + section.title">Editar bloque</button>
-      <button type="button" [disabled]="saving()" (click)="editLesson(section)" [attr.aria-label]="'Añadir lección a ' + section.title">Añadir lección</button>
-      <button #reorderButton type="button" [attr.data-reorder-key]="reorderButtonKey('section', section.id, 'up')"
-        [disabled]="saving() || i === 0" (click)="moveSection(section, -1)"
-        [attr.aria-label]="'Subir bloque ' + section.title + ', posición ' + (i + 1) + ' de ' + orderedSections().length">Subir bloque</button>
-      <button #reorderButton type="button" [attr.data-reorder-key]="reorderButtonKey('section', section.id, 'down')"
-        [disabled]="saving() || i === orderedSections().length - 1" (click)="moveSection(section, 1)"
-        [attr.aria-label]="'Bajar bloque ' + section.title + ', posición ' + (i + 1) + ' de ' + orderedSections().length">Bajar bloque</button>
-      <ul>
-        @for (lesson of sectionLessons; track lesson.id; let j = $index) {
-          <li class="structure-lesson" [class.structure-lesson--dragover]="sameTarget(dropTarget(), { kind: 'lesson', id: lesson.id, sectionId: section.id })"
-            [attr.aria-dropeffect]="dropEffect('lesson', lesson.id, section.id)"
-            (dragenter)="dragLessonEnter($event, section)" (dragover)="dragLessonOver($event, section, lesson)" (dragleave)="dragLeave($event)"
-            (drop)="dropLesson($event, section, lesson)">
-            <span class="structure-drag" draggable="true" [attr.aria-grabbed]="ariaGrabbed('lesson', lesson.id)"
-              (dragstart)="dragLessonStart($event, lesson)" (dragend)="dragEnd()">
-              <span class="structure-drag__handle" aria-hidden="true">⋮⋮</span> {{ lesson.title }}
-            </span>
-            — {{ lesson.is_published ? 'Publicada' : 'Borrador' }}{{ lesson.is_free_preview ? ' · Muestra' : '' }}
-            <a [routerLink]="['/admin/vista-previa', course().id, lesson.id]" [attr.aria-label]="'Ver en el aula ' + lesson.title">Ver en el aula</a>
-            <button type="button" [disabled]="saving()" (click)="editLesson(section, lesson)" [attr.aria-label]="'Editar lección ' + lesson.title">Editar lección</button>
-            @if (canOpenMaterials(lesson)) {
-              <button type="button" [disabled]="saving()" (click)="openMaterials(lesson)" [attr.aria-label]="'Materiales PDF de ' + lesson.title">Materiales PDF</button>
-              <a [routerLink]="['/admin', course().id, lesson.id, 'video']" [attr.aria-label]="'Vídeo de la lección ' + lesson.title">Vídeo de la lección</a>
+  <div class="structure-workspace">
+    <section class="outline" aria-labelledby="outline-heading">
+      <h3 id="outline-heading">Contenido del curso</h3>
+      <p class="structure-hint">Pulsa el nombre para editarlo; el chevron abre o cierra cada bloque.</p>
+      <ul class="outline-list" #outline (keydown)="onOutlineKeydown($event)">
+        @if (!sections().length) { <li class="outline-empty">No hay bloques en este curso.</li> }
+        @for (section of orderedSections(); track section.id; let i = $index) {
+          @let sectionLessons = lessonsFor(section.id);
+          <li class="outline-block structure-section"
+            [class.structure-section--dragover]="sameTarget(dropTarget(), { kind: 'section', id: section.id })"
+            [attr.aria-dropeffect]="dropEffect('section', section.id)"
+            (dragenter)="dragSectionEnter($event)" (dragover)="dragSectionOver($event, section)" (dragleave)="dragLeave($event)"
+            (drop)="dropSection($event, section)">
+            <div class="outline-row">
+              <button #outlineRow type="button" class="outline-fold"
+                data-outline-kind="section" [attr.data-outline-id]="section.id"
+                [attr.aria-label]="(isExpanded(section.id) ? 'Plegar bloque ' : 'Desplegar bloque ') + section.title"
+                [attr.aria-expanded]="isExpanded(section.id)"
+                [attr.aria-controls]="isExpanded(section.id) ? 'lessons-' + section.id : null"
+                (click)="toggleSection(section, $event)">
+                <span aria-hidden="true">{{ isExpanded(section.id) ? '▾' : '▸' }}</span>
+              </button>
+              <button #outlineRow type="button" class="outline-select outline-select--section"
+                [attr.data-outline-key]="outlineKey('section', section.id)" data-outline-kind="section"
+                [attr.data-outline-id]="section.id"
+                [attr.aria-current]="isSelected('section', section.id) ? 'true' : null"
+                [attr.aria-label]="'Seleccionar bloque ' + section.title"
+                (click)="editSection(section)">
+                <span class="outline-name">{{ section.title }}</span>
+              </button>
+              <span class="outline-position" [attr.aria-label]="'Posición ' + (i + 1) + ' de ' + orderedSections().length">{{ i + 1 }}/{{ orderedSections().length }}</span>
+              <span class="structure-drag" draggable="true" [attr.aria-grabbed]="ariaGrabbed('section', section.id)"
+                [attr.aria-label]="'Arrastrar bloque ' + section.title"
+                (dragstart)="dragSectionStart($event, section)" (dragend)="dragEnd()">
+                <span class="structure-drag__handle" aria-hidden="true">⋮⋮</span>
+              </span>
+              <span class="outline-order" role="group" [attr.aria-label]="'Orden de ' + section.title">
+                <button #reorderButton type="button" class="outline-order__button"
+                  [attr.data-reorder-key]="reorderButtonKey('section', section.id, 'up')"
+                  [disabled]="saving() || i === 0" (click)="moveSection(section, -1)"
+                  [attr.aria-label]="'Subir bloque ' + section.title + ', posición ' + (i + 1) + ' de ' + orderedSections().length">
+                  <span aria-hidden="true">↑</span>
+                </button>
+                <button #reorderButton type="button" class="outline-order__button"
+                  [attr.data-reorder-key]="reorderButtonKey('section', section.id, 'down')"
+                  [disabled]="saving() || i === orderedSections().length - 1" (click)="moveSection(section, 1)"
+                  [attr.aria-label]="'Bajar bloque ' + section.title + ', posición ' + (i + 1) + ' de ' + orderedSections().length">
+                  <span aria-hidden="true">↓</span>
+                </button>
+              </span>
+            </div>
+            @if (isExpanded(section.id)) {
+              <ul class="outline-lessons" [id]="'lessons-' + section.id">
+                @for (lesson of sectionLessons; track lesson.id; let j = $index) {
+                  <li class="outline-lesson structure-lesson"
+                    [class.structure-lesson--dragover]="sameTarget(dropTarget(), { kind: 'lesson', id: lesson.id, sectionId: section.id })"
+                    [attr.aria-dropeffect]="dropEffect('lesson', lesson.id, section.id)"
+                    (dragenter)="dragLessonEnter($event, section)" (dragover)="dragLessonOver($event, section, lesson)" (dragleave)="dragLeave($event)"
+                    (drop)="dropLesson($event, section, lesson)">
+                    <div class="outline-row">
+                      <button #outlineRow type="button" class="outline-select outline-select--lesson"
+                        [attr.data-outline-key]="outlineKey('lesson', lesson.id)" data-outline-kind="lesson"
+                        [attr.data-outline-id]="lesson.id" [attr.data-parent-section]="section.id"
+                        [attr.aria-current]="isSelected('lesson', lesson.id) ? 'true' : null"
+                        [attr.aria-label]="'Seleccionar lección ' + lesson.title + ', ' + typeLabel(lesson.content_type)"
+                        (click)="editLesson(section, lesson)">
+                        <span class="outline-type" aria-hidden="true">{{ typeIcon(lesson.content_type) }}</span>
+                        <span class="outline-name">{{ lesson.title }}</span>
+                        <span class="status-chip" [class.status-chip--draft]="!lesson.is_published">
+                          {{ lesson.is_published ? 'Publicada' : 'Borrador' }}
+                        </span>
+                        @if (lesson.is_free_preview) { <span class="status-chip status-chip--preview">Muestra</span> }
+                      </button>
+                      <span class="outline-position" [attr.aria-label]="'Posición ' + (j + 1) + ' de ' + sectionLessons.length">{{ j + 1 }}/{{ sectionLessons.length }}</span>
+                      <span class="structure-drag" draggable="true" [attr.aria-grabbed]="ariaGrabbed('lesson', lesson.id)"
+                        [attr.aria-label]="'Arrastrar lección ' + lesson.title"
+                        (dragstart)="dragLessonStart($event, lesson)" (dragend)="dragEnd()">
+                        <span class="structure-drag__handle" aria-hidden="true">⋮⋮</span>
+                      </span>
+                      <span class="outline-order" role="group" [attr.aria-label]="'Orden de ' + lesson.title">
+                        <button #reorderButton type="button" class="outline-order__button"
+                          [attr.data-reorder-key]="reorderButtonKey('lesson', lesson.id, 'up')"
+                          [disabled]="saving() || j === 0" (click)="moveLesson(section, lesson, -1)"
+                          [attr.aria-label]="'Subir lección ' + lesson.title + ', posición ' + (j + 1) + ' de ' + sectionLessons.length + ' en ' + section.title">
+                          <span aria-hidden="true">↑</span>
+                        </button>
+                        <button #reorderButton type="button" class="outline-order__button"
+                          [attr.data-reorder-key]="reorderButtonKey('lesson', lesson.id, 'down')"
+                          [disabled]="saving() || j === sectionLessons.length - 1" (click)="moveLesson(section, lesson, 1)"
+                          [attr.aria-label]="'Bajar lección ' + lesson.title + ', posición ' + (j + 1) + ' de ' + sectionLessons.length + ' en ' + section.title">
+                          <span aria-hidden="true">↓</span>
+                        </button>
+                      </span>
+                    </div>
+                  </li>
+                }
+              </ul>
             }
-            <button #reorderButton type="button" [attr.data-reorder-key]="reorderButtonKey('lesson', lesson.id, 'up')"
-              [disabled]="saving() || j === 0" (click)="moveLesson(section, lesson, -1)"
-              [attr.aria-label]="'Subir lección ' + lesson.title + ', posición ' + (j + 1) + ' de ' + sectionLessons.length + ' en ' + section.title">Subir lección</button>
-            <button #reorderButton type="button" [attr.data-reorder-key]="reorderButtonKey('lesson', lesson.id, 'down')"
-              [disabled]="saving() || j === sectionLessons.length - 1" (click)="moveLesson(section, lesson, 1)"
-              [attr.aria-label]="'Bajar lección ' + lesson.title + ', posición ' + (j + 1) + ' de ' + sectionLessons.length + ' en ' + section.title">Bajar lección</button>
+            <button type="button" class="outline-add" [disabled]="saving()" (click)="editLesson(section)"
+              [attr.aria-label]="'Añadir lección a ' + section.title">+ Añadir lección</button>
           </li>
         }
+        <li class="outline-block outline-block--add">
+          <button type="button" class="outline-add" [disabled]="saving()" (click)="editSection()">+ Añadir bloque</button>
+        </li>
       </ul>
     </section>
-  }
+
+    <aside class="inspector" aria-labelledby="inspector-heading">
+      <h3 id="inspector-heading">Inspector</h3>
+      @if (sectionEditor(); as editing) {
+        <form (ngSubmit)="saveSection()" novalidate aria-labelledby="section-editor-heading" (keydown.escape)="cancelEditor()">
+          <h4 id="section-editor-heading">{{ editing === 'new' ? 'Nuevo bloque' : 'Editar bloque' }}</h4>
+          <label for="section-title">Título del bloque</label>
+          <input #sectionInput id="section-title" name="sectionTitle" [(ngModel)]="sectionTitle" (ngModelChange)="clearField('sectionTitle')" required maxlength="120" [attr.aria-invalid]="invalid().sectionTitle" [attr.aria-describedby]="invalid().sectionTitle ? 'section-title-error' : null">
+          @if (invalid().sectionTitle) { <p id="section-title-error" role="alert">El título debe tener entre 1 y 120 caracteres.</p> }
+          <div class="inspector-actions">
+            <button type="submit" [disabled]="saving()">Guardar bloque</button>
+            <button type="button" [disabled]="saving()" (click)="cancelEditor()">Cancelar</button>
+          </div>
+        </form>
+      } @else if (lessonEditor(); as editing) {
+        <form (ngSubmit)="saveLesson()" novalidate aria-labelledby="lesson-editor-heading" (keydown.escape)="cancelEditor()">
+          <h4 id="lesson-editor-heading">{{ editing.lesson ? 'Editar lección' : 'Nueva lección' }} · {{ editing.section.title }}</h4>
+          <label for="lesson-title">Título de la lección</label>
+          <input #lessonInput id="lesson-title" name="lessonTitle" [(ngModel)]="lessonTitle" (ngModelChange)="clearField('lessonTitle')" required maxlength="160" [attr.aria-invalid]="invalid().lessonTitle" [attr.aria-describedby]="invalid().lessonTitle ? 'lesson-title-error' : null">
+          @if (invalid().lessonTitle) { <p id="lesson-title-error" role="alert">El título debe tener entre 1 y 160 caracteres.</p> }
+          <label for="lesson-type">Tipo de lección</label>
+          <select id="lesson-type" name="contentType" [(ngModel)]="contentType" (ngModelChange)="clearField('contentType')" required [attr.aria-invalid]="invalid().contentType" [attr.aria-describedby]="invalid().contentType ? 'lesson-type-error' : null">
+            <option value="video">Vídeo</option><option value="pdf">PDF</option><option value="text">Texto</option>
+          </select>
+          @if (invalid().contentType) { <p id="lesson-type-error" role="alert">Selecciona un tipo de lección válido.</p> }
+          @if (contentType === 'pdf') { <p class="structure-hint">Guarda la lección y añade sus archivos desde Materiales PDF.</p> }
+          <label class="inspector-check"><input name="preview" type="checkbox" [(ngModel)]="preview"> Lección de muestra gratuita</label>
+          <label class="inspector-check"><input name="published" type="checkbox" [(ngModel)]="published"> Lección publicada</label>
+          <div class="inspector-actions">
+            <button type="submit" [disabled]="saving()">Guardar lección</button>
+            <button type="button" [disabled]="saving()" (click)="cancelEditor()">Cancelar</button>
+          </div>
+          @if (editing.lesson; as lesson) {
+            <div class="inspector-links" role="group" aria-label="Accesos de la lección">
+              <a class="structure-link" [routerLink]="['/admin/vista-previa', course().id, lesson.id]" [attr.aria-label]="'Ver en el aula ' + lesson.title">Ver en el aula</a>
+              @if (canOpenMaterials(lesson)) {
+                <a class="structure-link" [routerLink]="['/admin', course().id, lesson.id, 'video']" [attr.aria-label]="'Vídeo de la lección ' + lesson.title">Vídeo de la lección</a>
+                <button type="button" [disabled]="saving()" (click)="openMaterials(lesson)" [attr.aria-label]="'Materiales PDF de ' + lesson.title">Materiales PDF</button>
+                <a class="structure-link" [routerLink]="['/admin', 'curso', course().id, 'leccion', lesson.id]" [attr.aria-label]="'Gestionar vídeo y materiales de ' + lesson.title">Gestionar vídeo y materiales</a>
+              }
+            </div>
+          }
+        </form>
+      } @else {
+        <p class="inspector-empty">Selecciona un bloque o una lección para editarlo.</p>
+      }
+    </aside>
+  </div>
 }

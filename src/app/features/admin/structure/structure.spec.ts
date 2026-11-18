@@ -47,9 +47,10 @@ describe('Structure', () => {
     repo.list.mockResolvedValueOnce({ sections: [section], lessons: [lesson] });
     const fixture = await setup(); const component = fixture.componentInstance;
     expect(fixture.nativeElement.textContent).toContain('Vista previa del aula');
+    component.editLesson(section, lesson); fixture.detectChanges(); await fixture.whenStable();
     expect(fixture.nativeElement.querySelector('a[aria-label="Ver en el aula Lección"]').getAttribute('href'))
       .toBe('/admin/vista-previa/course/22222222-2222-2222-2222-222222222222');
-    component.editLesson(section, lesson); component.lessonTitle = 'Sin guardar';
+    component.lessonTitle = 'Sin guardar';
     component.openMaterials(lesson); fixture.detectChanges(); await fixture.whenStable();
     expect(document.activeElement?.id).toBe('materials-heading');
     expect(component.lessonTitle).toBe('Sin guardar');
@@ -61,6 +62,7 @@ describe('Structure', () => {
     const saved = makeLesson('22222222-2222-2222-2222-222222222222', 'Lección');
     repo.list.mockResolvedValueOnce({ sections: [section], lessons: [saved] });
     const fixture = await setup();
+    fixture.componentInstance.editLesson(section, saved); fixture.detectChanges(); await fixture.whenStable();
     const video = fixture.nativeElement.querySelector('a[aria-label="Vídeo de la lección Lección"]');
     expect(video).not.toBeNull();
     expect(video.getAttribute('href')).toBe('/admin/course/22222222-2222-2222-2222-222222222222/video');
@@ -74,18 +76,23 @@ describe('Structure', () => {
     fixture.componentInstance.editLesson(section); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('a[aria-label^="Vídeo de la lección"]')).toBeNull();
   });
-  it('muestra un enlace de vídeo por lección guardada sin duplicarlos', async () => {
+  it('muestra en el inspector los accesos de la lección seleccionada sin duplicarlos', async () => {
     const first = makeLesson('11111111-1111-1111-1111-111111111111', 'Primera');
     const second = makeLesson('22222222-2222-2222-2222-222222222222', 'Segunda');
     repo.list.mockResolvedValueOnce({ sections: [section], lessons: [first, second] });
-    const fixture = await setup();
-    const links = [...fixture.nativeElement.querySelectorAll('a[aria-label^="Vídeo de la lección "]')];
-    expect(links).toHaveLength(2);
-    expect(links.map((link: HTMLAnchorElement) => link.getAttribute('href'))).toEqual([
-      '/admin/course/11111111-1111-1111-1111-111111111111/video',
-      '/admin/course/22222222-2222-2222-2222-222222222222/video',
-    ]);
-    expect(fixture.nativeElement.querySelectorAll('button[aria-label^="Materiales PDF de"]')).toHaveLength(2);
+    const fixture = await setup(); const component = fixture.componentInstance;
+    const linkFor = () => fixture.nativeElement.querySelector('a[aria-label^="Vídeo de la lección "]');
+    component.editLesson(section, first); fixture.detectChanges(); await fixture.whenStable();
+    expect(linkFor().getAttribute('href')).toBe('/admin/course/11111111-1111-1111-1111-111111111111/video');
+    expect(fixture.nativeElement.querySelectorAll('a[aria-label^="Vídeo de la lección "]')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelectorAll('button[aria-label^="Materiales PDF de"]')).toHaveLength(1);
+    component.editLesson(section, second); fixture.detectChanges(); await fixture.whenStable();
+    expect(linkFor().getAttribute('href')).toBe('/admin/course/22222222-2222-2222-2222-222222222222/video');
+    expect(fixture.nativeElement.querySelectorAll('a[aria-label^="Vídeo de la lección "]')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelector('a[aria-label="Ver en el aula Segunda"]').getAttribute('href'))
+      .toBe('/admin/vista-previa/course/22222222-2222-2222-2222-222222222222');
+    expect(fixture.nativeElement.querySelector('a[aria-label="Gestionar vídeo y materiales de Segunda"]').getAttribute('href'))
+      .toBe('/admin/curso/course/leccion/22222222-2222-2222-2222-222222222222');
   });
   it('oculta edición si falla la carga', async () => {
     repo.list.mockRejectedValueOnce(new Error('denied'));
@@ -297,7 +304,7 @@ describe('Structure', () => {
     fixture.detectChanges();
     expect(component.dropTarget()).toEqual({ kind: 'section', id: 'sb' });
     expect(fixture.nativeElement.querySelector('.structure-section--dragover')).not.toBeNull();
-    expect(effects()).toEqual(['move', 'move']);
+    expect(effects()).toEqual(['none', 'move']);
     component.dragEnd(); fixture.detectChanges();
     expect(grabbed()).toEqual(['false', 'false']);
   });
@@ -449,5 +456,182 @@ describe('Structure', () => {
     expect(component.dragging()).toBeNull();
     finish(); await first;
     expect(repo.reorderCourseSections).toHaveBeenCalledTimes(1);
+  });
+
+  const selectedLabels = (fixture: { nativeElement: HTMLElement }) =>
+    [...fixture.nativeElement.querySelectorAll('[aria-current="true"]')]
+      .map(item => item.getAttribute('aria-label'));
+
+  it('marca la selección con aria-current y muestra solo los campos del tipo elegido', async () => {
+    const a = block('sa', 'Alfa', 0);
+    const b = block('sb', 'Beta', 1);
+    const lesson = row('l1', 'Primera', 'sa', 0);
+    repo.list.mockResolvedValueOnce({ sections: [a, b], lessons: [lesson] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    expect(selectedLabels(fixture)).toEqual([]);
+    component.editSection(a); fixture.detectChanges(); await fixture.whenStable();
+    expect(selectedLabels(fixture)).toEqual(['Seleccionar bloque Alfa']);
+    expect(fixture.nativeElement.querySelector('#section-title')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('#lesson-title')).toBeNull();
+    component.editLesson(a, lesson); fixture.detectChanges(); await fixture.whenStable();
+    expect(selectedLabels(fixture)).toEqual(['Seleccionar lección Primera, vídeo']);
+    expect(fixture.nativeElement.querySelector('#lesson-title')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('#lesson-type')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('#section-title')).toBeNull();
+  });
+
+  it('cambia de selección sin desmontar el outline y enfoca el inspector sin desplazar la lista', async () => {
+    const a = block('sa', 'Alfa', 0);
+    const lesson = row('l1', 'Primera', 'sa', 0);
+    repo.list.mockResolvedValueOnce({ sections: [a], lessons: [lesson] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    const rowBefore = fixture.nativeElement.querySelector('[data-outline-key="section:sa"]');
+    const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus');
+    component.editSection(a); fixture.detectChanges(); await fixture.whenStable();
+    component.editLesson(a, lesson); fixture.detectChanges(); await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('[data-outline-key="section:sa"]')).toBe(rowBefore);
+    expect(document.activeElement?.id).toBe('lesson-title');
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+    focusSpy.mockRestore();
+  });
+
+  it('plega y despliega bloques, reabre el bloque al seleccionar una lección y conserva el plegado al recargar', async () => {
+    const a = block('sa', 'Alfa', 0);
+    const lesson = row('l1', 'Primera', 'sa', 0);
+    repo.list.mockResolvedValue({ sections: [a], lessons: [lesson] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    const fold = (label: string) => fixture.nativeElement.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
+    expect(fold('Plegar bloque Alfa').getAttribute('aria-expanded')).toBe('true');
+    fold('Plegar bloque Alfa').click(); fixture.detectChanges(); await fixture.whenStable();
+    expect(fold('Desplegar bloque Alfa').getAttribute('aria-expanded')).toBe('false');
+    expect(fixture.nativeElement.querySelector('[data-outline-key="lesson:l1"]')).toBeNull();
+    await component.load(); fixture.detectChanges(); await fixture.whenStable();
+    expect(component.isExpanded('sa')).toBe(false);
+    component.editLesson(a, lesson); fixture.detectChanges(); await fixture.whenStable();
+    expect(component.isExpanded('sa')).toBe(true);
+    expect(fixture.nativeElement.querySelector('[data-outline-key="lesson:l1"]')).not.toBeNull();
+  });
+
+  it('navega por el outline con flechas y cierra el inspector con Escape sin guardar', async () => {
+    const a = block('sa', 'Alfa', 0);
+    const b = block('sb', 'Beta', 1);
+    const lesson = row('l1', 'Primera', 'sa', 0);
+    repo.list.mockResolvedValueOnce({ sections: [a, b], lessons: [lesson] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    const first = fixture.nativeElement.querySelector('[data-outline-key="section:sa"]') as HTMLButtonElement;
+    first.focus();
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(document.activeElement?.getAttribute('data-outline-key')).toBe('lesson:l1');
+    component.editLesson(a, lesson); fixture.detectChanges(); await fixture.whenStable();
+    component.lessonTitle = 'Sin guardar';
+    const form = fixture.nativeElement.querySelector('.inspector form') as HTMLFormElement;
+    form.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges(); await fixture.whenStable();
+    expect(repo.saveLesson).not.toHaveBeenCalled();
+    expect(component.lessonEditor()).toBeNull();
+    expect(document.activeElement?.getAttribute('data-outline-key')).toBe('lesson:l1');
+  });
+
+  it('devuelve el foco a la lección recién guardada y mantiene el mensaje de guardado', async () => {
+    const a = block('sa', 'Alfa', 0);
+    const created = row('l-new', 'Nueva', 'sa', 0);
+    repo.list.mockResolvedValueOnce({ sections: [a], lessons: [] })
+      .mockResolvedValueOnce({ sections: [a], lessons: [created] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    component.editLesson(a); component.lessonTitle = 'Nueva';
+    await component.saveLesson(); fixture.detectChanges(); await fixture.whenStable();
+    expect(repo.saveLesson).toHaveBeenCalledWith('course', 'sa',
+      { title: 'Nueva', content_type: 'video', is_free_preview: false, is_published: false }, 0, undefined, 'nueva');
+    expect(component.selected()).toEqual({ kind: 'lesson', id: 'l-new', sectionId: 'sa' });
+    expect(document.activeElement?.getAttribute('data-outline-key')).toBe('lesson:l-new');
+    expect(fixture.nativeElement.querySelector('[role="status"]').textContent).toContain('Lección guardada.');
+  });
+
+  it('sitúa el inspector después del outline en el mismo panel y arranca sin selección', async () => {
+    const fixture = await setup();
+    const workspace = fixture.nativeElement.querySelector('.structure-workspace') as HTMLElement;
+    expect(workspace).not.toBeNull();
+    const outline = workspace.querySelector('.outline') as HTMLElement;
+    const inspector = workspace.querySelector('.inspector') as HTMLElement;
+    expect(outline).not.toBeNull(); expect(inspector).not.toBeNull();
+    expect(outline.compareDocumentPosition(inspector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(inspector.textContent).toContain('Selecciona un bloque o una lección para editarlo.');
+  });
+
+  it('no muestra resumen ni contenido markdown en ninguno de los dos paneles', async () => {
+    const fixture = await setup(); const component = fixture.componentInstance;
+    component.editSection(section); fixture.detectChanges(); await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('#section-summary')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Resumen del bloque');
+    component.editLesson(section); fixture.detectChanges(); await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('#lesson-summary, #lesson-content, #lesson-content-md')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Contenido markdown');
+  });
+
+  const rectAt = (top: number, bottom: number): DOMRect =>
+    ({ top, bottom, left: 10, right: 200, width: 190, height: bottom - top, x: 10, y: top, toJSON: () => ({}) }) as DOMRect;
+
+  it('acerca el inspector con scrollIntoView solo cuando queda fuera del viewport', async () => {
+    const a = block('sa', 'Alfa', 0);
+    repo.list.mockResolvedValueOnce({ sections: [a], lessons: [] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    component.editSection(a); fixture.detectChanges(); await fixture.whenStable();
+    const input = fixture.nativeElement.querySelector('#section-title') as HTMLInputElement;
+    const scroll = vi.fn();
+    Object.defineProperty(input, 'scrollIntoView', { value: scroll, configurable: true });
+    const bounds = vi.spyOn(input, 'getBoundingClientRect').mockReturnValue(rectAt(10, 50));
+    component.editSection(a); fixture.detectChanges(); await fixture.whenStable();
+    expect(scroll).not.toHaveBeenCalled();
+    bounds.mockReturnValue(rectAt(1200, 1300));
+    component.editSection(a); fixture.detectChanges(); await fixture.whenStable();
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
+    expect(document.activeElement?.id).toBe('section-title');
+  });
+
+  it('no enfoca ni desplaza una fila seleccionada que ya no está en el outline', async () => {
+    const a = block('sa', 'Alfa', 0);
+    const lesson = row('l1', 'Primera', 'sa', 0);
+    repo.list.mockResolvedValueOnce({ sections: [a], lessons: [lesson] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    component.editLesson(a, lesson); fixture.detectChanges(); await fixture.whenStable();
+    const selectedRow = fixture.nativeElement.querySelector('[data-outline-key="lesson:l1"]') as HTMLButtonElement;
+    const scroll = vi.fn();
+    Object.defineProperty(selectedRow, 'scrollIntoView', { value: scroll, configurable: true });
+    selectedRow.remove();
+    component.cancelEditor(); fixture.detectChanges(); await fixture.whenStable();
+    expect(component.lessonEditor()).toBeNull();
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
+  it('no ofrece como destino la fila de origen al arrastrar lecciones', async () => {
+    const a = block('sa', 'Alfa', 0);
+    const l1 = row('l1', 'Primera', 'sa', 0);
+    const l2 = row('l2', 'Segunda', 'sa', 1);
+    repo.list.mockResolvedValueOnce({ sections: [a], lessons: [l1, l2] });
+    const fixture = await setup(); const component = fixture.componentInstance;
+    const effects = () => [...fixture.nativeElement.querySelectorAll('[aria-dropeffect]')]
+      .map((item: HTMLElement) => item.getAttribute('aria-dropeffect'));
+    component.dragLessonStart(fakeDrag(), l1);
+    fixture.detectChanges();
+    expect(effects()).toEqual(['none', 'none', 'move']);
+    component.dragEnd(); fixture.detectChanges();
+    expect(effects()).toEqual(['none', 'none', 'none']);
+  });
+
+  it('aria-controls solo apunta a la lista de lecciones mientras el bloque está desplegado', async () => {
+    const a = block('sa', 'Alfa', 0);
+    const lesson = row('l1', 'Primera', 'sa', 0);
+    repo.list.mockResolvedValueOnce({ sections: [a], lessons: [lesson] });
+    const fixture = await setup();
+    const fold = () => fixture.nativeElement.querySelector(
+      'button[aria-label="Plegar bloque Alfa"], button[aria-label="Desplegar bloque Alfa"]') as HTMLButtonElement;
+    expect(fold().getAttribute('aria-controls')).toBe('lessons-sa');
+    expect(fixture.nativeElement.querySelector('#lessons-sa')).not.toBeNull();
+    fold().click(); fixture.detectChanges(); await fixture.whenStable();
+    expect(fold().getAttribute('aria-expanded')).toBe('false');
+    expect(fold().hasAttribute('aria-controls')).toBe(false);
+    expect(fixture.nativeElement.querySelector('#lessons-sa')).toBeNull();
   });
 });

@@ -16,6 +16,10 @@ type DropTarget =
   | { kind: 'section'; id: string }
   | { kind: 'lesson'; id: string; sectionId: string };
 
+type Selection =
+  | { kind: 'section'; id: string }
+  | { kind: 'lesson'; id: string; sectionId: string };
+
 function lessonSlug(title: string, lessons: Lesson[]): string {
   const base = title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'leccion';
@@ -39,6 +43,8 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
   private readonly sectionInput = viewChild<ElementRef<HTMLInputElement>>('sectionInput');
   private readonly lessonInput = viewChild<ElementRef<HTMLInputElement>>('lessonInput');
+  private readonly outline = viewChild<ElementRef<HTMLElement>>('outline');
+  private readonly outlineRows = viewChildren<ElementRef<HTMLButtonElement>>('outlineRow');
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private readonly repository = inject(StructureRepository);
@@ -66,6 +72,12 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
   readonly notice = signal('');
   readonly dragging = signal<DragItem | null>(null);
   readonly dropTarget = signal<DropTarget | null>(null);
+
+  /** Plegado por bloque. Se conserva al recargar y al reordenar. */
+  readonly expanded = signal<ReadonlySet<string>>(new Set<string>());
+  private knownSectionIds = new Set<string>();
+  /** Elemento reflejado en el outline con aria-current; el inspector se edita aparte. */
+  readonly selected = signal<Selection | null>(null);
 
   readonly invalid = signal({ sectionTitle: false, lessonTitle: false, contentType: false });
   readonly sectionEditor = signal<Section | 'new' | null>(null);
@@ -96,6 +108,9 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
     if (changes['course'] && !changes['course'].firstChange) {
       this.loadVersion++;
       this.cancelDrag();
+      this.expanded.set(new Set<string>());
+      this.knownSectionIds = new Set<string>();
+      this.selected.set(null);
     }
   }
   ngOnDestroy(): void { this.cancelDrag(); }
@@ -108,6 +123,13 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
       const data = await this.repository.list(courseId);
       if (!this.currentLoad(version, courseId)) return;
       this.sections.set(data.sections); this.lessons.set(data.lessons);
+      this.syncExpanded(data.sections);
+      if (this.selected()?.kind === 'lesson' && !data.lessons.some(l => l.id === this.selected()!.id)) {
+        this.selected.set(null);
+      }
+      if (this.selected()?.kind === 'section' && !data.sections.some(s => s.id === this.selected()!.id)) {
+        this.selected.set(null);
+      }
     } catch {
       if (this.currentLoad(version, courseId)) {
         this.loadFailed.set(true); this.error.set('No se ha podido cargar la estructura. Comprueba la conexión y tus permisos.');
@@ -117,11 +139,60 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
   private currentLoad(version: number, courseId: string): boolean {
     return !this.destroyRef.destroyed && version === this.loadVersion && this.course().id === courseId;
   }
+  private syncExpanded(sections: Section[]): void {
+    const ids = new Set(sections.map(section => section.id));
+    const next = new Set([...this.expanded()].filter(id => ids.has(id)));
+    // Solo se abren los bloques nuevos; los que el usuario plegó siguen plegados.
+    for (const section of sections) {
+      if (!this.knownSectionIds.has(section.id) && !next.has(section.id)) next.add(section.id);
+    }
+    this.knownSectionIds = ids;
+    this.expanded.set(next);
+  }
+  isExpanded(id: string): boolean { return this.expanded().has(id); }
+  expandSection(id: string): void {
+    if (this.expanded().has(id)) return;
+    this.expanded.update(current => new Set([...current, id]));
+  }
+  collapseSection(id: string): void {
+    if (!this.expanded().has(id)) return;
+    this.expanded.update(current => new Set([...current].filter(item => item !== id)));
+  }
+  toggleSection(section: Section, event?: Event): void {
+    event?.stopPropagation();
+    if (this.isExpanded(section.id)) this.collapseSection(section.id); else this.expandSection(section.id);
+  }
+  outlineKey(kind: 'section' | 'lesson', id: string): string { return `${kind}:${id}`; }
+  isSelected(kind: 'section' | 'lesson', id: string): boolean {
+    const selection = this.selected();
+    return !!selection && selection.kind === kind && selection.id === id;
+  }
+  typeIcon(type: string): string {
+    return type === 'pdf' ? '▤' : type === 'text' ? '≡' : '▶';
+  }
+  typeLabel(type: string): string {
+    return type === 'pdf' ? 'PDF' : type === 'text' ? 'texto' : 'vídeo';
+  }
   lessonsFor(sectionId: string): Lesson[] {
     return this.lessonsBySection().get(sectionId) ?? NO_LESSONS;
   }
   reorderButtonKey(kind: 'section' | 'lesson', id: string, direction: 'up' | 'down'): string {
     return `${kind}:${direction}:${id}`;
+  }
+  /**
+   * Enfoca sin desplazar de entrada. Solo si el nodo queda fuera del viewport
+   * (inspector debajo del outline en móvil) lo acerca lo mínimo con 'nearest'.
+   */
+  private focusVisible(element: HTMLElement | undefined, preventScroll: boolean): void {
+    if (!element?.isConnected) return;
+    element.focus(preventScroll ? { preventScroll: true } : undefined);
+    if (!element.isConnected || typeof element.scrollIntoView !== 'function') return;
+    const rect = element.getBoundingClientRect();
+    const height = window.innerHeight || document.documentElement.clientHeight;
+    const width = window.innerWidth || document.documentElement.clientWidth;
+    if (rect.bottom < 0 || rect.top > height || rect.right < 0 || rect.left > width) {
+      element.scrollIntoView({ block: 'nearest' });
+    }
   }
   /** `viewChildren` devuelve ElementRef; find() extrae el HTMLButtonElement. */
   private restoreFocus(key: string, fallbackKey: string, preferFallback: boolean): void {
@@ -133,9 +204,51 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
         buttons.find(button => button.nativeElement.dataset['reorderKey'] === wanted)?.nativeElement;
       const first = preferFallback ? fallbackKey : key;
       const second = preferFallback ? key : fallbackKey;
-      (find(first) ?? find(second))?.focus();
+      this.focusVisible(find(first) ?? find(second), true);
     };
     afterNextRender(focus, { injector: this.injector });
+  }
+  private focusOutline(key: string): void {
+    if (this.destroyRef.destroyed || !key) return;
+    afterNextRender(() => {
+      if (this.destroyRef.destroyed) return;
+      this.focusVisible(this.outlineRows()
+        .find(row => row.nativeElement.dataset['outlineKey'] === key)?.nativeElement, true);
+    }, { injector: this.injector });
+  }
+  /** Flechas recorren el outline; Enter/Espacio los gestiona el botón nativamente. */
+  onOutlineKeydown(event: KeyboardEvent): void {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const rows = this.outlineRows();
+    const active = event.target as HTMLElement | null;
+    const index = rows.findIndex(row => row.nativeElement === active);
+    if (index < 0) return;
+    if (event.key === 'Escape') { event.preventDefault(); this.cancelEditor(); return; }
+    const element = rows[index].nativeElement;
+    const kind = element.dataset['outlineKind'];
+    const id = element.dataset['outlineId'] ?? '';
+    const sectionId = element.dataset['parentSection'] ?? '';
+    let target: HTMLElement | undefined;
+    switch (event.key) {
+      case 'ArrowDown': target = rows[index + 1]?.nativeElement; break;
+      case 'ArrowUp': target = rows[index - 1]?.nativeElement; break;
+      case 'ArrowRight':
+        if (kind === 'section') {
+          if (!this.isExpanded(id)) this.expandSection(id);
+          else target = rows.find(row => row.nativeElement.dataset['parentSection'] === id)?.nativeElement;
+        }
+        break;
+      case 'ArrowLeft':
+        if (kind === 'lesson') {
+          target = rows.find(row => row.nativeElement.dataset['outlineKey'] === `section:${sectionId}`)?.nativeElement;
+        } else if (this.isExpanded(id)) {
+          this.collapseSection(id);
+        }
+        break;
+      default: return;
+    }
+    event.preventDefault();
+    this.focusVisible(target, true);
   }
   private reorderIsCurrent(version: number, courseId: string): boolean {
     return !this.destroyRef.destroyed && version === this.loadVersion && this.course().id === courseId;
@@ -330,7 +443,8 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
   dropEffect(kind: 'section' | 'lesson', id: string, sectionId?: string): 'move' | 'none' {
     const dragging = this.dragging();
     if (!dragging || this.saving()) return 'none';
-    if (dragging.kind === 'section') return 'move';
+    // La fila de origen nunca se ofrece como destino, tampoco al arrastrar bloques.
+    if (dragging.kind === 'section') return id === dragging.id ? 'none' : 'move';
     return kind === 'lesson' && sectionId === dragging.sectionId && id !== dragging.id ? 'move' : 'none';
   }
   private currentIds(): string[] | null {
@@ -381,7 +495,9 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
     if (this.destroyRef.destroyed) return;
     afterNextRender(() => {
       if (this.destroyRef.destroyed) return;
-      (target === 'heading' ? this.heading() : target === 'section' ? this.sectionInput() : this.lessonInput())?.nativeElement.focus();
+      const element = target === 'heading' ? this.heading()
+        : target === 'section' ? this.sectionInput() : this.lessonInput();
+      this.focusVisible(element?.nativeElement, target !== 'heading');
     }, { injector: this.injector });
   }
   private clearValidation(): void {
@@ -392,14 +508,21 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
   }
   cancelEditor(): void {
     if (this.saving()) return;
-    this.sectionEditor.set(null); this.lessonEditor.set(null); this.error.set(''); this.clearValidation();
-    this.focus('heading');
+    const selection = this.selected();
+    this.sectionEditor.set(null); this.lessonEditor.set(null); this.selected.set(null);
+    this.error.set(''); this.clearValidation();
+    if (selection) this.focusOutline(this.outlineKey(selection.kind, selection.id));
+    else this.focus('heading');
   }
   editSection(section?: Section): void {
     if (this.saving()) return;
     this.lessonEditor.set(null);
-    this.sectionTitle = section?.title ?? ''; this.sectionSummary = section?.summary ?? '';
-    this.clearValidation(); this.error.set(''); this.sectionEditor.set(section ?? 'new'); this.focus('section');
+    this.sectionTitle = section?.title ?? '';
+    this.sectionSummary = section?.summary ?? '';
+    this.clearValidation(); this.error.set('');
+    this.sectionEditor.set(section ?? 'new');
+    this.selected.set(section ? { kind: 'section', id: section.id } : null);
+    this.focus('section');
   }
   editLesson(section: Section, lesson?: Lesson): void {
     if (this.saving()) return;
@@ -407,7 +530,10 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
     this.lessonTitle = lesson?.title ?? '';
     this.contentType = lesson ? lesson.content_type : 'video';
     this.preview = lesson?.is_free_preview ?? false; this.published = lesson?.is_published ?? false;
-    this.clearValidation(); this.error.set(''); this.lessonEditor.set({ section, lesson }); this.focus('lesson');
+    this.clearValidation(); this.error.set(''); this.lessonEditor.set({ section, lesson });
+    this.selected.set(lesson ? { kind: 'lesson', id: lesson.id, sectionId: section.id } : null);
+    if (lesson) this.expandSection(section.id);
+    this.focus('lesson');
   }
   async saveSection(): Promise<void> {
     if (this.saving()) return;
@@ -416,14 +542,35 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
     if (!editor) return;
     this.invalid.update(v => ({ ...v, sectionTitle: !title || [...title].length > 120 }));
     if (this.invalid().sectionTitle) return;
-    this.saving.set(true); this.error.set('');
+    const courseId = this.course().id;
+    const version = this.loadVersion;
+    const previousIds = new Set(this.sections().map(section => section.id));
+    this.saving.set(true); this.error.set(''); this.notice.set('');
     try {
-      await this.repository.saveSection(this.course().id, { title, summary: this.sectionSummary.trim() || null },
-        Math.max(-1, ...this.sections().map(s => s.position)) + 1, editor === 'new' ? undefined : editor);
-      if (this.destroyRef.destroyed) return;
-      this.sectionEditor.set(null); await this.load(); this.focus('heading');
-    } catch { if (!this.destroyRef.destroyed) this.error.set('No se ha podido guardar el bloque. Comprueba la conexión y tus permisos.'); }
-    finally { if (!this.destroyRef.destroyed) this.saving.set(false); }
+      await this.repository.saveSection(courseId,
+        { title, summary: typeof editor === 'string' ? null : editor.summary },
+        Math.max(-1, ...this.sections().map(s => s.position)) + 1, typeof editor === 'string' ? undefined : editor);
+      if (!this.reorderIsCurrent(version, courseId)) return;
+      await this.load();
+      if (!this.reorderIsCurrent(version + 1, courseId)) return;
+      if (this.loadFailed()) return;
+      const saved = this.sections().find(section => !previousIds.has(section.id))
+        ?? (typeof editor === 'string' ? undefined : this.sections().find(section => section.id === editor.id));
+      this.notice.set('Bloque guardado.');
+      if (saved) {
+        this.sectionEditor.set(saved);
+        this.selected.set({ kind: 'section', id: saved.id });
+        this.focusOutline(this.outlineKey('section', saved.id));
+      } else {
+        this.sectionEditor.set(null);
+        this.selected.set(null);
+        this.focus('heading');
+      }
+    } catch {
+      if (!this.destroyRef.destroyed && this.reorderIsCurrent(version, courseId)) {
+        this.error.set('No se ha podido guardar el bloque. Comprueba la conexión y tus permisos.');
+      }
+    } finally { if (!this.destroyRef.destroyed) this.saving.set(false); }
   }
   async saveLesson(): Promise<void> {
     if (this.saving()) return;
@@ -432,19 +579,38 @@ export class Structure implements AfterViewInit, OnChanges, OnDestroy {
     this.invalid.update(v => ({ ...v, lessonTitle: !title || [...title].length > 160,
       contentType: !isLessonContentType(this.contentType) }));
     if (this.invalid().lessonTitle || !isLessonContentType(this.contentType)) return;
-    this.saving.set(true); this.error.set('');
+    const courseId = this.course().id;
+    const version = this.loadVersion;
+    const previousIds = new Set(this.lessons().map(lesson => lesson.id));
+    this.saving.set(true); this.error.set(''); this.notice.set('');
     try {
-      await this.repository.saveLesson(this.course().id, editor.section.id, {
+      await this.repository.saveLesson(courseId, editor.section.id, {
         title, content_type: this.contentType, is_free_preview: this.preview, is_published: this.published,
       }, Math.max(-1, ...this.lessons().filter(l => l.section_id === editor.section.id).map(l => l.position)) + 1,
       editor.lesson, editor.lesson ? undefined : lessonSlug(title, this.lessons()));
-      if (this.destroyRef.destroyed) return;
-      this.lessonEditor.set(null); await this.load(); this.focus('heading');
+      if (!this.reorderIsCurrent(version, courseId)) return;
+      await this.load();
+      if (!this.reorderIsCurrent(version + 1, courseId)) return;
+      if (this.loadFailed()) return;
+      const saved = this.lessons().find(lesson => !previousIds.has(lesson.id))
+        ?? (editor.lesson ? this.lessons().find(lesson => lesson.id === editor.lesson!.id) : undefined);
+      this.notice.set('Lección guardada.');
+      if (saved) {
+        this.expandSection(saved.section_id);
+        this.lessonEditor.set({ section: editor.section, lesson: saved });
+        this.selected.set({ kind: 'lesson', id: saved.id, sectionId: saved.section_id });
+        this.focusOutline(this.outlineKey('lesson', saved.id));
+      } else {
+        this.lessonEditor.set(null);
+        this.selected.set(null);
+        this.focus('heading');
+      }
     } catch (error) {
-      if (!this.destroyRef.destroyed) this.error.set(error instanceof Error && error.message === 'save_conflict'
-        ? 'No se ha podido guardar por un conflicto. Recarga la estructura y vuelve a intentarlo.'
-        : 'No se ha podido guardar la lección. Comprueba la conexión y tus permisos.');
-    }
-    finally { if (!this.destroyRef.destroyed) this.saving.set(false); }
+      if (!this.destroyRef.destroyed && this.reorderIsCurrent(version, courseId)) {
+        this.error.set(error instanceof Error && error.message === 'save_conflict'
+          ? 'No se ha podido guardar por un conflicto. Recarga la estructura y vuelve a intentarlo.'
+          : 'No se ha podido guardar la lección. Comprueba la conexión y tus permisos.');
+      }
+    } finally { if (!this.destroyRef.destroyed) this.saving.set(false); }
   }
 }
