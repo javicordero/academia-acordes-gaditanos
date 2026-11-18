@@ -1,0 +1,129 @@
+<div class="home">
+  <p class="home-banner" data-section="banner" role="note">
+    Academia en construcción · Consulta los cursos publicados y las lecciones de
+    muestra disponibles.
+  </p>
+
+  <section class="home-hero" data-section="hero" aria-labelledby="home-title">
+    <div class="home-hero__text">
+      <p class="home-eyebrow">Academia Acordes Gaditanos</p>
+      <h1 id="home-title">Aprende guitarra para el Carnaval de Cádiz</h1>
+      <p class="home-lead">
+        Una academia de guitarra centrada en el repertorio y los ritmos del
+        Carnaval de Cádiz. Los cursos se publican por tema y puedes ver una
+        lección de muestra antes de decidir.
+      </p>
+      <p class="home-actions">
+        <a class="home-button home-button--primary" routerLink="/cursos">Ver cursos</a>
+        <a class="home-button home-button--secondary" routerLink="/mis-cursos">Mi biblioteca</a>
+      </p>
+    </div>
+    <div class="home-hero__visual" aria-hidden="true">
+      <div class="home-visual">
+        <span class="home-visual__strings"></span>
+        <span class="home-visual__label">Guitarra · Carnaval · Cádiz</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="home-section" data-section="aprenderas" aria-labelledby="home-aprenderas">
+    <h2 id="home-aprenderas">Qué aprenderás</h2>
+    <p class="home-note">
+      Áreas que se trabajan en los cursos de la academia. La disponibilidad
+      depende de los cursos publicados.
+    </p>
+    <ul class="home-list">
+      <li>Ritmos y compás del Carnaval</li>
+      <li>Mano derecha y rasgueos</li>
+      <li>Punteos y digitación</li>
+      <li>Acordes y bordoneos</li>
+    </ul>
+  </section>
+
+  <section class="home-section" data-section="cursos" aria-labelledby="home-cursos">
+    <h2 id="home-cursos">Cursos</h2>
+    @switch (state()) {
+      @case ('loading') {
+        <p role="status">Cargando cursos…</p>
+      }
+      @case ('unavailable') {
+        <p>El catálogo necesita configurar la conexión con Supabase.</p>
+      }
+      @case ('error') {
+        <p role="alert">No se han podido cargar los cursos.</p>
+      }
+      @case ('ready') {
+        @if (featured().length === 0) {
+          <p class="home-note">
+            Todavía no hay cursos publicados. Puedes consultar el catálogo para
+            ver novedades.
+          </p>
+          <p><a class="home-button home-button--secondary" routerLink="/cursos">Ver cursos</a></p>
+        } @else {
+          <ul class="home-cards">
+            @for (course of featured(); track course.id) {
+              <li class="home-card">
+                <h3 class="home-card__title">{{ course.title }}</h3>
+                <p class="home-card__meta">Publicado · Nivel {{ levels[course.level] }}</p>
+                <p class="home-card__slug">{{ course.slug }}</p>
+                @if (course.summary) {
+                  <p class="home-card__summary">{{ course.summary }}</p>
+                }
+                <a class="home-button home-button--secondary" [routerLink]="['/cursos', course.slug]">Ver curso</a>
+              </li>
+            }
+          </ul>
+        }
+      }
+    }
+  </section>
+
+  <section class="home-section" data-section="preview" aria-labelledby="home-preview">
+    <h2 id="home-preview">Cómo funciona</h2>
+    <ol class="home-steps">
+      <li>Explora el catálogo y elige un curso publicado.</li>
+      <li>
+        @if (previewLesson(); as lesson) {
+          Prueba una lección de muestra:
+          <a [routerLink]="['/aula', lesson.courseSlug, lesson.lessonSlug]">{{ lesson.title }}</a>.
+        } @else {
+          Las lecciones de muestra aparecen en la ficha de cada curso cuando
+          están disponibles.
+        }
+      </li>
+      <li>
+        Consulta tus cursos y tu progreso desde
+        <a routerLink="/mis-cursos">Mi biblioteca</a>.
+      </li>
+    </ol>
+  </section>
+
+  <section class="home-section" data-section="profesor" aria-labelledby="home-profesor">
+    <h2 id="home-profesor">Tu profesor</h2>
+    <p class="home-note">
+      Aquí se presentará al profesor. Esta sección queda pendiente del diseño
+      definitivo: todavía no hay nombre, foto ni biografía publicados.
+    </p>
+  </section>
+
+  <section class="home-section" data-section="testimonios" aria-labelledby="home-testimonios">
+    <h2 id="home-testimonios">Testimonios</h2>
+    <p class="home-note">Todavía no hay testimonios publicados.</p>
+  </section>
+
+  <section class="home-section home-cta" data-section="cta" aria-labelledby="home-cta-title">
+    <h2 id="home-cta-title">¿Por dónde empezar?</h2>
+    <p class="home-lead">
+      Explora los cursos publicados o abre tu biblioteca para continuar.
+    </p>
+    <p class="home-actions">
+      <a class="home-button home-button--primary" routerLink="/cursos">Ver cursos</a>
+      <a class="home-button home-button--secondary" routerLink="/mis-cursos">Mi biblioteca</a>
+    </p>
+    @if (previewLesson(); as lesson) {
+      <p>
+        <a [routerLink]="['/aula', lesson.courseSlug, lesson.lessonSlug]">Ver lección de muestra</a>
+      </p>
+    }
+  </section>
+</div>

@@ -72,10 +72,15 @@ describe('Routes', () => {
     harness = await RouterTestingHarness.create();
   });
 
-  it('redirige la raíz a /cursos', async () => {
+  it('muestra la portada en la raíz', async () => {
     await harness.navigateByUrl('/');
+    await harness.fixture.whenStable();
 
-    expect(TestBed.inject(Router).url).toBe('/cursos');
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(
+      'Aprende guitarra para el Carnaval de Cádiz',
+    );
+    expect(TestBed.inject(Title).getTitle()).toBe('Academia Acordes Gaditanos');
   });
 
   it('protege /perfil con el guard de autenticación', () => {

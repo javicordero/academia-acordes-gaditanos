@@ -3,6 +3,8 @@ import { Routes } from '@angular/router';
 import { adminGuard } from './core/auth/admin.guard';
 import { authGuard } from './core/auth/auth.guard';
 
+const home = () => import('./features/home/home').then((m) => m.Home);
+
 const notFound = () =>
   import('./features/not-found/not-found').then((m) => m.NotFound);
 
@@ -10,7 +12,8 @@ export const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    redirectTo: 'cursos',
+    title: 'Academia Acordes Gaditanos',
+    loadComponent: home,
   },
   {
     path: 'cursos',
