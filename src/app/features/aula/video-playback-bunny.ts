@@ -22,6 +22,8 @@ import type { PlaybackSource, VideoPlaybackProvider } from './video-playback';
  *   con caducidad) se rechaza cerrando el reproductor.
  * - 401 sin sesión · 403 sin derecho o lección no disponible · 400 solicitud
  *   inválida · 405 método no permitido · 503 sin configuración de Bunny.
+ * - Fallo de red sin estado HTTP: error genérico recuperable, nunca el aviso
+ *   de "reproducción no configurada".
  *
  * No es DRM: el enlace puede compartirse hasta que caduque y no impide grabar
  * la pantalla. El token viaja dentro de la `embedUrl` firmada que se monta en
@@ -50,6 +52,17 @@ export class PlaybackResponseError extends Error {
   constructor() {
     super('El servidor devolvió una firma de vídeo que no cumple el contrato');
     this.name = 'PlaybackResponseError';
+  }
+}
+
+/**
+ * Fallo de red o respuesta sin estado HTTP: error recuperable, sin exponer el
+ * motivo del SDK (puede contener URLs, tokens o detalles internos).
+ */
+export class PlaybackNetworkError extends Error {
+  constructor() {
+    super('No se pudo cargar el vídeo. Vuelve a intentarlo.');
+    this.name = 'PlaybackNetworkError';
   }
 }
 
@@ -173,8 +186,8 @@ export class BunnyStreamPlaybackProvider implements VideoPlaybackProvider {
   }
 
   /**
-   * Pide la firma al servidor cuando el alumno la elige. El aula decide cuándo
-   * limpiar o renovar el iframe con la caducidad devuelta; el adaptador solo la
+   * Pide la firma al servidor cuando el aula carga la lección de vídeo. El aula
+   * decide limpiar o renovar el iframe con la caducidad devuelta; el adaptador solo la
    * obtiene y la valida una vez.
    */
   async requestTicket(lessonId: string): Promise<PlaybackTicket | null> {
@@ -183,7 +196,9 @@ export class BunnyStreamPlaybackProvider implements VideoPlaybackProvider {
     const { data, error } = await this.client.functions.invoke('lesson-video-token', { body: { lessonId } });
     if (error) {
       const status = playbackStatus(error);
-      if (status === null) return null;
+      // Sin estado HTTP no es "no configurado": es un fallo de red y debe
+      // ofrecer reintento, nunca el mensaje honesto de proveedor ausente.
+      if (status === null) throw new PlaybackNetworkError();
       throw new PlaybackHttpError(status, playbackHttpMessage(status));
     }
     const valid = validatePlaybackPayload(data, startedAt);

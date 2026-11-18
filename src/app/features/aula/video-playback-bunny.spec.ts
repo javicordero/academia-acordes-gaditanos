@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { SUPABASE_CLIENT } from '../../core/supabase/supabase-client';
 import {
   PLAYBACK_NOW,
+  PlaybackHttpError,
+  PlaybackNetworkError,
   PlaybackResponseError,
   BunnyStreamPlaybackProvider,
   validatePlaybackPayload,
@@ -17,8 +19,8 @@ const UNSIGNED_URL = BASE;
 const SIGNED_URL = `${BASE}?token=${'a'.repeat(64)}&expires=1700000900`;
 const AVISO = 'Aviso del servidor sobre la reproducción.';
 
-function providerFor(data: unknown) {
-  const invoke = vi.fn(async () => ({ data, error: null }));
+function providerFor(data: unknown, error: unknown = null) {
+  const invoke = vi.fn(async () => ({ data, error }));
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
@@ -109,5 +111,44 @@ describe('BunnyStreamPlaybackProvider: modo DEV sin firma', () => {
     const ticket = await provider.requestTicket(LESSON);
     expect(ticket?.expiresAt).toBe(1_700_000_900_000);
     expect(ticket?.source.expiresAt).toBe(1_700_000_900_000);
+  });
+});
+
+describe('BunnyStreamPlaybackProvider: clasificación de fallos', () => {
+  it('un fallo de red sin estado HTTP da error recuperable, sin URL ni detalles internos', async () => {
+    const detalle = `fetch failed ${SIGNED_URL} function=lesson-video-token secret=abc`;
+    const { provider } = providerFor(null, new Error(detalle));
+    const error = await provider.requestTicket(LESSON).catch(e => e);
+    expect(error).toBeInstanceOf(PlaybackNetworkError);
+    expect(error.message).toBe('No se pudo cargar el vídeo. Vuelve a intentarlo.');
+    expect(error.message).not.toContain('token');
+    expect(error.message).not.toContain('secret');
+    expect(error.message).not.toContain('mediadelivery');
+    // El servicio ve el mismo rechazo: el aula mostrará error con reintento.
+    await expect(provider.sourceForLesson(LESSON)).rejects.toBeInstanceOf(PlaybackNetworkError);
+  });
+
+  it.each([
+    [403, 'Esta lección no está disponible o no tienes derecho a ver el vídeo.'],
+    [503, 'La reproducción de vídeo todavía no está configurada en este entorno.'],
+  ])('conserva el estado HTTP %i y su mensaje honesto', async (status, message) => {
+    const { provider } = providerFor(null, { context: { status } });
+    const error = await provider.requestTicket(LESSON).catch(e => e);
+    expect(error).toBeInstanceOf(PlaybackHttpError);
+    expect(error.status).toBe(status);
+    expect(error.message).toBe(message);
+  });
+
+  it('sin cliente de Supabase sigue siendo proveedor no configurado', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [
+      { provide: SUPABASE_CLIENT, useValue: null },
+      { provide: PLAYBACK_NOW, useValue: () => NOW },
+    ] });
+    // Distinción explícita: aquí no hay cliente, no es un fallo de red.
+    expect(TestBed.inject(SUPABASE_CLIENT)).toBeNull();
+    const provider = TestBed.inject(BunnyStreamPlaybackProvider);
+    expect(await provider.requestTicket(LESSON)).toBeNull();
+    expect(await provider.sourceForLesson(LESSON)).toBeNull();
   });
 });

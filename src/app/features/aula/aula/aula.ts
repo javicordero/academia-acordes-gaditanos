@@ -7,7 +7,11 @@ import { PlaybackSource, VideoPlaybackService } from '../video-playback';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
 import { ClassroomNav } from '../classroom-nav';
 
-/** Estados de la firma de vídeo, pedida solo cuando el alumno lo solicita. */
+/**
+ * Estados de la fuente de vídeo. Se pide automáticamente al cargar una lección
+ * de tipo `video`; no hay paso previo de «Ver vídeo». Nunca se reproduce sola:
+ * el alumno pulsa Play en el reproductor del proveedor.
+ */
 type VideoState = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error' | 'expired';
 
 @Component({
@@ -23,7 +27,6 @@ export class Aula {
   private readonly playback = inject(VideoPlaybackService);
   private readonly injector = inject(Injector);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('aulaHeading');
-  private readonly videoFrame = viewChild<ElementRef<HTMLIFrameElement>>('videoFrame');
   private focusedLessonKey: string | null = null;
   private loadedKey: string | null = null;
   private videoTimer: ReturnType<typeof setTimeout> | null = null;
@@ -35,7 +38,8 @@ export class Aula {
   readonly data = signal<AulaData | null>(null);
   readonly videoSource = signal<PlaybackSource | null>(null);
   readonly videoState = signal<VideoState>('idle');
-  readonly videoRequested = signal(false);
+  /** Aviso del proveedor; se conserva al caducar para no perder su explicación. */
+  readonly notice = signal<string | null>(null);
   private readonly videoLessonId = computed(() => this.data()?.lesson.content_type === 'video' ? this.data()!.lesson.id : null);
   readonly saving = signal(false);
   readonly saveError = signal(false);
@@ -59,9 +63,9 @@ export class Aula {
 
   /**
    * Clave efectiva de carga. Un TOKEN_REFRESHED entrega un objeto Session nuevo
-   * con el mismo `user.id`: no debe recargar ni reevaluar permisos. El estado
-   * `loading` (auth aún inicializándose) no produce clave, para no cachear un id
-   * nulo previo al inicio de sesión que luego no se actualice.
+   * con el mismo `user.id`: no debe recargar ni reevaluar permisos ni repetir la
+   * petición de vídeo. El estado `loading` (auth aún inicializándose) no produce
+   * clave, para no cachear un id nulo previo al inicio de sesión.
    */
   private readonly loadKey = computed(() => {
     const status = this.auth.status();
@@ -84,8 +88,6 @@ export class Aula {
       const key = this.loadKey();
       this.retryCount();
 
-      // Auth aún no inicializada: nunca cachear un id nulo que después no se
-      // actualizaría cuando llegue la sesión real.
       if (status === 'loading') {
         this.resetVideo();
         this.loadedKey = null;
@@ -101,8 +103,8 @@ export class Aula {
         return;
       }
 
-      // Misma lección y mismo usuario (p. ej. TOKEN_REFRESHED con un Session
-      // nuevo): conservar datos, progreso y foco; no recargar ni reevaluar RLS.
+      // Misma lección y usuario (un TOKEN_REFRESHED): conservar datos, vídeo y
+      // foco; no recargar ni repetir peticiones.
       if (key === this.loadedKey) return;
 
       const session = this.auth.session();
@@ -110,8 +112,6 @@ export class Aula {
       const lesson = this.lessonSlug();
       const request = ++this.request;
       this.loadedKey = key;
-      // Ruta o usuario distinto: retirar de inmediato el contenido autorizado
-      // al usuario anterior antes de volver a preguntar a RLS.
       this.data.set(null);
       this.resetVideo();
       this.saving.set(false);
@@ -123,16 +123,16 @@ export class Aula {
         this.data.set(data);
         this.state.set(data ? 'ready' : 'denied');
         if (data) this.focusLesson(course, lesson);
+        // El vídeo se monta solo: contenido de la lección actual ya autorizada.
+        if (data?.lesson.content_type === 'video') this.loadVideo();
       }).catch(() => {
         if (!this.destroyed && request === this.request) this.state.set('error');
       });
     });
   }
 
-  // Enfoca el encabezado tras cargar una lección: al navegar (siguiente/anterior)
-  // el enlace que tenía el foco se destruye. Solo cambia la clave de lección, de
-  // modo que un refresco de sesión o un reintento en la misma lección no roban
-  // el foco al botón de progreso ni a otra interacción en curso.
+  // Enfoca el encabezado solo al cambiar de lección (no al refrescar sesión ni
+  // en reintentos de la misma). Nunca enfoca el iframe del vídeo.
   private focusLesson(course: string, lesson: string): void {
     const key = `${course}/${lesson}`;
     if (key === this.focusedLessonKey) return;
@@ -145,8 +145,8 @@ export class Aula {
     this.videoRequest++;
     this.clearVideoTimer();
     this.videoSource.set(null);
+    this.notice.set(null);
     this.videoState.set('idle');
-    this.videoRequested.set(false);
   }
 
   private clearVideoTimer(): void {
@@ -157,18 +157,17 @@ export class Aula {
   }
 
   /**
-   * Pide la firma solo tras la acción del alumno (también en reintentos). El
-   * generador `videoRequest` descarta respuestas de una lección o usuario
-   * anteriores; ni el guardado de progreso ni un refresco de sesión lo cambian.
+   * Pide la fuente de la lección actual. Se invoca al cargar una lección de vídeo
+   * y al reintentar/renovar tras un fallo. Un contador descarta respuestas
+   * obsoletas al cambiar de lección, usuario o al destruir el componente.
    */
   loadVideo(): void {
     const lessonId = this.videoLessonId();
-    if (!lessonId || this.videoState() === 'loading') return;
+    if (!lessonId) return;
     const request = ++this.videoRequest;
     this.clearVideoTimer();
     this.videoSource.set(null);
     this.videoState.set('loading');
-    this.videoRequested.set(true);
 
     let pending: PlaybackSource | null | Promise<PlaybackSource | null>;
     try {
@@ -184,12 +183,9 @@ export class Aula {
         this.videoState.set('unavailable');
         return;
       }
+      this.notice.set(source.notice);
       this.videoState.set('ready');
       this.scheduleExpiry(source, request);
-      // El botón desaparece al mostrar el iframe: mover el foco al reproductor.
-      afterNextRender(() => {
-        if (!this.destroyed && request === this.videoRequest) this.videoFrame()?.nativeElement.focus();
-      }, { injector: this.injector });
     }).catch(() => {
       if (!this.destroyed && request === this.videoRequest) this.videoState.set('error');
     });

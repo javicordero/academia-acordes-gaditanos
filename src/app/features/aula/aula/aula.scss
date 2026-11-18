@@ -3,7 +3,7 @@
 .video { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
 .video-stage { background:#252323; color:#fff; aspect-ratio:16 / 9; border-radius:.6rem; padding:1.5rem; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
 .video-stage:has(iframe) { aspect-ratio:auto; padding:1rem; }
-.video-stage button { min-height: 44px; padding-inline: 1rem; }
+.video-stage button { min-height: 44px; padding-inline: 1rem; color: #252323; }
 article h2 { font-size:clamp(1.7rem, 3vw, 2.5rem); }
 nav a { display: inline-block; margin-block: .25rem; }
 nav[aria-label="Navegación entre lecciones"] { display: flex; gap: 1rem; flex-wrap: wrap; margin-block: 1rem; }

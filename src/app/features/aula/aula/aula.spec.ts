@@ -106,7 +106,7 @@ describe('Aula', () => {
     expect(source).not.toHaveBeenCalled();
   });
 
-  it('usa textos agnósticos del proveedor y no pide la firma al entrar', async () => {
+  it('usa textos agnósticos del proveedor y monta el vídeo solo al entrar', async () => {
     const { source } = setup(vi.fn().mockResolvedValue(data), undefined, true,
       () => Promise.resolve(fakeSource()));
     const harness = await RouterTestingHarness.create();
@@ -117,56 +117,60 @@ describe('Aula', () => {
     expect(text).toContain('Vídeo de la lección');
     expect(text).not.toContain('YouTube');
     expect(text).not.toContain('Vídeo de ejemplo');
-    expect(buttonWith(harness.routeNativeElement, 'Ver vídeo de la lección')).not.toBeNull();
-    expect(harness.routeNativeElement?.querySelector('iframe')).toBeNull();
-    expect(source).not.toHaveBeenCalled();
+    // Se pide la fuente y aparece el iframe sin clic previo del alumno.
+    expect(source).toHaveBeenCalledWith('l');
+    expect(harness.routeNativeElement?.querySelector('iframe')).not.toBeNull();
+    const buttons = Array.from(harness.routeNativeElement?.querySelectorAll('button') ?? []);
+    expect(buttons.some(b => b.textContent?.includes('Ver vídeo'))).toBe(false);
   });
 
-  it('pasa de loading a ready con iframe accesible, aviso y foco', async () => {
-    const { source } = setup(vi.fn().mockResolvedValue(data), undefined, true,
-      () => Promise.resolve(fakeSource('Aviso del servidor')));
+  it('pasa de loading a ready con iframe accesible, aviso y sin robar el foco', async () => {
+    let resolveSource!: (value: PlaybackSource | null) => void;
+    const pending = new Promise<PlaybackSource | null>(r => resolveSource = r);
+    const { source } = setup(vi.fn().mockResolvedValue(data), undefined, true, () => pending);
     const harness = await RouterTestingHarness.create();
     const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
     await harness.fixture.whenStable(); harness.detectChanges();
 
-    buttonWith(harness.routeNativeElement, 'Ver vídeo de la lección').click();
-    harness.detectChanges();
+    // Montaje automático al entrar: estado de carga visible y sin botón que pulsar.
     expect(source).toHaveBeenCalledWith('l');
     expect(component.videoState()).toBe('loading');
-    expect(harness.routeNativeElement?.querySelector('[role="status"]')?.textContent).toContain('Preparando el vídeo');
-    const loadingButton = buttonWith(harness.routeNativeElement, 'Preparando el vídeo');
-    expect(loadingButton.disabled).toBe(true);
-    expect(loadingButton.getAttribute('aria-busy')).toBe('true');
+    expect(harness.routeNativeElement?.querySelector('[role="status"]')?.textContent).toContain('Cargando el vídeo');
+    expect(buttonWith(harness.routeNativeElement, 'Ver vídeo')).toBeFalsy();
 
+    resolveSource(fakeSource('Aviso del servidor'));
     await harness.fixture.whenStable();
     harness.detectChanges();
     expect(component.videoState()).toBe('ready');
     const iframe = harness.routeNativeElement?.querySelector<HTMLIFrameElement>('iframe')!;
     expect(iframe).not.toBeNull();
     expect(iframe.getAttribute('title')).toContain('Vídeo de la lección');
+    expect(iframe.getAttribute('loading')).toBe('eager');
     expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin allow-presentation');
     expect(iframe.getAttribute('allow')).toBe('fullscreen; encrypted-media');
     expect(iframe.getAttribute('referrerpolicy')).toBe('strict-origin-when-cross-origin');
-    expect(iframe.getAttribute('tabindex')).toBe('0');
-    expect(document.activeElement).toBe(iframe);
+    expect(iframe.hasAttribute('autoplay')).toBe(false);
+    expect(iframe.getAttribute('src') ?? '').not.toMatch(/[?&](autoplay|mute)=/i);
+    // No se roba el foco al montar el reproductor.
+    expect(document.activeElement).not.toBe(iframe);
     expect(harness.routeNativeElement?.textContent).toContain('Aviso del servidor');
   });
 
-  it('sin fuente muestra un mensaje honesto y nunca carga un iframe', async () => {
+  it('sin fuente muestra un mensaje honesto, nunca carga un iframe y no ofrece reintento inútil', async () => {
     const { source } = setup(vi.fn().mockResolvedValue(data), undefined, true, () => Promise.resolve(null));
     const harness = await RouterTestingHarness.create();
     const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
     await harness.fixture.whenStable(); harness.detectChanges();
 
-    buttonWith(harness.routeNativeElement, 'Ver vídeo de la lección').click();
-    await harness.fixture.whenStable(); harness.detectChanges();
+    // Se pide sola al entrar, sin clic.
     expect(source).toHaveBeenCalledTimes(1);
     expect(component.videoState()).toBe('unavailable');
     expect(harness.routeNativeElement?.textContent).toContain('La reproducción aún no está configurada. La lección puede tener vídeo, PDF o texto.');
     expect(harness.routeNativeElement?.querySelector('iframe')).toBeNull();
+    expect(harness.routeNativeElement?.querySelector('.video-stage button')).toBeNull();
   });
 
-  it('un rechazo muestra alerta y Reintentar vuelve a pedir la firma', async () => {
+  it('un rechazo automático muestra alerta y Reintentar vuelve a pedir la fuente', async () => {
     const responses = vi.fn<() => PlaybackSource | null | Promise<PlaybackSource | null>>()
       .mockRejectedValueOnce(new Error('red'))
       .mockImplementationOnce(() => Promise.resolve(fakeSource()));
@@ -175,10 +179,9 @@ describe('Aula', () => {
     const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
     await harness.fixture.whenStable(); harness.detectChanges();
 
-    buttonWith(harness.routeNativeElement, 'Ver vídeo de la lección').click();
-    await harness.fixture.whenStable(); harness.detectChanges();
+    // Primer intento automático al entrar, sin pulsar nada.
     expect(component.videoState()).toBe('error');
-    expect(harness.routeNativeElement?.querySelector('[role="alert"]')?.textContent).toContain('No se pudo preparar el vídeo');
+    expect(harness.routeNativeElement?.querySelector('[role="alert"]')?.textContent).toContain('No se pudo cargar el vídeo');
     expect(harness.routeNativeElement?.querySelector('iframe')).toBeNull();
 
     buttonWith(harness.routeNativeElement, 'Reintentar').click();
@@ -188,7 +191,7 @@ describe('Aula', () => {
     expect(harness.routeNativeElement?.querySelector('iframe')).not.toBeNull();
   });
 
-  it('al caducar la firma retira el iframe y permite volver a preparar', async () => {
+  it('al caducar la firma retira el iframe y permite renovar explícitamente', async () => {
     const { source } = setup(vi.fn().mockResolvedValue(data), undefined, true,
       () => Promise.resolve(fakeSource('Aviso del servidor', Date.now() + 60_000)));
     const harness = await RouterTestingHarness.create();
@@ -198,8 +201,8 @@ describe('Aula', () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date('2026-11-18T12:00:00Z'));
-      buttonWith(harness.routeNativeElement, 'Ver vídeo de la lección').click();
-      // No usar whenStable(): el temporizador de caducidad mantiene la zona ocupada.
+      // El montaje ya fue automático: sin timer vivo se pide la primera fuente.
+      component.loadVideo();
       await Promise.resolve();
       harness.detectChanges();
       expect(component.videoState()).toBe('ready');
@@ -210,11 +213,15 @@ describe('Aula', () => {
       expect(component.videoState()).toBe('expired');
       expect(harness.routeNativeElement?.querySelector('[role="status"]')?.textContent).toContain('El enlace del vídeo ha caducado');
       expect(harness.routeNativeElement?.querySelector('iframe')).toBeNull();
+      expect(harness.routeNativeElement?.textContent).toContain('Aviso del servidor');
 
-      buttonWith(harness.routeNativeElement, 'Volver a preparar').click();
+      const calls = source.mock.calls.length;
+      // Tras caducar, un único «Renovar enlace» pide una nueva firma vigente.
+      source.mockImplementation(() => Promise.resolve(fakeSource('Aviso del servidor', Date.now() + 60_000)));
+      buttonWith(harness.routeNativeElement, 'Renovar enlace').click();
       await Promise.resolve();
       harness.detectChanges();
-      expect(source).toHaveBeenCalledTimes(2);
+      expect(source.mock.calls.length).toBe(calls + 1);
       expect(component.videoState()).toBe('ready');
       expect(harness.routeNativeElement?.querySelector('iframe')).not.toBeNull();
     } finally {
@@ -222,32 +229,65 @@ describe('Aula', () => {
     }
   });
 
-  it('descarta una firma lenta al cambiar de lección', async () => {
+  it('sin expiresAt no programa caducidad (modo DEV sin firma)', async () => {
+    const { source } = setup(vi.fn().mockResolvedValue(data), undefined, true,
+      () => Promise.resolve(fakeSource('Enlace sin caducidad')));
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+
+    vi.useFakeTimers();
+    try {
+      expect(component.videoState()).toBe('ready');
+      expect(source).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(5 * 60 * 1000);
+      harness.detectChanges();
+      expect(component.videoState()).toBe('ready');
+      expect(harness.routeNativeElement?.textContent).toContain('Enlace sin caducidad');
+      expect(source).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('descarta la fuente lenta de la lección anterior al navegar', async () => {
     let resolveSource!: (value: PlaybackSource | null) => void;
-    const pending = new Promise<PlaybackSource | null>(r => resolveSource = r);
-    const responses = vi.fn<() => PlaybackSource | null | Promise<PlaybackSource | null>>()
-      .mockReturnValueOnce(pending)
-      .mockImplementation(() => Promise.resolve(fakeSource()));
+    const previous = new Promise<PlaybackSource | null>(r => resolveSource = r);
+    let call = 0;
     const { source } = setup(vi.fn((_course: string, slug: string) =>
       Promise.resolve({ ...twoLessons, lesson: slug === 'dos' ? secondLesson : firstLesson })),
-      undefined, true, () => responses());
+      undefined, true, () => ++call === 1 ? previous : Promise.resolve(fakeSource('Aviso de la nueva')));
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/aula/curso/uno', Aula);
     await harness.fixture.whenStable(); harness.detectChanges();
-
-    buttonWith(harness.routeNativeElement, 'Ver vídeo de la lección').click();
-    harness.detectChanges();
     expect(source).toHaveBeenCalledWith('l1');
 
     const component = await harness.navigateByUrl('/aula/curso/dos', Aula);
     await harness.fixture.whenStable(); harness.detectChanges();
-    expect(component.videoState()).toBe('idle');
+    expect(source).toHaveBeenCalledWith('l2');
+    expect(component.videoState()).toBe('ready');
 
-    resolveSource(fakeSource());
+    // Una respuesta tardía de la lección anterior no reemplaza la actual.
+    resolveSource(fakeSource('Aviso obsoleto'));
     await harness.fixture.whenStable(); harness.detectChanges();
-    expect(component.videoState()).toBe('idle');
-    expect(component.videoSource()).toBeNull();
-    expect(harness.routeNativeElement?.querySelector('iframe')).toBeNull();
+    expect(component.videoSource()?.notice).toBe('Aviso de la nueva');
+    expect(harness.routeNativeElement?.textContent).not.toContain('Aviso obsoleto');
+  });
+
+  it('descarta la fuente en curso al destruir el componente', async () => {
+    let resolveSource!: (value: PlaybackSource | null) => void;
+    const previous = new Promise<PlaybackSource | null>(r => resolveSource = r);
+    setup(vi.fn().mockResolvedValue(data), undefined, true, () => previous);
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(harness.routeNativeElement?.textContent).toContain('Cargando el vídeo');
+
+    harness.fixture.componentRef.destroy();
+    resolveSource(fakeSource('Aviso tras desmontaje'));
+    await Promise.resolve();
+    // Nada existe ya que pueda aceptar la respuesta: no hay iframe residual.
+    expect(document.querySelector('iframe')).toBeNull();
   });
 
   it('no roba el foco del vídeo al refrescar la sesión ni al guardar progreso', async () => {
@@ -257,24 +297,25 @@ describe('Aula', () => {
     await harness.navigateByUrl('/aula/curso/uno', Aula);
     await harness.fixture.whenStable(); harness.detectChanges();
 
-    buttonWith(harness.routeNativeElement, 'Ver vídeo de la lección').click();
-    await harness.fixture.whenStable();
-    harness.detectChanges();
     const iframe = harness.routeNativeElement?.querySelector('iframe')!;
-    expect(document.activeElement).toBe(iframe);
+    expect(iframe).not.toBeNull();
+    // El montaje automático no se lleva el foco a la lección principal.
+    expect(document.activeElement).not.toBe(iframe);
 
-    // TOKEN_REFRESHED del mismo usuario: ni recarga ni pide otra firma ni mueve el foco.
+    // TOKEN_REFRESHED del mismo usuario: ni recarga ni pide otra fuente ni mueve el foco.
     session.set({ user: { id: 'u' } });
     harness.detectChanges();
     expect(load).toHaveBeenCalledTimes(1);
     expect(source).toHaveBeenCalledTimes(1);
-    expect(document.activeElement).toBe(iframe);
+    expect(document.activeElement).not.toBe(iframe);
 
-    // Guardar progreso tampoco mueve el foco del reproductor.
-    harness.routeNativeElement?.querySelector<HTMLButtonElement>('.progress-button')!.click();
+    // Guardar progreso tampoco mueve el foco al reproductor.
+    const button = harness.routeNativeElement?.querySelector<HTMLButtonElement>('.progress-button')!;
+    button.focus();
+    button.click();
     await harness.fixture.whenStable();
     harness.detectChanges();
-    expect(document.activeElement).toBe(iframe);
+    expect(document.activeElement).toBe(button);
   });
 
   it('sin fuente en desarrollo muestra el mensaje honesto, no el de demo', async () => {
@@ -285,9 +326,6 @@ describe('Aula', () => {
     ] });
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/aula/curso/uno', Aula);
-    await harness.fixture.whenStable(); harness.detectChanges();
-
-    buttonWith(harness.routeNativeElement, 'Ver vídeo de la lección').click();
     await harness.fixture.whenStable(); harness.detectChanges();
 
     const text = harness.routeNativeElement?.textContent ?? '';
@@ -305,9 +343,6 @@ describe('Aula', () => {
     ] });
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/aula/curso/uno', Aula);
-    await harness.fixture.whenStable(); harness.detectChanges();
-
-    buttonWith(harness.routeNativeElement, 'Ver vídeo de la lección').click();
     await harness.fixture.whenStable(); harness.detectChanges();
 
     expect(harness.routeNativeElement?.textContent).toContain('La reproducción aún no está configurada');

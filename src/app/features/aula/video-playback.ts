@@ -60,9 +60,11 @@ export const VIDEO_DEMO_ENABLED = new InjectionToken<boolean>(
  *   Supabase (por defecto `false`) y puede ponerse a `true` en la copia local
  *   ignorada o suministrarse como provider de entorno. Solo indica el proveedor
  *   esperado: los secretos de Bunny viven siempre en servidor.
- * - El adaptador Bunny (`BunnyStreamPlaybackProvider`) NO pide la firma hasta
- *   que el alumno pulsa, así que registrarlo como clase no carga el iframe ni
- *   llama a la Edge Function al entrar en el aula.
+ * - El adaptador Bunny (`BunnyStreamPlaybackProvider`) NO pide la firma al
+ *   construirse: el aula la solicita automáticamente al cargar una lección de
+ *   tipo vídeo ya autorizada (sin paso «Ver vídeo»), monta el iframe y solo
+ *   reintenta/renueva ante error o caducidad. Nunca reproduce por sí sola: el
+ *   alumno pulsa Play en el reproductor del proveedor.
  * - `VIDEO_PLAYBACK_PROVIDER` se resuelve según el modo en `app.config.ts`
  *   (fábrica de abajo), y un registro de entorno puede sobrescribirlo.
  * - En producción no existe respaldo YouTube: sin Bunny, el aula informa de

@@ -8,15 +8,23 @@ import { LessonResources } from '../../../shared/lesson-resources/lesson-resourc
 import { LessonMaterials } from './lesson-materials';
 
 const item = { id: 'resource', title: '<b>Apuntes</b>', kind: 'pdf' as const };
+const other = { id: 'second', title: 'Partitura', kind: 'pdf' as const };
 const url = 'https://example.test/storage/v1/object/sign/lesson-pdfs/course/lesson/resource/file.pdf?token=temporary';
+const badUrls = [
+  'javascript:alert(1)',
+  'https://evil.test/storage/v1/object/sign/lesson-pdfs/course/lesson/resource/file.pdf?token=x',
+  'https://example.test/storage/v1/object/sign/other/x?token=x',
+];
 
 describe('Materiales del alumno', () => {
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+
   function setup(list = vi.fn().mockResolvedValue([item]), download = vi.fn().mockResolvedValue(url), authenticated = true) {
     const status = signal(authenticated ? 'authenticated' : 'anonymous');
-    const session = signal<{user: {id: string}} | null>(authenticated ? {user: {id: 'one'}} : null);
+    const session = signal<{ user: { id: string } } | null>(authenticated ? { user: { id: 'one' } } : null);
     const error = signal<string | null>(null);
-    TestBed.configureTestingModule({ providers: [provideRouter([]),
+    TestBed.configureTestingModule({ providers: [
+      provideRouter([]),
       { provide: SUPABASE_CONFIG, useValue: { url: 'https://example.test', publishableKey: 'public' } },
       { provide: AuthService, useValue: { status, session, error } },
       { provide: LessonResources, useValue: { list, download } },
@@ -27,142 +35,428 @@ describe('Materiales del alumno', () => {
     fixture.componentRef.setInput('returnUrl', '/aula/curso/uno');
     return { fixture, status, session, error, list, download };
   }
+
+  /** Navegación y ventana observadas sin navegar ni abrir nada de verdad. */
+  function spies(fixture: ReturnType<typeof setup>['fixture']) {
+    return {
+      nav: vi.spyOn(fixture.componentInstance as any, 'navigate').mockImplementation(() => {}),
+      popup: vi.spyOn(window, 'open').mockReturnValue(null),
+    };
+  }
+  function buttonWith(root: HTMLElement, label: string): HTMLButtonElement {
+    return [...root.querySelectorAll('button')].find(b => b.textContent?.trim() === label)!;
+  }
+  async function settle(fixture: ReturnType<typeof setup>['fixture']) {
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
   it('no consulta anónimamente y ofrece acceso interno', async () => {
-    const {fixture, list} = setup(undefined, undefined, false);
+    const { fixture, list } = setup(undefined, undefined, false);
     await fixture.whenStable();
     expect(list).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('Inicia sesión');
     expect(fixture.nativeElement.querySelector('a').getAttribute('href')).toContain('/auth/login');
   });
-  it('muestra lista escapada, prepara solo al pulsar y elimina enlace al caducar', async () => {
-    const {fixture, download} = setup();
-    await fixture.whenStable();
+
+  it('prepara la firma al entrar y ofrece una sola acción sin popup ni paso «Preparar»', async () => {
+    const { fixture, download } = setup();
+    const { nav, popup } = spies(fixture);
+    fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('b')).toBeNull();
-    expect(download).not.toHaveBeenCalled();
-    vi.useFakeTimers();
-    fixture.nativeElement.querySelector('button').click();
-    await Promise.resolve();
-    fixture.detectChanges();
+    await settle(fixture);
+    expect(download).toHaveBeenCalledTimes(1);
     expect(download).toHaveBeenCalledWith('lesson', 'resource');
-    expect(fixture.nativeElement.querySelector('a[download]')?.getAttribute('href')).toBe(url);
-    vi.advanceTimersByTime(60_000);
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('a[download]')).toBeNull();
+    const open = buttonWith(fixture.nativeElement, 'Abrir PDF');
+    expect(open).toBeTruthy();
+    expect(open.getAttribute('aria-label')).toBe('Abrir PDF: <b>Apuntes</b>');
+    expect(fixture.nativeElement.querySelectorAll('a').length).toBe(0);
+    expect(fixture.nativeElement.textContent).not.toContain(url);
+    expect(fixture.nativeElement.textContent).not.toContain('Preparar descarga');
+    expect(nav).not.toHaveBeenCalled();
+    expect(popup).not.toHaveBeenCalled();
+
+    open.click();
+    await Promise.resolve();
+    expect(nav).toHaveBeenCalledTimes(1);
+    expect(nav).toHaveBeenCalledWith(url);
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(popup).not.toHaveBeenCalled();
   });
-  it('presenta vacío y errores genéricos de listado sin revelar recursos', async () => {
-    const {fixture} = setup(vi.fn().mockResolvedValue([]));
-    await fixture.whenStable();
+
+  it('presenta vacío sin pedir recursos', async () => {
+    const { fixture, download } = setup(vi.fn().mockResolvedValue([]));
+    await settle(fixture);
     expect(fixture.nativeElement.textContent).toContain('No hay materiales');
+    expect(download).not.toHaveBeenCalled();
   });
-  it.each(['401', '403', 'SDK'])('error %s no revela recursos', async error => {
-    const {fixture} = setup(vi.fn().mockRejectedValue(new Error(error)));
-    await fixture.whenStable();
+
+  it.each(['401', '403', 'SDK'])('error %s no revela recursos', async (code) => {
+    const { fixture } = setup(vi.fn().mockRejectedValue(new Error(code)));
+    await settle(fixture);
+    expect(fixture.nativeElement.textContent).toContain('No se puede acceder');
+    expect(fixture.nativeElement.textContent).not.toContain(code);
+    expect(fixture.nativeElement.querySelector('button')).toBeNull();
+  });
+
+  it.each(badUrls)('rechaza URL insegura %s y ofrece reintentar', async (bad) => {
+    const { fixture } = setup(undefined, vi.fn().mockResolvedValue(bad));
+    const { nav } = spies(fixture);
+    await settle(fixture);
+    expect(fixture.nativeElement.textContent).toContain('No se pudo abrir el PDF');
+    expect(fixture.nativeElement.textContent).not.toContain(bad);
+    const retry = buttonWith(fixture.nativeElement, 'Reintentar');
+    expect(retry).toBeTruthy();
+    expect(retry.getAttribute('aria-label')).toContain(item.title);
+    expect(nav).not.toHaveBeenCalled();
+  });
+
+  it('un fallo de red muestra error y «Reintentar» abre con una sola pulsación', async () => {
+    const download = vi.fn().mockRejectedValueOnce(new Error('red')).mockResolvedValueOnce(url);
+    const { fixture } = setup(undefined, download);
+    const { nav, popup } = spies(fixture);
+    await settle(fixture);
+    expect(fixture.nativeElement.textContent).toContain('No se pudo abrir el PDF');
+    expect(nav).not.toHaveBeenCalled();
+
+    buttonWith(fixture.nativeElement, 'Reintentar').click();
     await Promise.resolve();
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('No se puede acceder');
-    expect(fixture.nativeElement.textContent).not.toContain(error);
+    expect(download).toHaveBeenCalledTimes(2);
+    expect(nav).toHaveBeenCalledTimes(1);
+    expect(nav).toHaveBeenCalledWith(url);
+    expect(popup).not.toHaveBeenCalled();
   });
-  it.each(['javascript:alert(1)', 'https://evil.test/storage/v1/object/sign/lesson-pdfs/course/lesson/resource/file.pdf?token=x', 'https://example.test/storage/v1/object/sign/other/x?token=x'])('rechaza URL insegura %s', async url => {
-    const {fixture} = setup(undefined, vi.fn().mockResolvedValue(url));
-    await fixture.whenStable();
-    fixture.nativeElement.querySelector('button').click();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('a[download]')).toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('No se pudo preparar');
-  });
-  it('recupera el botón tras un error de red', async () => {
-    const {fixture} = setup(undefined, vi.fn().mockRejectedValue(new Error('red')));
-    await fixture.whenStable();
-    fixture.nativeElement.querySelector('button').click();
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('button').disabled).toBe(false);
-    expect(fixture.nativeElement.querySelector('a[download]')).toBeNull();
-  });
+
   it('refresco no recarga; logout descarta respuesta tardía', async () => {
     let resolve!: (value: string) => void;
-    const {fixture, list, session, status} = setup(undefined, vi.fn(() => new Promise<string>(r => resolve = r)));
+    const download = vi.fn(() => new Promise<string>(r => { resolve = r; }));
+    const { fixture, list, session, status } = setup(undefined, download);
+    const { nav } = spies(fixture);
     await fixture.whenStable();
-    session.set({user: {id: 'one'}});
+    session.set({ user: { id: 'one' } });
     await fixture.whenStable();
     expect(list).toHaveBeenCalledTimes(1);
-    fixture.nativeElement.querySelector('button').click();
-    session.set(null); status.set('anonymous');
+
+    fixture.detectChanges();
+    session.set(null);
+    status.set('anonymous');
+    fixture.detectChanges();
     resolve(url);
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('a[download]')).toBeNull();
+    fixture.detectChanges();
     expect(fixture.nativeElement.textContent).not.toContain(item.title);
+    expect(nav).not.toHaveBeenCalled();
   });
+
   it('descarta listado tardío al cambiar de lección', async () => {
     let resolve!: (value: typeof item[]) => void;
-    const list = vi.fn().mockReturnValueOnce(new Promise(r => resolve = r)).mockResolvedValueOnce([]);
-    const {fixture} = setup(list);
+    const list = vi.fn().mockReturnValueOnce(new Promise(r => { resolve = r; })).mockResolvedValue([]);
+    const { fixture } = setup(list);
+    await fixture.whenStable();
     fixture.detectChanges();
     fixture.componentRef.setInput('lessonId', 'other');
     fixture.detectChanges();
+    await fixture.whenStable();
     resolve([item]);
     await fixture.whenStable();
+    fixture.detectChanges();
     expect(fixture.nativeElement.textContent).not.toContain(item.title);
+    expect(fixture.nativeElement.textContent).not.toContain('Apuntes');
   });
-  it('anuncia Preparando y después Enlace listo en una región persistente sin filtrar la URL firmada', async () => {
+
+  it('descarta la descarga tardía de la lección anterior', async () => {
+    let resolveFirst!: (value: string) => void;
+    const download = vi.fn()
+      .mockReturnValueOnce(new Promise<string>(r => { resolveFirst = r; }))
+      .mockResolvedValueOnce(url);
+    const { fixture } = setup(undefined, download);
+    const { nav } = spies(fixture);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    fixture.componentRef.setInput('lessonId', 'other');
+    fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+    resolveFirst('https://example.test/storage/v1/object/sign/lesson-pdfs/course/lesson/resource/file.pdf?token=viejo');
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(nav).not.toHaveBeenCalled();
+  });
+
+  it('al caducar mantiene una sola acción «Abrir PDF» que pide firma nueva y navega', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, download } = setup();
+      const { nav, popup } = spies(fixture);
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      expect(buttonWith(fixture.nativeElement, 'Abrir PDF')).toBeTruthy();
+      vi.advanceTimersByTime(60_000);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('El enlace ha caducado');
+      expect(fixture.nativeElement.textContent).not.toContain('Renovar');
+      expect(nav).not.toHaveBeenCalled();
+
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      await Promise.resolve();
+      fixture.detectChanges();
+      expect(download).toHaveBeenCalledTimes(2);
+      expect(download).toHaveBeenLastCalledWith('lesson', 'resource');
+      expect(nav).toHaveBeenCalledTimes(1);
+      expect(nav).toHaveBeenCalledWith(url);
+      expect(popup).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('un fallo al abrir mantiene el reintento en la misma acción y sin popup', async () => {
+    vi.useFakeTimers();
+    try {
+      const download = vi.fn().mockResolvedValueOnce(url).mockRejectedValueOnce(new Error('red')).mockResolvedValueOnce(url);
+      const { fixture } = setup(undefined, download);
+      const { nav, popup } = spies(fixture);
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      vi.advanceTimersByTime(60_000);
+      fixture.detectChanges();
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      await Promise.resolve();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('No se pudo abrir el PDF');
+      expect(nav).not.toHaveBeenCalled();
+
+      buttonWith(fixture.nativeElement, 'Reintentar').click();
+      await Promise.resolve();
+      fixture.detectChanges();
+      expect(download).toHaveBeenCalledTimes(3);
+      expect(nav).toHaveBeenCalledTimes(1);
+      expect(nav).toHaveBeenCalledWith(url);
+      expect(popup).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('descarta la firma pedida al caducar si cambia la identidad', async () => {
+    let resolveFresh!: (value: string) => void;
+    vi.useFakeTimers();
+    try {
+      const download = vi.fn().mockResolvedValueOnce(url)
+        .mockReturnValueOnce(new Promise<string>(r => { resolveFresh = r; }));
+      const { fixture, session, status } = setup(undefined, download);
+      const { nav } = spies(fixture);
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      vi.advanceTimersByTime(60_000);
+      fixture.detectChanges();
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+
+      session.set(null);
+      status.set('anonymous');
+      fixture.detectChanges();
+      resolveFresh(url);
+      await Promise.resolve();
+      fixture.detectChanges();
+      expect(nav).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('descarta la firma pedida al caducar si se destruye el componente', async () => {
+    let resolveFresh!: (value: string) => void;
+    vi.useFakeTimers();
+    try {
+      const download = vi.fn().mockResolvedValueOnce(url)
+        .mockReturnValueOnce(new Promise<string>(r => { resolveFresh = r; }));
+      const { fixture } = setup(undefined, download);
+      const { nav } = spies(fixture);
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      vi.advanceTimersByTime(60_000);
+      fixture.detectChanges();
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      fixture.destroy();
+      resolveFresh(url);
+      await Promise.resolve();
+      expect(nav).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('muestra una acción por recurso tras prepararlos todos', async () => {
+    const { fixture, download } = setup(vi.fn().mockResolvedValue([item, other]), vi.fn((_lesson: string, id: string) =>
+      Promise.resolve(`https://example.test/storage/v1/object/sign/lesson-pdfs/course/lesson/${id}/file.pdf?token=t`)));
+    await settle(fixture);
+    expect(download).toHaveBeenCalledWith('lesson', item.id);
+    expect(download).toHaveBeenCalledWith('lesson', other.id);
+    const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
+    expect(buttons.filter(b => b.textContent?.trim() === 'Abrir PDF')).toHaveLength(2);
+  });
+
+  it('montaje, listado, expiración y cambio de lección nunca navegan ni descargan el PDF', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, download } = setup();
+      const { nav, popup } = spies(fixture);
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      expect(download).toHaveBeenCalledTimes(1);
+      expect(nav).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(60_000);
+      fixture.detectChanges();
+      fixture.componentRef.setInput('lessonId', 'other');
+      fixture.detectChanges();
+      await Promise.resolve(); fixture.detectChanges();
+      expect(nav).not.toHaveBeenCalled();
+      expect(popup).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('doble clic con la firma lista navega una sola vez', async () => {
+    const { fixture, download } = setup();
+    const { nav, popup } = spies(fixture);
+    await settle(fixture);
+    const open = buttonWith(fixture.nativeElement, 'Abrir PDF');
+    open.click(); open.click();
+    await Promise.resolve();
+    expect(nav).toHaveBeenCalledTimes(1);
+    expect(nav).toHaveBeenCalledWith(url);
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(popup).not.toHaveBeenCalled();
+  });
+
+  it('doble clic mientras llega la firma pide y navega una sola vez', async () => {
+    let resolve!: (value: string) => void;
+    const download = vi.fn().mockResolvedValueOnce(url)
+      .mockReturnValueOnce(new Promise<string>(r => { resolve = r; }));
+    vi.useFakeTimers();
+    try {
+      const { fixture } = setup(undefined, download);
+      const { nav } = spies(fixture);
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      vi.advanceTimersByTime(60_000);
+      fixture.detectChanges();
+      const open = buttonWith(fixture.nativeElement, 'Abrir PDF');
+      open.click(); open.click();
+      expect(download).toHaveBeenCalledTimes(2); // una inicial + una del clic
+      resolve(url);
+      await Promise.resolve();
+      fixture.detectChanges();
+      expect(nav).toHaveBeenCalledTimes(1);
+      expect(nav).toHaveBeenCalledWith(url);
+      // El cooldown no es un bloqueo permanente: tras 1 s un clic novo abre.
+      vi.advanceTimersByTime(1_000);
+      fixture.detectChanges();
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      await Promise.resolve();
+      expect(nav).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('el cooldown expira sin abrir ni pedir firmas y permite un clic posterior', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, download } = setup();
+      const { nav, popup } = spies(fixture);
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      await Promise.resolve();
+      expect(nav).toHaveBeenCalledTimes(1);
+      expect(download).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(3_000);
+      fixture.detectChanges();
+      expect(nav).toHaveBeenCalledTimes(1);
+      expect(download).toHaveBeenCalledTimes(1);
+      expect(popup).not.toHaveBeenCalled();
+
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      await Promise.resolve();
+      expect(nav).toHaveBeenCalledTimes(2);
+      expect(download).toHaveBeenCalledTimes(1); // reutiliza la firma vigente
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cambiar la identidad o destruir limpia el cooldown sin abrir nada', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture, download, session, status } = setup();
+      const { nav } = spies(fixture);
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      await Promise.resolve();
+      expect(nav).toHaveBeenCalledTimes(1);
+
+      status.set('anonymous');
+      session.set(null);
+      fixture.detectChanges();
+      vi.advanceTimersByTime(5_000);
+      expect(nav).toHaveBeenCalledTimes(1);
+      expect(download).toHaveBeenCalledTimes(1);
+
+      status.set('authenticated');
+      session.set({ user: { id: 'two' } });
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      await Promise.resolve();
+      expect(nav).toHaveBeenCalledTimes(2);
+      const callsAtDestroy = nav.mock.calls.length;
+      fixture.destroy();
+      vi.advanceTimersByTime(5_000);
+      expect(nav).toHaveBeenCalledTimes(callsAtDestroy);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('temporizadores y actualizaciones posteriores no reabren el PDF', async () => {
+    vi.useFakeTimers();
+    try {
+      const { fixture } = setup();
+      const { nav } = spies(fixture);
+      fixture.detectChanges();
+      for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
+      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      await Promise.resolve();
+      fixture.detectChanges();
+      expect(nav).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(5 * 60_000);
+      fixture.detectChanges();
+      expect(nav).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('anuncia la preparación en una región viva sin filtrar la URL firmada', async () => {
     let resolveDownload!: (value: string) => void;
-    const download = vi.fn(() => new Promise<string>(resolve => { resolveDownload = resolve; }));
-    const {fixture} = setup(undefined, download);
-    await fixture.whenStable();
-    vi.useFakeTimers();
-
-    const region = () => fixture.nativeElement.querySelector('[role="status"][aria-live="polite"]') as HTMLElement;
-    const persistent = region();
-    expect(persistent).not.toBeNull();
-    expect(persistent.textContent).not.toContain('Preparando');
-    expect(persistent.textContent).not.toContain('Enlace listo');
-
-    fixture.nativeElement.querySelector('button').click();
-    await Promise.resolve();
+    const download = vi.fn(() => new Promise<string>(r => { resolveDownload = r; }));
+    const { fixture } = setup(undefined, download);
     fixture.detectChanges();
-    expect(download).toHaveBeenCalledWith('lesson', 'resource');
-    expect(region()).toBe(persistent);
-    expect(persistent.textContent).toContain('Preparando');
-    expect(persistent.textContent).not.toContain(url);
-
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const region = fixture.nativeElement.querySelector('[role="status"][aria-live="polite"]') as HTMLElement;
+    expect(region).not.toBeNull();
+    expect(region.textContent).toContain('Preparando');
+    expect(region.textContent).not.toContain(url);
     resolveDownload(url);
-    await Promise.resolve();
-    fixture.detectChanges();
-    expect(region()).toBe(persistent);
-    expect(persistent.textContent).toContain('Enlace listo para descargar: ' + item.title);
-    expect(persistent.textContent).not.toContain(url);
-    expect(persistent.textContent).not.toContain('token');
-    const link = fixture.nativeElement.querySelector('a[download]') as HTMLAnchorElement;
-    expect(link.getAttribute('href')).toBe(url);
-    expect(document.activeElement).not.toBe(link);
-  });
-  it('etiqueta cada botón de forma única sin romper el texto visible', async () => {
-    const second = { id: 'resource-2', title: 'Partitura', kind: 'pdf' as const };
-    const {fixture} = setup(vi.fn().mockResolvedValue([item, second]));
     await fixture.whenStable();
-    const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
-    expect(buttons).toHaveLength(2);
-    const labels = buttons.map(button => button.getAttribute('aria-label'));
-    expect(labels).toEqual(['Preparar descarga de ' + item.title, 'Preparar descarga de ' + second.title]);
-    expect(new Set(labels).size).toBe(2);
-    expect(buttons.every(button => button.textContent?.trim() === 'Preparar descarga')).toBe(true);
-  });
-  it('al caducar el enlace retira el aviso de la región persistente', async () => {
-    const {fixture} = setup();
-    await fixture.whenStable();
-    vi.useFakeTimers();
-    const region = () => fixture.nativeElement.querySelector('[role="status"][aria-live="polite"]') as HTMLElement;
-    const persistent = region();
-    fixture.nativeElement.querySelector('button').click();
-    await Promise.resolve();
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('a[download]')).not.toBeNull();
-    expect(persistent.textContent).toContain('Enlace listo');
-
-    vi.advanceTimersByTime(60_000);
-    fixture.detectChanges();
-    expect(region()).toBe(persistent);
-    expect(persistent.textContent).not.toContain('Enlace listo');
-    expect(persistent.textContent).not.toContain(url);
-    expect(fixture.nativeElement.querySelector('a[download]')).toBeNull();
+    expect(region.textContent).not.toContain(url);
   });
 });

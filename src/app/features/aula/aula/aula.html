@@ -22,19 +22,18 @@
           <article>
             @if (aula.lesson.content_type === 'video') { <div class="video-stage">
               <strong>Vídeo de la lección</strong>
-              @if (videoSource(); as video) { <p>{{ video.notice }}</p> }
+              @if (notice(); as note) { <p class="video-notice">{{ note }}</p> }
               @switch (videoState()) {
                 @case ('idle') {
-                  <button type="button" class="video-button" (click)="loadVideo()">Ver vídeo de la lección</button>
+                  <p>Vídeo de la lección pendiente de carga.</p>
                 }
                 @case ('loading') {
-                  <p role="status">Preparando el vídeo…</p>
-                  <button type="button" class="video-button" disabled aria-busy="true">Preparando el vídeo…</button>
+                  <p role="status">Cargando el vídeo…</p>
                 }
                 @case ('ready') {
                   @if (videoSource(); as video) {
-                    <iframe #videoFrame class="video" [src]="video.embedUrl" [title]="'Vídeo de la lección: ' + aula.lesson.title"
-                      tabindex="0" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"
+                    <iframe class="video" [src]="video.embedUrl" [title]="'Vídeo de la lección: ' + aula.lesson.title"
+                      loading="eager" referrerpolicy="strict-origin-when-cross-origin"
                       sandbox="allow-scripts allow-same-origin allow-presentation"
                       allow="fullscreen; encrypted-media" allowfullscreen></iframe>
                   }
@@ -43,12 +42,12 @@
                   <p>La reproducción aún no está configurada. La lección puede tener vídeo, PDF o texto.</p>
                 }
                 @case ('error') {
-                  <p role="alert">No se pudo preparar el vídeo. Vuelve a intentarlo.</p>
+                  <p role="alert">No se pudo cargar el vídeo. Vuelve a intentarlo.</p>
                   <button type="button" class="video-button" (click)="loadVideo()">Reintentar</button>
                 }
                 @case ('expired') {
-                  <p role="status">El enlace del vídeo ha caducado</p>
-                  <button type="button" class="video-button" (click)="loadVideo()">Volver a preparar</button>
+                  <p role="status" aria-live="polite">El enlace del vídeo ha caducado</p>
+                  <button type="button" class="video-button" (click)="loadVideo()">Renovar enlace</button>
                 }
               }
             </div> }

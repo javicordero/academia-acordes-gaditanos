@@ -14,19 +14,35 @@
               [activeId]="lesson.id" [courseId]="courseId()" [admin]="true" />
             <article>
               @if (lesson.content_type === 'video') { <div class="video-stage">
-              @if (video(); as source) {
-                <strong>Vídeo de ejemplo</strong>
-                <p>{{ source.notice }}</p>
-                @if (videoRequested()) {
-                  <iframe #frame class="video" [src]="source.embedUrl" [title]="'Vídeo de prueba: ' + lesson.title" tabindex="0" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-presentation" allow="fullscreen; encrypted-media" allowfullscreen></iframe>
-                } @else {
-                  <button type="button" (click)="loadVideo()">Cargar vídeo de prueba en YouTube</button>
+                <strong>Vídeo de la lección</strong>
+                @if (notice(); as note) { <p class="video-notice">{{ note }}</p> }
+                @switch (videoState()) {
+                  @case ('idle') {
+                    <p>Vídeo de la lección pendiente de carga.</p>
+                  }
+                  @case ('loading') {
+                    <p role="status">Cargando el vídeo…</p>
+                  }
+                  @case ('ready') {
+                    @if (videoSource(); as source) {
+                      <iframe class="video" [src]="source.embedUrl" [title]="'Vídeo de la lección: ' + lesson.title"
+                        loading="eager" referrerpolicy="strict-origin-when-cross-origin"
+                        sandbox="allow-scripts allow-same-origin allow-presentation"
+                        allow="fullscreen; encrypted-media" allowfullscreen></iframe>
+                    }
+                  }
+                  @case ('unavailable') {
+                    <p>La reproducción aún no está configurada. La lección puede tener vídeo, PDF o texto.</p>
+                  }
+                  @case ('error') {
+                    <p role="alert">No se pudo cargar el vídeo. Vuelve a intentarlo.</p>
+                    <button type="button" class="video-button" (click)="loadVideo()">Reintentar</button>
+                  }
+                  @case ('expired') {
+                    <p role="status" aria-live="polite">El enlace del vídeo ha caducado</p>
+                    <button type="button" class="video-button" (click)="loadVideo()">Renovar enlace</button>
+                  }
                 }
-              } @else if (demoEnabled) {
-                <p>No hay vídeo de prueba configurado para esta lección; la reproducción definitiva está pendiente.</p>
-              } @else {
-                <p>La demo de vídeo no está disponible en producción; la reproducción definitiva está pendiente.</p>
-              }
               </div> }
               <h2>{{ lesson.title }}</h2>
               @if (lesson.summary) { <p class="text">{{ lesson.summary }}</p> }

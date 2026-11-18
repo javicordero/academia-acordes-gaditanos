@@ -11,19 +11,23 @@
     @case ('ready') {
       @if (!items().length) { <p>{{ primary() ? 'El documento de la lección está pendiente.' : 'No hay materiales disponibles para esta lección.' }}</p> }
       @else {
-        <p>Los enlaces preparados caducan en un máximo de 60 segundos y pueden compartirse hasta entonces.</p>
+        <p>Los enlaces se preparan al entrar y caducan en un minuto; si uno caduca, al abrirlo se pide uno nuevo. El PDF se abre en esta pestaña: usa «Atrás» para volver.</p>
         <ul>
           @for (item of items(); track item.id) {
             <li>
               <span>{{ item.title }}</span>
-              <button type="button" [disabled]="pending()[item.id]" (click)="prepare(item)"
-                [attr.aria-label]="'Preparar descarga de ' + item.title">Preparar descarga</button>
+              @if (errors()[item.id]) {
+                <button type="button" [disabled]="pending()[item.id]" (click)="retry(item)"
+                  [attr.aria-label]="'Reintentar apertura de ' + item.title">Reintentar</button>
+              } @else {
+                <button type="button" [disabled]="pending()[item.id]" (click)="open(item)"
+                  [attr.aria-label]="'Abrir PDF: ' + item.title">Abrir PDF</button>
+              }
               <span role="status" aria-live="polite" aria-atomic="true">
                 @if (pending()[item.id]) { Preparando… }
-                @else if (links()[item.id]) { Enlace listo para descargar: {{ item.title }} }
+                @else if (errors()[item.id]) { No se pudo abrir el PDF. Inténtalo de nuevo. }
+                @else if (expired()[item.id]) { El enlace ha caducado. Al abrirlo se pedirá uno nuevo. }
               </span>
-              @if (links()[item.id]; as link) { <a [href]="link" rel="noopener" download>Descargar PDF: {{ item.title }}</a> }
-              @if (errors()[item.id]) { <span role="alert">No se pudo preparar la descarga. Inténtalo de nuevo.</span> }
             </li>
           }
         </ul>

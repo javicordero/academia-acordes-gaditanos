@@ -38,19 +38,26 @@ Todo lo anterior es **SQL local**, ejercitado con PGlite (`npm run test:sql`).
   renueva al volver a pedirla; no se promete reproducción ininterrumpida.
 - Sin el flag, producción no carga YouTube: usa el proveedor no disponible.
   YouTube solo existe en desarrollo como maquetación de `video-demo.local.ts`.
+- UX del aula y de la vista previa: al entrar en una lección de vídeo ya
+  autorizada se pide la fuente y se monta el reproductor sin pulsar «Ver vídeo»;
+  no hay autoplay (el alumno pulsa Play), se anuncia el aviso del proveedor y
+  el estado de carga, y no se mueve el foco al iframe. Caducar retira el `src`;
+  solo entonces, o ante un error, se ofrece renovar/reintentar.
 
 ## Qué NO está hecho
 
 - **Nada aplicado en la nube**: no hay proyecto Supabase remoto migrado.
 - Las Edge Functions (`lesson-video-token`, `link-lesson-video`) están
   versionadas con pruebas con mocks, pero **no desplegadas ni probadas en real**.
-- **Token authentication de Bunny no está activado** en la biblioteca.
+- **Token authentication de Bunny está activo** en la biblioteca (comprobado hoy).
 - **`COLGAOS` no está vinculado** aún a la primera lección del curso real.
 - Secretos de Bunny (Library API key y signing key) no configurados: van a
   mano como secretos de Edge Functions, nunca al repositorio, al chat,
   `environment.local.ts` ni a filas públicas.
-- La UI del aula todavía dice «Vídeo de ejemplo»/«YouTube»: queda como
-  pendiente de UI rotular el proveedor real y su caducidad.
+- La comprobación visual en móvil o con Bunny real sigue pendiente; aquí solo
+  se han ejecutado pruebas unitarias locales con mocks.
+- `VideoPlaybackService.expiresAt()` queda como API latente sin consumidores: el
+  aula usa `PlaybackSource.expiresAt`. No se refactoriza en este cambio.
 
 ## Gate: orden obligatorio
 
