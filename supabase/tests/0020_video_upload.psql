@@ -1,0 +1,344 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID, library y nombres de archivo ficticios. Sin PII,
+-- sin secretos y sin llamadas a Bunny. Todo se revierte con rollback.
+insert into auth.users (id) values
+  ('00000000-0000-0000-0000-0000000000a1'),
+  ('00000000-0000-0000-0000-0000000000a2');
+insert into public.user_roles (user_id, role) values
+  ('00000000-0000-0000-0000-0000000000a1', 'admin');
+-- a2 existe en Auth pero no es admin.
+
+insert into public.courses (id, slug, title, status, published_at) values
+  ('11000000-0000-0000-0000-000000000001', 'upload-one', 'Uno', 'published', now());
+insert into public.course_sections (id, course_id, title, position) values
+  ('21000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000001', 'Sección', 1);
+insert into public.lessons
+  (id, course_id, section_id, slug, title, position, is_published, content_type)
+values
+  ('31000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000001',
+   '21000000-0000-0000-0000-000000000001', 'video-uno', 'Vídeo', 1, false, 'video'),
+  ('31000000-0000-0000-0000-000000000002', '11000000-0000-0000-0000-000000000001',
+   '21000000-0000-0000-0000-000000000001', 'video-dos', 'Vídeo dos', 2, false, 'video'),
+  ('31000000-0000-0000-0000-000000000003', '11000000-0000-0000-0000-000000000001',
+   '21000000-0000-0000-0000-000000000001', 'pdf-uno', 'Pdf', 3, false, 'pdf');
+
+-- anon y authenticated no pueden leer la tabla privada ni ejecutar las RPC.
+set local role anon;
+do $$ begin
+  begin
+    perform 1 from private.video_upload_jobs limit 1;
+    raise exception using message = 'anon leyó trabajos privados', errcode = '57014';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.video_upload_status(null, null);
+    raise exception using message = 'anon ejecutó status', errcode = '57014';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.video_upload_reserve(null, null, null, null, null, null, null);
+    raise exception using message = 'anon ejecutó reserve', errcode = '57014';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+  begin
+    perform 1 from private.video_upload_jobs limit 1;
+    raise exception using message = 'authenticated leyó trabajos privados', errcode = '57014';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.video_upload_attach(null, null, null, null, null, null, null);
+    raise exception using message = 'authenticated ejecutó attach', errcode = '57014';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform public.video_upload_sync(null, null, null, null, null);
+    raise exception using message = 'authenticated ejecutó sync', errcode = '57014';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+set local role service_role;
+do $$
+declare
+  admin uuid := '00000000-0000-0000-0000-0000000000a1';
+  student uuid := '00000000-0000-0000-0000-0000000000a2';
+  lesson1 uuid := '31000000-0000-0000-0000-000000000001';
+  lesson2 uuid := '31000000-0000-0000-0000-000000000002';
+  pdf_lesson uuid := '31000000-0000-0000-0000-000000000003';
+  missing_lesson uuid := '41000000-0000-4000-8000-000000000001';
+  request1 uuid := '51000000-0000-4000-8000-000000000001';
+  request2 uuid := '51000000-0000-4000-8000-000000000002';
+  request3 uuid := '51000000-0000-4000-8000-000000000003';
+  video1 uuid := '61111111-1111-4111-8111-111111111111';
+  video2 uuid := '62222222-2222-4222-8222-222222222222';
+  library text := '901234';
+  r jsonb;
+  job1 uuid;
+  job2 uuid;
+  rejected boolean;
+  before_publication jsonb;
+begin
+  -- Sin JWT verificado de admin, ninguna RPC escribe.
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(student, lesson1, request1, 'clip.mp4', 1024, 'video/mp4', library);
+  exception when insufficient_privilege then rejected := true;
+  end;
+  if not rejected then raise exception 'Un alumno pudo reservar'; end if;
+  if exists (select 1 from private.video_upload_jobs) then
+    raise exception 'El alumno dejó una fila';
+  end if;
+
+  -- status de una lección sin vídeo: none, sin job y sin GUID.
+  r := public.video_upload_status(admin, lesson1);
+  if (r->>'hasVideo')::boolean or r->'job' <> 'null'::jsonb then
+    raise exception 'status inicial incorrecto: %', r;
+  end if;
+
+  -- reserve crea el trabajo ANTES de crear el objeto en Bunny.
+  r := public.video_upload_reserve(admin, lesson1, request1, 'clip uno.mp4', 1048576, 'video/mp4', library);
+  if not (r->>'created')::boolean then raise exception 'No se reservó: %', r; end if;
+  if r->'job'->>'state' <> 'reserved' or not (r->'job'->>'createAttempted')::boolean then
+    raise exception 'Reserva sin intención de creación: %', r;
+  end if;
+  job1 := (r->'job'->>'uploadId')::uuid;
+  if (select count(*) from private.video_upload_jobs where upload_id = job1) <> 1 then
+    raise exception 'Trabajo no guardado';
+  end if;
+
+  -- Segunda reserva activa de la MISMA lección: 409 lógico, sin nueva fila.
+  -- El límite de concurrencia es por lección, no global.
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, lesson1, request2, 'clip dos.mp4', 1024, 'video/mp4', library);
+  exception when sqlstate 'P0001' then rejected := true;
+  end;
+  if not rejected then raise exception 'Se permitió otro trabajo activo en la lección'; end if;
+  if (select count(*) from private.video_upload_jobs) <> 1 then
+    raise exception 'La reserva conflictiva escribió';
+  end if;
+
+  -- Mismo requestId y mismos atributos: idempotente, sin segundo trabajo.
+  r := public.video_upload_reserve(admin, lesson1, request1, 'clip uno.mp4', 1048576, 'video/mp4', library);
+  if (r->>'created')::boolean or (r->'job'->>'uploadId')::uuid <> job1 then
+    raise exception 'La idempotencia falló: %', r;
+  end if;
+  if (select count(*) from private.video_upload_jobs) <> 1 then
+    raise exception 'Se duplicó el trabajo';
+  end if;
+
+  -- Mismo requestId con otros atributos o en otra lección: conflicto, sin overwrite.
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, lesson1, request1, 'clip uno.mp4', 2048, 'video/mp4', library);
+  exception when sqlstate 'P0001' then rejected := true;
+  end;
+  if not rejected then raise exception 'Cambio de tamaño aceptado'; end if;
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, lesson2, request1, 'clip uno.mp4', 1048576, 'video/mp4', library);
+  exception when sqlstate 'P0001' then rejected := true;
+  end;
+  if not rejected then raise exception 'Replay en otra lección aceptado'; end if;
+  if (select file_size from private.video_upload_jobs where upload_id = job1) <> 1048576 then
+    raise exception 'El conflicto sobrescribió la reserva';
+  end if;
+
+  -- Validaciones de servidor: contenido, tamaño, MIME, nombre y library.
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, pdf_lesson, request2, 'clip.mp4', 1024, 'video/mp4', library);
+  exception when sqlstate 'P0001' then rejected := true;
+  end;
+  if not rejected then raise exception 'Lección pdf aceptada para vídeo'; end if;
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, missing_lesson, request2, 'clip.mp4', 1024, 'video/mp4', library);
+  exception when no_data_found then rejected := true;
+  end;
+  if not rejected then raise exception 'Lección inexistente aceptada'; end if;
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, lesson2, request2, 'clip.mp4', 1073741825, 'video/mp4', library);
+  exception when invalid_parameter_value then rejected := true;
+  end;
+  if not rejected then raise exception 'Tamaño sobre el límite aceptado'; end if;
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, lesson2, request2, 'clip.mp4', 1024, 'application/pdf', library);
+  exception when invalid_parameter_value then rejected := true;
+  end;
+  if not rejected then raise exception 'MIME no vídeo aceptado'; end if;
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, lesson2, request2, '../clip.mp4', 1024, 'video/mp4', library);
+  exception when invalid_parameter_value then rejected := true;
+  end;
+  if not rejected then raise exception 'Nombre con separadores aceptado'; end if;
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, lesson2, request2, 'clip.mp4', 1024, 'video/mp4', '12a');
+  exception when invalid_parameter_value then rejected := true;
+  end;
+  if not rejected then raise exception 'Library no numérica aceptada'; end if;
+
+  -- attach solo por CAS: identidad, GUID, expiración y estado pendiente.
+  rejected := false;
+  begin
+    perform public.video_upload_attach(student, job1, lesson1, request1, library, video1, 1800000000);
+  exception when insufficient_privilege then rejected := true;
+  end;
+  if not rejected then raise exception 'Alumno pudo attach'; end if;
+  rejected := false;
+  begin
+    perform public.video_upload_attach(admin, job1, lesson2, request1, library, video1, 1800000000);
+  exception when insufficient_privilege then rejected := true;
+  end;
+  if not rejected then raise exception 'Attach con lección ajena aceptado'; end if;
+
+  r := public.video_upload_attach(admin, job1, lesson1, request1, library, video1, 1800000000);
+  if r->'job'->>'state' <> 'pending' then raise exception 'Attach no dejó pending: %', r; end if;
+  if (select provider_video_id from private.video_upload_jobs where upload_id = job1) <> video1::text then
+    raise exception 'GUID no guardado';
+  end if;
+
+  -- OtroGuid sobre el mismo trabajo no sobrescribe; el mismo GUID es idempotente.
+  rejected := false;
+  begin
+    perform public.video_upload_attach(admin, job1, lesson1, request1, library, video2, 1800000001);
+  exception when sqlstate 'P0001' then rejected := true;
+  end;
+  if not rejected then raise exception 'Attach sobrescribió el GUID'; end if;
+  r := public.video_upload_attach(admin, job1, lesson1, request1, library, video1, 1800000002);
+  if r->'job'->>'state' <> 'pending' then raise exception 'Replay attach inválido: %', r; end if;
+  if (select provider_video_id from private.video_upload_jobs where upload_id = job1) <> video1::text then
+    raise exception 'El replay cambió el GUID';
+  end if;
+
+  -- Un GUID no puede pertenecer a dos trabajos; se reserva otra lección.
+  select (public.video_upload_reserve(admin, lesson2, request2, 'clip dos.mp4', 1024, 'video/mp4', library)
+          ->'job'->>'uploadId')::uuid into job2;
+  rejected := false;
+  begin
+    perform public.video_upload_attach(admin, job2, lesson2, request2, library, video1, 1800000000);
+  exception when sqlstate 'P0001' then rejected := true;
+  end;
+  if not rejected then raise exception 'GUID compartido entre lecciones'; end if;
+  if exists (select 1 from private.video_upload_jobs where upload_id = job2 and provider_video_id is not null) then
+    raise exception 'El conflicto ligó el GUID ajeno';
+  end if;
+
+  -- refresh reutiliza el GUID, cambia a uploading y actualiza la firma guardada.
+  r := public.video_upload_refresh(admin, job1, lesson1, 1800003600);
+  if r->>'state' <> 'uploading' then raise exception 'Refresh no reanudó: %', r; end if;
+  if (select provider_video_id from private.video_upload_jobs where upload_id = job1) <> video1::text then
+    raise exception 'Refresh creó otro GUID';
+  end if;
+  rejected := false;
+  begin
+    perform public.video_upload_refresh(admin, job1, lesson2, 1800003601);
+  exception when insufficient_privilege then rejected := true;
+  end;
+  if not rejected then raise exception 'Refresh de otra lección permitido'; end if;
+
+  -- Publication flags y progreso no se tocan en ningún punto del flujo.
+  before_publication := jsonb_build_object(
+    'published', (select is_published from public.lessons where id = lesson1),
+    'course', (select status from public.courses where id = '11000000-0000-0000-0000-000000000001'),
+    'progress', (select count(*) from public.lesson_progress)
+  );
+
+  -- status 1 (100% bytes) sigue en processing; 4 sin duración no es ready.
+  r := public.video_upload_sync(admin, job1, video1, 1, 300);
+  if r->>'state' <> 'processing' then raise exception 'Bytes completos marcados ready: %', r; end if;
+  if exists (select 1 from private.lesson_videos where lesson_id = lesson1) then
+    raise exception 'Se enlazó antes de Finished';
+  end if;
+  r := public.video_upload_sync(admin, job1, video1, 4, 0);
+  if r->>'state' <> 'blocked' then raise exception 'Finished sin duración no bloqueado: %', r; end if;
+  if exists (select 1 from private.lesson_videos where lesson_id = lesson1) then
+    raise exception 'Finished sin duración enlazó vídeo';
+  end if;
+
+  -- Un error del proveedor se refleja como failed sin enlazar ni borrar.
+  r := public.video_upload_sync(admin, job1, video1, 6, 0);
+  if r->>'state' <> 'failed' then raise exception 'UploadFailed no es failed: %', r; end if;
+
+  -- Se reanuda: Finished con duración.real del proveedor y CAS de enlace.
+  update private.video_upload_jobs set state = 'processing'
+  where upload_id = job1;
+  r := public.video_upload_sync(admin, job1, video1, 4, 112);
+  if r->>'state' <> 'ready' or (r->>'durationSeconds')::integer <> 112 then
+    raise exception 'Ready con duración incorrecta: %', r;
+  end if;
+  if not exists (
+    select 1 from private.lesson_videos
+    where lesson_id = lesson1 and provider_video_id = video1::text
+      and status = 'ready' and duration_seconds = 112
+  ) then raise exception 'Vídeo terminado no enlazado'; end if;
+  r := public.video_upload_sync(admin, job1, video1, 4, 112);
+  if r->>'state' <> 'ready' then raise exception 'Sync repetido cambió el estado: %', r; end if;
+  if (select count(*) from private.lesson_videos where lesson_id = lesson1) <> 1 then
+    raise exception 'Sync repetido duplicó el enlace';
+  end if;
+
+  -- Ready existente: ni reserve ni attach pueden reemplazarlo.
+  rejected := false;
+  begin
+    perform public.video_upload_reserve(admin, lesson1, request3, 'otro.mp4', 1024, 'video/mp4', library);
+  exception when sqlstate 'P0001' then rejected := true;
+  end;
+  if not rejected then raise exception 'Reserve sobrescribió vídeo ready'; end if;
+  if (select provider_video_id from private.lesson_videos where lesson_id = lesson1) <> video1::text then
+    raise exception 'El vídeo ready cambió';
+  end if;
+
+  -- sync con GUID ajeno se rechaza y no escribe.
+  rejected := false;
+  begin
+    perform public.video_upload_sync(admin, job1, video2, 4, 90);
+  exception when insufficient_privilege then rejected := true;
+  end;
+  if not rejected then raise exception 'Sync con GUID ajeno aceptado'; end if;
+  if (select duration_seconds from private.lesson_videos where lesson_id = lesson1) <> 112 then
+    raise exception 'Sync ajeno sobrescribió la duración';
+  end if;
+
+  -- Estado de proveedor desconocido y marcas de revisión: sin borrado.
+  -- Se usa job1 (con GUID): job2 no llegó a ligar GUID y solo admite revisión.
+  rejected := false;
+  begin
+    perform public.video_upload_sync(admin, job1, video1, 9, 10);
+  exception when invalid_parameter_value then rejected := true;
+  end;
+  if not rejected then raise exception 'Estado de proveedor desconocido aceptado'; end if;
+  if not public.video_upload_mark_review(admin, job2, 'create_ambiguous') then
+    raise exception 'No se marcó para revisión';
+  end if;
+  if (select state from private.video_upload_jobs where upload_id = job2) <> 'blocked' then
+    raise exception 'La revisión no bloqueó el trabajo';
+  end if;
+  if public.video_upload_mark_review(admin, job1, 'provider_error') then
+    raise exception using message = 'La revisión marcó un vídeo listo', errcode = 'P0001',
+      detail = (select state from private.video_upload_jobs where upload_id = job1);
+  end if;
+  if (select state from private.video_upload_jobs where upload_id = job1) <> 'ready' then
+    raise exception 'La revisión tocó un vídeo listo';
+  end if;
+
+  if jsonb_build_object(
+    'published', (select is_published from public.lessons where id = lesson1),
+    'course', (select status from public.courses where id = '11000000-0000-0000-0000-000000000001'),
+    'progress', (select count(*) from public.lesson_progress)
+  ) <> before_publication then
+    raise exception 'El flujo cambió publicación o progreso';
+  end if;
+end $$;
+reset role;
+rollback;
