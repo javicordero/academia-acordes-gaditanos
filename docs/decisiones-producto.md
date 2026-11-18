@@ -155,3 +155,31 @@ normativo de agentes. Se conserva la fecha de registro original del documento.
 - Pendiente antes de cobrar con usuarios: condiciones legales/fiscales (D3, D4),
   precios definitivos (D7), copia de seguridad (D16) y el resto de decisiones
   abiertas (decisión pendiente).
+
+## Páginas legales como plantillas orientativas (2026-11-18)
+
+- **Decisión del usuario:** incorporar los términos de compra y el resto de
+  páginas legales y de cookies habituales en la academia.
+- **Alcance implementado:** cinco páginas en español bajo `/legal/` (aviso
+  legal, privacidad, cookies, términos de compra y reembolsos), enlazadas desde
+  el pie de página. Son **plantillas orientativas**, señaladas visiblemente con
+  «Plantilla orientativa: revisar antes de publicación»: no constituyen
+  asesoramiento jurídico y **no se dan por válidas legalmente**.
+- **Marcadores, no datos reales:** `[Titular]`, `[CIF/NIF]`, `[Domicilio]` y
+  `[Correo de contacto]`. No se han inventado razón social, NIF, dirección,
+  correo, precios ni procedimientos internos.
+- **Contenido deliberadamente neutro:** privacidad describe finalidades
+  previstas (cuenta, compra, acceso, progreso y dudas), legitimación orientativa
+  y proveedores técnicos (Supabase, Stripe y Bunny Stream) sin secretos;
+  cookies distingue necesarias de analítica opcional **sin activar analítica**;
+  términos recoge compra individual sin suscripción, pago verificado por
+  webhook firmado, precio final mostrado en checkout, acceso sin caducidad
+  programada pero revocable, progreso manual y cuenta única; reembolsos recoge
+  el plazo legal de desistimiento cuando aplique y la salvedad de contenidos
+  digitales suministrados de inmediato, sin prometer reembolso automático.
+- **Límites:** el banner de consentimiento queda fuera de este alcance; las
+  páginas solo explican cómo funcionaría y no activan categorías opcionales.
+  La identidad del titular (D1), los textos definitivos y el inventario de
+  cookies (D2), las condiciones de contratación y fiscalidad (D3), la política
+  de reembolsos (D4) y la retirada de cursos (D5) siguen **pendientes** y
+  requieren revisión profesional antes de publicar o vender.

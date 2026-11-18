@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 interface SocialLink {
+  readonly label: string;
+  readonly href: string;
+}
+
+interface LegalLink {
   readonly label: string;
   readonly href: string;
 }
@@ -18,10 +24,20 @@ interface AuthorLink {
   selector: 'app-site-footer',
   templateUrl: './site-footer.html',
   styleUrl: './site-footer.scss',
+  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.Eager,
 })
 export class SiteFooter {
   protected readonly currentYear = new Date().getFullYear();
+
+  /** Páginas legales de la academia, servidas por rutas internas. */
+  protected readonly legalLinks: readonly LegalLink[] = [
+    { label: 'Aviso legal', href: '/legal/aviso-legal' },
+    { label: 'Privacidad', href: '/legal/privacidad' },
+    { label: 'Cookies', href: '/legal/cookies' },
+    { label: 'Términos de compra', href: '/legal/terminos' },
+    { label: 'Reembolsos', href: '/legal/reembolsos' },
+  ];
 
   /** Redes de Acordes Gaditanos (marca). URLs confirmadas por el usuario. */
   protected readonly brandLinks: readonly SocialLink[] = [

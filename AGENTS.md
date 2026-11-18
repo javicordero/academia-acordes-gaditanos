@@ -13,7 +13,7 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 - **Stripe**: el acceso se concede por un webhook firmado, verificado e idempotente. La página de éxito no concede acceso. Precios e importes se calculan en servidor.
 - **Vídeo**: Bunny Stream es el proveedor elegido (decisión del 2026-11-18), con reproducción siempre mediante URL/token firmado emitido en servidor tras verificar sesión y derecho activo (o rol admin para vista previa); ninguna clave de firma ni API key en cliente. No es DRM ni promete protección absoluta. Bunny no es gratuito (mínimo aprox. 1 USD/mes y consumo variable): nada se contrata ni se añade tarjeta sin autorización explícita. El fallback de maquetación es YouTube en el mapa local ignorado `video-demo.local.ts`, solo si Bunny no está configurado, y nunca protege contenido de pago. El reproductor se mantiene desacoplado del proveedor.
 - **Sin SSR por ahora**: Angular CSR estático. No introducirlo sin una decisión SEO concreta.
-- Sin AdSense ni GTM en la academia. La analítica, si se añade, usa una propiedad propia y consentimiento.
+- Sin AdSense ni GTM en la academia. La analítica, si se añade, usa una propiedad GA4 de Acordes Gaditanos distinta de la del cancionero y consentimiento previo. Si la academia se sirve desde un subdominio de la web principal, debe compartir su misma propiedad y flujo de datos web, salvo decisión explícita de separación por equipo, acceso o retención.
 
 ## Seguridad y datos
 

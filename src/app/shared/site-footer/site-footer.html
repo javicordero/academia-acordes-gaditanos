@@ -18,6 +18,19 @@
     </div>
 
     <div class="site-footer__group">
+      <h2 class="site-footer__title" id="footer-legal">Legal</h2>
+      <ul class="site-footer__list" aria-labelledby="footer-legal">
+        @for (link of legalLinks; track link.href) {
+          <li>
+            <a class="site-footer__legal-link" [routerLink]="link.href">{{
+              link.label
+            }}</a>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <div class="site-footer__group">
       <h2 class="site-footer__title" id="footer-autoria">Autoría</h2>
       <p>Desarrollado por Javier Cordero Toscano</p>
       <ul class="site-footer__list" aria-labelledby="footer-autoria">

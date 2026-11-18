@@ -70,6 +70,12 @@ Documentos de referencia: `README.md`, `docs/arquitectura-datos.md`,
 | D15 | Duración de vídeo: metadatos del proveedor o dato editorial manual | La duración no se captura automáticamente; depende del proveedor | Duración manual (dato editorial separado) hasta la integración de Bunny | Pendiente (usuario) |
 | D16 | Copia de seguridad externa de PostgreSQL y restauración probada antes de cobrar | Riesgo de pérdida si se cobra sin respaldo probado | Concretar y probar antes de activar cobros con usuarios reales | Pendiente (usuario) |
 
+Nota (2026-11-18): existen plantillas orientativas en `/legal/` y sus enlaces
+en el pie de página, marcadas como «Plantilla orientativa: revisar antes de
+publicación». No resuelven D1–D5: datos del titular, textos definitivos,
+inventario de cookies, condiciones fiscales, reembolsos y retirada siguen
+pendientes de revisión profesional. No activan analítica ni conceden derechos.
+
 ## 3. Dudas técnicas abiertas
 
 - Presupuesto Angular: el build de producción supera en ~13 kB el máximo de
@@ -107,8 +113,10 @@ Documentos de referencia: `README.md`, `docs/arquitectura-datos.md`,
    definitivo sigue sujeto a decisión pendiente.
 5. Compra E2E en Stripe TEST: **hecha y verificada en DEV/TEST**; no E2E en
    producción y Stripe live es decisión pendiente.
-6. Páginas legales (aviso, privacidad, cookies, condiciones) y consentimiento;
-   banner solo si procede.
+6. Páginas legales: plantillas orientativas ya implementadas en `/legal/`
+   (aviso, privacidad, cookies, términos y reembolsos) y enlazadas en el pie;
+   pendientes de datos reales y revisión profesional. Consentimiento y banner
+   solo si procede (fuera de este alcance).
 7. Conciliación del historial de migraciones CLI (D12), después las páginas legales.
 8. Fase final de estilos y layout, según los requisitos ya aprobados.
 9. Foro completo, al final; las dudas por lección ya están implementadas
