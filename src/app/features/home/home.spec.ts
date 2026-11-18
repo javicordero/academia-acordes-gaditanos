@@ -88,15 +88,25 @@ describe('Portada', () => {
     }
   });
 
-  it('presenta profesor y testimonios como huecos honestos sin datos inventados', async () => {
+  it('presenta profesor y testimonios como espacios preparados y honestos, sin datos inventados', async () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
 
-    expect(root.textContent).toContain('Aquí se presentará al profesor');
-    expect(root.textContent).toContain('Todavía no hay testimonios publicados');
-    expect(root.querySelector('[data-section="profesor"] img')).toBeNull();
-    expect(root.querySelector('[data-section="testimonios"] img')).toBeNull();
+    const teacher = root.querySelector('[data-section="profesor"]')!;
+    const testimonials = root.querySelector('[data-section="testimonios"]')!;
+
+    expect(teacher.querySelector('.home-prepared')?.textContent)
+      .toContain('Espacio preparado para la presentación del profesor');
+    expect(teacher.textContent).toContain('todavía no hay datos publicados');
+    expect(testimonials.querySelector('.home-prepared')?.textContent)
+      .toContain('Aquí se incorporarán testimonios reales cuando estén disponibles');
+    expect(testimonials.textContent).toContain('Todavía no hay testimonios publicados');
+
+    expect(teacher.querySelector('img')).toBeNull();
+    expect(testimonials.querySelector('img')).toBeNull();
+    expect(testimonials.querySelector('blockquote')).toBeNull();
+    expect(root.textContent).not.toMatch(/\d+\s*(?:€|\$|EUR|USD)\b/i);
   });
 
   it('muestra un estado vacío honesto y enlace al catálogo cuando no hay cursos', async () => {

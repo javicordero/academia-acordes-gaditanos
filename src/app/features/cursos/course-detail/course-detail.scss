@@ -97,10 +97,11 @@
 }
 
 .placeholder {
-  border-left: 3px solid var(--border);
-  padding: .5rem .85rem;
+  border: 1px dashed var(--border);
+  border-left: 3px solid var(--accent);
+  padding: .85rem 1rem;
   margin: 0;
-  opacity: .85;
+  background: var(--surface);
   overflow-wrap: anywhere;
 }
 

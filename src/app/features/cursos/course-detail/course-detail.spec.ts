@@ -346,17 +346,19 @@ describe('Ficha de curso', () => {
     expect(learning.querySelector('img')).toBeNull();
   });
 
-  it('profesor y FAQ son huecos honestos, sin nombre, foto, bio ni preguntas inventadas', async () => {
+  it('profesor y FAQ son espacios preparados y honestos, sin nombre, foto, bio ni preguntas inventadas', async () => {
     setup();
     const { harness } = await open();
     const root = harness.routeNativeElement!;
     const teacher = root.querySelector('.section--teacher')!;
     const faq = root.querySelector('.section--faq')!;
     expect(teacher.querySelector('h2')?.textContent).toBe('Tu profesor');
-    expect(teacher.querySelector('.placeholder')?.textContent).toContain('Todavía no hay una ficha docente publicada');
+    expect(teacher.querySelector('.placeholder')?.textContent).toContain('Espacio preparado para la presentación del profesor');
+    expect(teacher.querySelector('.placeholder')?.textContent).toContain('todavía no hay una ficha publicada');
     expect(teacher.querySelector('img')).toBeNull();
     expect(teacher.querySelectorAll('h3')).toHaveLength(0);
     expect(faq.querySelector('h2')?.textContent).toBe('Preguntas frecuentes');
+    expect(faq.querySelector('.placeholder')?.textContent).toContain('Las preguntas frecuentes se añadirán con información definitiva');
     expect(faq.querySelector('.placeholder')?.textContent).toContain('Todavía no hay preguntas frecuentes publicadas');
   });
 

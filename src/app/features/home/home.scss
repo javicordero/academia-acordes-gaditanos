@@ -134,6 +134,18 @@
   color: var(--muted);
 }
 
+/* Espacios reservados: se leen como huecos preparados, no como texto temporal. */
+.home-prepared {
+  max-width: 62ch;
+  margin: 0;
+  padding: 1rem 1.15rem;
+  border: 1px dashed var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+}
+
 .home-list,
 .home-steps {
   margin: 1rem 0 0;

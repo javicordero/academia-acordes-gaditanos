@@ -177,6 +177,19 @@ npm run config:init
   PKCE con `detectSessionInUrl: false`; `/auth/callback` gestiona tanto `code`
   como `token_hash` del correo, sin guardarlos en logs ni en la URL final.
 
+## Consentimiento y analítica
+
+El aviso de cookies aparece en toda la app, incluido el aula, y solo guarda en
+`localStorage` la decisión versionada (`necessary` siempre activa, `analytics`
+opcional). La analítica propia (GA4 directo, sin GTM ni AdSense) no carga nada
+mientras no haya ID en `analyticsMeasurementId` de la configuración local,
+consentimiento de analítica y ausencia de DNT. La propiedad puede ser única para
+el dominio principal y el subdominio; `analyticsCookieDomain` (también vacío por
+defecto) replica la decisión en una cookie del dominio raíz y añade
+`cookie_domain` a GA solo cuando se configura. Los campos de la plantilla están
+vacíos y la copia ignorada no se toca. Detalles y límites en
+[`docs/analitica-y-consentimiento.md`](docs/analitica-y-consentimiento.md).
+
 ## Botón de compra TEST (maquetación)
 
 La UI de compra solo se muestra si `checkoutTestEnabled: true` en la
@@ -270,7 +283,7 @@ RLS y servidor siguen decidiendo.
 
 - Shell responsive y accesible en español: cabecera, navegación, contenido y pie.
 - Rutas lazy: `/cursos`, `/aula`, `/mis-cursos`, `/comunidad` y comodín 404.
-- Redirección de `/` a `/cursos`.
+- Ruta `/`: portada/índice con cursos reales y huecos honestos; `/cursos`: catálogo.
 - Páginas placeholder honestas: no hay matrículas ni compras simuladas. La
   autenticación es real pero queda inactiva hasta configurar la URL y la
   publishable key locales.
@@ -354,7 +367,11 @@ src/
     app.routes.spec.ts                # pruebas de rutas
     core/
       auth/                           # servicio de sesión, guards y utilidades
+      consent/                        # preferencias de cookies con signals
+      analytics/                      # servicio, adaptador GA4 y opt-out
       supabase/                       # cliente singleton inyectable
+    shared/
+      cookie-banner/                  # aviso accesible de preferencias
     features/
       cursos/
       aula/                           # vista de lección y progreso manual
@@ -409,7 +426,9 @@ Estado verificado en DEV/TEST y lo que sigue pendiente:
   implementadas (verificado en DEV).
 - Portada con presentación del profesor; estructura y contenido pendientes de la
   fase de diseño definitivo, sin datos inventados.
-- Analítica propia y textos legales.
+- Analítica propia con consentimiento implementada (sin ID configurado ni E2E;
+  ver [`docs/analitica-y-consentimiento.md`](docs/analitica-y-consentimiento.md));
+  textos legales pendientes.
 
 No hay `.env.example`: Angular no lee `.env` y la configuración pública se
 guarda en el archivo local ignorado descrito arriba. No se deben añadir
