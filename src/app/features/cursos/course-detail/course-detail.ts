@@ -10,7 +10,10 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+
+import { SUPABASE_CONFIG } from '../../../../environments/supabase-config';
 import { AuthService } from '../../../core/auth/auth.service';
+import { CheckoutButton } from '../../../core/checkout/checkout-button';
 import {
   CourseAccess,
   CourseDetail as Detail,
@@ -37,7 +40,7 @@ interface AccessAnswer {
 
 @Component({
   selector: 'app-course-detail',
-  imports: [RouterLink],
+  imports: [RouterLink, CheckoutButton],
   templateUrl: './course-detail.html',
   styleUrl: './course-detail.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,7 +48,11 @@ interface AccessAnswer {
 export class CourseDetail {
   private readonly repository = inject(PublicCoursesRepository);
   private readonly route = inject(ActivatedRoute);
+  private readonly config = inject(SUPABASE_CONFIG);
   readonly auth = inject(AuthService);
+
+  /** Solo controla la UI; la compra real depende siempre del servidor. */
+  readonly checkoutEnabled = computed(() => this.config.checkoutTestEnabled === true);
 
   readonly detail = signal<Detail | null>(null);
   readonly state = signal<'loading' | 'ready' | 'missing' | 'unavailable' | 'error'>('loading');

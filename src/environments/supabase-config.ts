@@ -17,6 +17,18 @@ export interface SupabaseConfig {
    * 403, el aula muestra un estado honesto; nunca cae a YouTube en producción.
    */
   readonly videoPlaybackBunny?: boolean;
+  /**
+   * Solo oculta o muestra la UI de compra TEST. No es un secreto, no habilita
+   * cobros ni concede acceso: el gate del checkout, los importes y la
+   * autorización siguen siendo competencia exclusiva del servidor. Por defecto
+   * `false`, incluso si la copia local ignorada es anterior a este campo.
+   */
+  readonly checkoutTestEnabled?: boolean;
+}
+
+/** Lectura tolerante del flag de compra TEST: solo `true` literal lo activa. */
+export function readCheckoutTestFlag(source: object): boolean {
+  return (source as { checkoutTestEnabled?: unknown }).checkoutTestEnabled === true;
 }
 
 export const supabaseConfig: SupabaseConfig = {
@@ -25,6 +37,7 @@ export const supabaseConfig: SupabaseConfig = {
   // Lectura tolerante: `environment.local.ts` es ignorado y puede ser anterior
   // a este campo. La copia versionada de la plantilla trae el valor `false`.
   videoPlaybackBunny: (environmentLocal as { videoPlaybackBunny?: unknown }).videoPlaybackBunny === true,
+  checkoutTestEnabled: readCheckoutTestFlag(environmentLocal),
 };
 
 export const SUPABASE_CONFIG = new InjectionToken<SupabaseConfig>(

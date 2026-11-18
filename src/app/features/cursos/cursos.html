@@ -1,5 +1,6 @@
 <h1>Cursos</h1>
 <p>Explora los cursos publicados de la academia.</p>
+@if (checkoutEnabled()) { <p class="checkout-notice">{{ checkoutNotice }}</p> }
 @switch (state()) {
   @case ('loading') { <p role="status">Cargando cursos…</p> }
   @case ('unavailable') { <p>El catálogo necesita configurar la conexión con Supabase.</p> }
@@ -29,6 +30,7 @@
             <h2><a [routerLink]="['/cursos', course.slug]">{{ course.title }}</a></h2>
             <p>Nivel: {{ levels[course.level] }}</p>
             @if (course.summary) { <p>{{ course.summary }}</p> }
+            <app-checkout-button mode="link" [courseSlug]="course.slug" />
           </li>
         }
       </ul>

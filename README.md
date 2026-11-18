@@ -173,6 +173,13 @@ npm run config:init
   PKCE con `detectSessionInUrl: false`; `/auth/callback` gestiona tanto `code`
   como `token_hash` del correo, sin guardarlos en logs ni en la URL final.
 
+## Botón de compra TEST (maquetación)
+
+La UI de compra solo se muestra si `checkoutTestEnabled: true` en la
+configuración local ignorada; por defecto es `false` y no aparece. Es solo un
+aviso visual: no habilita cobros ni accesos, que dependen siempre del gate del
+servidor. El cliente no fija importes ni condiciones comerciales.
+
 ## Vídeo de prueba local
 
 `npm run config:init` crea también `src/environments/video-demo.local.ts`,
@@ -194,6 +201,10 @@ autorizada, se avisa y YouTube se carga solo al pulsar el botón. Su enlace pued
 compartirse: **no protege contenido de pago**. En producción la demo está
 deshabilitada aunque el archivo tenga valores. No hay reproducción privada,
 firmas ni garantía de privacidad por usar `youtube-nocookie.com`.
+
+El proveedor se elige con una única variable en la configuración local,
+`videoPlaybackBunny`: `false` usa esta demo YouTube de desarrollo (sin llamadas
+a Bunny), `true` usa la reproducción Bunny con firma emitida en servidor.
 
 El proveedor de vídeo **elegido es Bunny Stream** (decisión del 2026-11-18),
 sustituyendo la política anterior de YouTube solo como demo y Mux en evaluación.

@@ -3,6 +3,28 @@
 Registro breve del estado real. Sin claves, sin valores de configuración.
 La decisión de proveedor vive en `docs/decisiones-producto.md` (2026-11-18).
 
+## Una sola variable para alternar proveedor
+
+El único interruptor es `videoPlaybackBunny`, configuración pública que vive en
+`environment.local.ts` (ignorado) y en la plantilla
+`environment.local.example.ts`. No es un secreto y no cambia nada en servidor.
+
+- `false` — en desarrollo se usa la maquetación YouTube ya existente en
+  `video-demo.local.ts` (exige que el mapa contenga la lección). No se invoca
+  `lesson-video-token`, no se monta ningún iframe de Bunny y no se hacen
+  llamadas ni miniaturas a Bunny. Si la lección no está en el mapa, el aula no
+  muestra nada: no hay respaldo Bunny por coste. El aviso indica expresamente
+  que es YouTube de desarrollo, no Bunny, y que no protege contenido de pago.
+- `true` — sigue la integración Bunny con URL/token firmado emitido en
+  servidor, sin claves ni identificadores de vídeo en el cliente.
+
+La copia local de desarrollo está en `false` para no consumir Bunny mientras se
+prueba la maquetación. La plantilla versionada y el valor por defecto siguen
+siendo `false` (producción segura, sin demo). Volver a Bunny consiste en poner
+esa única variable a `true`: no se tocan migraciones, Edge Functions, secretos
+ni datos privados. El coste de Bunny (almacenamiento y transferencia), si se
+activa, es independiente del reproductor y no es cero.
+
 ## Qué existe hoy
 
 - `private.lesson_videos` (migración inicial `20261117120000`): `lesson_id`

@@ -1,16 +1,23 @@
 import { Component, ChangeDetectionStrategy, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+
+import { CHECKOUT_TEST_NOTICE } from '../../core/checkout/checkout';
+import { CheckoutButton } from '../../core/checkout/checkout-button';
+import { SUPABASE_CONFIG } from '../../../environments/supabase-config';
 import { PublicCourse, PublicCoursesRepository, levelLabels } from './public-courses-repository';
 
 @Component({
   selector: 'app-cursos',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink],
+  imports: [RouterLink, CheckoutButton],
   templateUrl: './cursos.html',
   styleUrl: './cursos.scss',
 })
 export class Cursos {
   private readonly repository = inject(PublicCoursesRepository);
+  private readonly config = inject(SUPABASE_CONFIG);
+  readonly checkoutEnabled = computed(() => this.config.checkoutTestEnabled === true);
+  readonly checkoutNotice = CHECKOUT_TEST_NOTICE;
   private request = 0;
   readonly levels = levelLabels;
   readonly courses = signal<PublicCourse[]>([]);

@@ -34,7 +34,9 @@
         }
         @case ('anonymous') {
           <p class="access">Inicia sesión para consultar si ya tienes acceso a este curso.</p>
-          <p><a routerLink="/auth/login">Iniciar sesión</a></p>
+          @if (!checkoutEnabled()) {
+            <p><a routerLink="/auth/login">Iniciar sesión</a></p>
+          }
         }
         @case ('checking') {
           <p role="status">Comprobando tu acceso…</p>
@@ -80,7 +82,14 @@
         </section>
       }
 
-      <p>La compra todavía no está disponible. Las lecciones a las que tienes acceso se abren en el aula.</p>
+      @if (checkoutEnabled()) {
+        <app-checkout-button
+          [courseId]="data.course.id"
+          [courseSlug]="data.course.slug"
+          [accessState]="accessState()" />
+      } @else {
+        <p>La compra todavía no está disponible. Las lecciones a las que tienes acceso se abren en el aula.</p>
+      }
 
       <h2>Bloques y lecciones del catálogo</h2>
       <p>Índice de las lecciones publicadas de este curso. El acceso se comprueba al abrir cada lección: según tu sesión y tu derecho activo podrás verla o encontrarás el aviso correspondiente.</p>

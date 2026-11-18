@@ -91,7 +91,7 @@ export class YouTubeDemoProvider implements VideoPlaybackProvider {
     if (!id) return null;
     return {
       embedUrl: this.sanitizer.bypassSecurityTrustResourceUrl(`https://www.youtube-nocookie.com/embed/${id}`),
-      notice: 'Se cargará YouTube, servicio externo; el enlace puede compartirse. No protege contenido de pago.',
+      notice: 'Modo desarrollo: vídeo de maquetación con YouTube (no Bunny). El enlace puede compartirse y no protege contenido de pago.',
     };
   }
 }

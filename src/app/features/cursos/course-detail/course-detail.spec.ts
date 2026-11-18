@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
+import { SUPABASE_CONFIG } from '../../../../environments/supabase-config';
 import { AuthService } from '../../../core/auth/auth.service';
 import { PublicCoursesRepository } from '../public-courses-repository';
 import { CourseDetail } from './course-detail';
@@ -21,6 +22,7 @@ function setup(options: {
   session?: { user: { id: string } } | null;
   access?: (courseId: string, userId: string) => Promise<'granted' | 'revoked' | 'none'>;
   isAdmin?: boolean;
+  checkoutEnabled?: boolean;
 } = {}) {
   const status = signal(options.status ?? 'anonymous');
   const session = signal<{ user: { id: string } } | null>(options.session ?? null);
@@ -31,6 +33,9 @@ function setup(options: {
     provideRouter([{ path: 'cursos/:slug', component: CourseDetail }]),
     { provide: AuthService, useValue: auth },
     { provide: PublicCoursesRepository, useValue: repository },
+    { provide: SUPABASE_CONFIG, useValue: {
+      url: '', publishableKey: '', checkoutTestEnabled: options.checkoutEnabled ?? false,
+    } },
   ] });
   return { status, session, access, repository };
 }
@@ -176,6 +181,7 @@ describe('Ficha de curso', () => {
       provideRouter([{ path: 'cursos/:slug', component: CourseDetail }]),
       { provide: AuthService, useValue: { status, session, isAdmin: signal(false) } },
       { provide: PublicCoursesRepository, useValue: { detail: vi.fn().mockResolvedValue(detail), access } },
+      { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '', checkoutTestEnabled: false } },
     ] });
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/cursos/ejemplo', CourseDetail);
@@ -228,5 +234,37 @@ describe('Ficha de curso', () => {
     harness.detectChanges();
     expect(text()).not.toContain('Ya tienes acceso');
     expect(harness.routeNativeElement?.querySelector('a[href="/mis-cursos"]')).toBeNull();
+  });
+
+  it('flag activo y sin acceso: aviso de prueba y botón en la ficha', async () => {
+    setup({
+      status: 'authenticated', session: { user: { id: 'u1' } },
+      access: async () => 'none', checkoutEnabled: true,
+    });
+    const { text } = await open();
+    expect(text()).toContain('Modo de prueba — no se realizan cobros reales');
+    expect(text()).toContain('Comprar — modo prueba');
+    expect(text()).not.toContain('La compra todavía no está disponible');
+  });
+
+  it('flag activo y anónimo: login con returnUrl al curso, sin compra directa', async () => {
+    setup({ status: 'anonymous', checkoutEnabled: true });
+    const { harness, text } = await open();
+    expect(text()).toContain('Modo de prueba — no se realizan cobros reales');
+    expect(text()).toContain('Iniciar sesión para comprar');
+    expect(text()).not.toContain('Comprar — modo prueba');
+    const href = harness.routeNativeElement?.querySelector<HTMLAnchorElement>('app-checkout-button a.buy')?.getAttribute('href') ?? '';
+    expect(new URL(href, 'https://interno.test').searchParams.get('returnUrl')).toBe('/cursos/ejemplo');
+  });
+
+  it('flag activo con derecho vigente: acceso directo y ningún botón de recompra', async () => {
+    setup({
+      status: 'authenticated', session: { user: { id: 'u1' } },
+      access: async () => 'granted', checkoutEnabled: true,
+    });
+    const { harness, text } = await open();
+    expect(text()).toContain('Ya tienes acceso a este curso');
+    expect(text()).not.toContain('Comprar');
+    expect(harness.routeNativeElement?.querySelector('a[href="/mis-cursos"]')).not.toBeNull();
   });
 });

@@ -12,7 +12,12 @@
 export const environmentLocal = {
   supabaseUrl: '',
   supabasePublishableKey: '',
-  // Configuración pública: solo indica el proveedor de vídeo esperado.
-  // `false` por defecto; no contiene claves ni secretos de Bunny.
+  // Una sola variable para el vídeo: `false` = maquetación YouTube local en
+  // desarrollo (requiere el mapa de `video-demo.local.ts`; sin él no carga nada);
+  // `true` = reproducción Bunny con firma emitida en servidor. Por defecto
+  // `false`, sin secretos ni IDs de vídeo en el cliente.
   videoPlaybackBunny: false,
+  // Solo muestra la UI de la compra TEST: no habilita cobros ni accesos, que
+  // siguen dependiendo del gate del servidor. `false` por defecto.
+  checkoutTestEnabled: false,
 };

@@ -1,0 +1,26 @@
+.checkout-test {
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.notice { font-weight: 600; margin-top: 0; }
+.hint { margin-bottom: 0; }
+.error { color: #b00020; }
+
+.buy {
+  display: inline-block;
+  font: inherit;
+  padding: .55rem .9rem;
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.buy:disabled { opacity: .6; cursor: progress; }
+.checkout-test :focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

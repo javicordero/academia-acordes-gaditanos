@@ -1,0 +1,24 @@
+@if (visible()) {
+  <section class="checkout-test" aria-label="Compra en modo de prueba" [attr.aria-busy]="starting()">
+    @if (!isLink()) {
+      <p class="notice">{{ notice }}</p>
+    }
+
+    @if (isLink()) {
+      <a class="buy" [routerLink]="['/cursos', courseSlug()]" [queryParams]="{ comprar: '1' }">{{ buttonLabel }}</a>
+      <p class="hint">Se abre la ficha del curso para iniciar la compra.</p>
+    } @else if (showLogin()) {
+      <p><a class="buy" [routerLink]="['/auth/login']" [queryParams]="{ returnUrl: loginReturnUrl() }">Iniciar sesión para comprar</a></p>
+    } @else {
+      <button type="button" class="buy" [disabled]="starting()" [attr.aria-busy]="starting()" (click)="buy()">{{ buttonLabel }}</button>
+      @if (error(); as message) {
+        <p role="alert" class="error">{{ message }}</p>
+        @if (needsLogin()) {
+          <p><a [routerLink]="['/auth/login']" [queryParams]="{ returnUrl: loginReturnUrl() }">Iniciar sesión</a></p>
+        } @else if (retryable()) {
+          <button type="button" (click)="buy()">Reintentar</button>
+        }
+      }
+    }
+  </section>
+}

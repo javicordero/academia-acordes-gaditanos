@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  PlaybackSource,
   UNAVAILABLE_PLAYBACK,
   VIDEO_DEMO_CONFIG,
   VIDEO_DEMO_ENABLED,
+  VIDEO_PLAYBACK_FLAG,
   YouTubeDemoProvider,
   selectPlaybackProvider,
   youtubeId,
@@ -56,5 +58,28 @@ describe('selección del proveedor de vídeo', () => {
     TestBed.resetTestingModule();
     expect(TestBed.runInInjectionContext(() => selectPlaybackProvider(true, false)))
       .toBeInstanceOf(BunnyStreamPlaybackProvider);
+  });
+
+  it('con el flag false en desarrollo usa la demo YouTube previa sin llamar a Bunny', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [
+      { provide: VIDEO_DEMO_CONFIG, useValue: { l1: 'Abc_123-xyz' } },
+      { provide: VIDEO_DEMO_ENABLED, useValue: true },
+      { provide: VIDEO_PLAYBACK_FLAG, useValue: { bunny: false } },
+    ] });
+    const bunnySpy = vi.spyOn(BunnyStreamPlaybackProvider.prototype, 'sourceForLesson');
+    try {
+      const provider = TestBed.runInInjectionContext(() => selectPlaybackProvider(false, true));
+      expect(provider).toBeInstanceOf(YouTubeDemoProvider);
+      expect(provider).not.toBeInstanceOf(BunnyStreamPlaybackProvider);
+
+      const source = provider.sourceForLesson('l1') as PlaybackSource | null;
+      expect(source).not.toBeNull();
+      expect(source!.notice).toContain('YouTube');
+      expect(source!.notice).toContain('no Bunny');
+      expect(bunnySpy).not.toHaveBeenCalled();
+    } finally {
+      bunnySpy.mockRestore();
+    }
   });
 });

@@ -5,6 +5,7 @@ import {
   VIDEO_PLAYBACK_FLAG,
   VIDEO_PLAYBACK_PROVIDER,
   VideoPlaybackService,
+  YouTubeDemoProvider,
 } from './features/aula/video-playback';
 import { BunnyStreamPlaybackProvider } from './features/aula/video-playback-bunny';
 
@@ -24,6 +25,14 @@ describe('appConfig: proveedor de reproducción', () => {
     expect(TestBed.inject(VIDEO_PLAYBACK_FLAG).bunny).toBe(false);
     expect(TestBed.inject(VIDEO_PLAYBACK_PROVIDER)).toBeDefined();
     expect(TestBed.inject(VideoPlaybackService)).toBeDefined();
+  });
+
+  it('con el flag apagado usa la demo YouTube previa y nunca pide firma a Bunny', () => {
+    configure(false);
+    const provider = TestBed.inject(VIDEO_PLAYBACK_PROVIDER);
+    expect(provider).toBeInstanceOf(YouTubeDemoProvider);
+    expect(provider).not.toBeInstanceOf(BunnyStreamPlaybackProvider);
+    expect(TestBed.inject(VideoPlaybackService).expiresAt('l')).toBeNull();
   });
 
   it('respeta el flag público para seleccionar Bunny sin secretos en el cliente', () => {

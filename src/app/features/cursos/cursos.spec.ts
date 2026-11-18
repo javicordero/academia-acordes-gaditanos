@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
+import { SUPABASE_CONFIG } from '../../../environments/supabase-config';
 import { Cursos } from './cursos';
 import { PublicCourse, PublicCoursesRepository } from './public-courses-repository';
 
@@ -8,6 +9,7 @@ describe('Catálogo', () => {
   it('presenta texto escapado y enlace a la ficha', async () => {
     TestBed.configureTestingModule({ imports: [Cursos], providers: [
       provideRouter([]),
+      { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '', checkoutTestEnabled: false } },
       { provide: PublicCoursesRepository, useValue: { list: vi.fn().mockResolvedValue([
         { id: '1', slug: 'ejemplo', title: '<script>texto</script>', summary: null, level: 'basico' },
       ]) } },
@@ -23,6 +25,7 @@ describe('Catálogo', () => {
   it('muestra error y reintento', async () => {
     TestBed.configureTestingModule({ imports: [Cursos], providers: [
       provideRouter([]),
+      { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '', checkoutTestEnabled: false } },
       { provide: PublicCoursesRepository, useValue: { list: vi.fn().mockRejectedValue(new Error('failed')) } },
     ] });
     const fixture = TestBed.createComponent(Cursos);
@@ -41,6 +44,7 @@ describe('Catálogo', () => {
     const list = vi.fn().mockReturnValueOnce(primera).mockReturnValueOnce(segunda);
     TestBed.configureTestingModule({ imports: [Cursos], providers: [
       provideRouter([]),
+      { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '', checkoutTestEnabled: false } },
       { provide: PublicCoursesRepository, useValue: { list } },
     ] });
     const fixture = TestBed.createComponent(Cursos);
@@ -58,5 +62,41 @@ describe('Catálogo', () => {
     await primera;
     await fixture.whenStable();
     expect(component.courses()).toEqual([nuevo]);
+  });
+
+  it('con el flag apagado no ofrece compra desde el catálogo', async () => {
+    TestBed.configureTestingModule({ imports: [Cursos], providers: [
+      provideRouter([]),
+      { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '', checkoutTestEnabled: false } },
+      { provide: PublicCoursesRepository, useValue: { list: vi.fn().mockResolvedValue([
+        { id: '1', slug: 'ejemplo', title: 'Ejemplo', summary: null, level: 'basico' },
+      ]) } },
+    ] });
+    const fixture = TestBed.createComponent(Cursos);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).not.toContain('Modo de prueba');
+    expect(root.querySelector('app-checkout-button')?.textContent?.trim()).toBe('');
+    expect(root.querySelector('app-checkout-button a')).toBeNull();
+  });
+
+  it('con el flag activo muestra el aviso y enlaza cada curso a su ficha con intención', async () => {
+    TestBed.configureTestingModule({ imports: [Cursos], providers: [
+      provideRouter([]),
+      { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '', checkoutTestEnabled: true } },
+      { provide: PublicCoursesRepository, useValue: { list: vi.fn().mockResolvedValue([
+        { id: '1', slug: 'ejemplo', title: 'Ejemplo', summary: null, level: 'basico' },
+      ]) } },
+    ] });
+    const fixture = TestBed.createComponent(Cursos);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Modo de prueba — no se realizan cobros reales');
+    const href = root.querySelector('app-checkout-button a')?.getAttribute('href') ?? '';
+    const parsed = new URL(href, 'https://interno.test');
+    expect(parsed.pathname).toBe('/cursos/ejemplo');
+    expect(parsed.searchParams.get('comprar')).toBe('1');
   });
 });
