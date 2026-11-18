@@ -1,0 +1,142 @@
+# Pendientes y orden de trabajo
+
+Resumen de estado y pendientes. No duplica el detalle de otros documentos: cada
+apartado enlaza al que lo desarrolla. No contiene datos personales, claves,
+precios ni decisiones que no estén ya acordadas, y no cierra ninguna de las
+cuestiones abiertas.
+
+Documentos de referencia: `README.md`, `docs/arquitectura-datos.md`,
+`docs/decisiones-producto.md`, `docs/checkout-estado.md`,
+`docs/pedidos-checkout.md`, `docs/confirmacion-pago.md`,
+`docs/webhook-estado.md`, `docs/legal-y-footer.md`, `docs/referencia-aula.md`.
+
+## 1. Estado funcional actual
+
+### Existe en código local
+
+- Autenticación Supabase (registro, acceso, salida, confirmación y recuperación
+  por correo, callback PKCE) y guards de sesión y de admin; el rol admin se lee
+  de `public.user_roles`, nunca de metadatos.
+- Catálogo público de cursos y ficha de curso que enlaza solo las lecciones que
+  devuelve RLS.
+- Aula `/aula/:courseSlug/:lessonSlug` con índice de bloques, reproductor
+  desacoplado del proveedor, progreso manual y vista previa administrativa.
+- `/mis-cursos` y perfil propio (`display_name`).
+- Materiales PDF privados: bucket `lesson-pdfs`, puente `service_role`,
+  listado, preparación, subida firmada, finalización y descarga con URL firmada
+  temporal.
+- Tipos de lección (`video`, `pdf`, `text`) como `content_type`.
+- Comercio **en local y desactivado**: oferta de checkout, reserva de pedido con
+  snapshot inmutable, recepción de webhook (firma, hash, idempotencia mínima) y
+  núcleo SQL de fulfillment `20261117220000_paid_checkout_fulfillment.sql` con
+  su prueba `0011`.
+
+### Desplegado o aplicado en DEVELOPMENT
+
+- Migraciones iniciales del esquema, PDF privado, RPC de lectura de PDF, y
+  funciones `lesson-resources` (listado y descarga).
+- Contenido de administración y de aulas ya probado por el usuario.
+
+### No verificado en real
+
+- Compra E2E en Stripe TEST: no se ha hecho.
+- Reproductor Bunny real: no configurado ni probado.
+- Runtime Deno de las Edge Functions: no ejecutado en este entorno.
+- Concurrencia real: PGlite valida lógica secuencial, no concurrencia ni
+  Supabase/Auth/PostgREST reales.
+- Handlers de `create-checkout` (`enabled: false`) y `stripe-webhook`: siguen
+  deshabilitados literalmente y no están desplegados.
+
+## 2. Decisiones pendientes del promotor
+
+| id | decisión | por qué bloquea | propuesta por defecto | estado |
+| --- | --- | --- | --- | --- |
+| D1 | Datos legales del titular (razón social, NIF, domicilio, correo) | Aviso legal, privacidad y cookies no pueden publicarse sin identificarlo | Mantener páginas fuera de producción; nada de datos fiscales en el repo | Pendiente (usuario) |
+| D2 | Política de privacidad y cookies definitiva, con inventario real | Banner solo si hay tecnologías no esenciales; sin inventario no hay texto | Sin banner mientras no existan no esenciales | Pendiente (usuario) |
+| D3 | Condiciones de contratación, desistimiento en contenido digital, facturación e IVA | Cobrar sin condiciones ni tratamiento fiscal no es viable | No activar cobro hasta validarlas | Pendiente (usuario) |
+| D4 | Política de reembolsos y contracargos, y cómo revocar el derecho | La revocación es una operación de servidor; el webhook aún no cubre devoluciones | Revocación manual documentada por soporte antes de automatizar | Pendiente (usuario) |
+| D5 | Redacción de condiciones de retirada/cierre de curso | El acceso ya es sin caducidad, pero revocable; faltan reglas escritas de retirada y comunicación | Redactar junto a D3 y no prometer perpetuidad | Pendiente (usuario) |
+| D6 | Derechos de letras, melodías, grabaciones y arreglos de las coplas | El ejemplo muestra contenido propio; el resto depende del promotor | Solo usar contenido propio con autorización documentada | Pendiente (usuario) |
+| D7 | Precios de lanzamiento y packs o cupones | Hoy no hay precios reales, solo hipótesis; el servidor los calcula | Precio único por curso en `course_prices`; packs/cupones después | Pendiente (usuario) |
+| D8 | Foro y dudas: visibilidad pública o solo compradores, moderación y quién, fase | La UI ya reserva espacio sin publicar; decidir modelo antes de implementar | Lección comprada, inicio de la fase de comunidad | Pendiente (usuario) |
+| D9 | Dominio `academia.acordesgaditanos.com`: DNS | El frontend es CSR estático; el hosting y el DNS no están hechos | Hosting estático + DNS final; sin tocar nada hasta decisión | Pendiente (usuario) |
+| D10 | Stripe: cuenta en modo test, más tarde live; país fiscal, moneda, métodos de pago | Stripe Checkout sigue `enabled: false`; falta cuenta real | Cuenta modo test con el promotor | Pendiente (usuario) |
+| D11 | Bunny: confirmar región, qué vídeos subir y quién posee los derechos; secretos configurados a mano en Supabase | Token de reproducción necesita los IDs; los secretos se ponen a mano en Supabase | Biblioteca de desarrollo y `COLGAOS.mp4` como primer vídeo, contenido propio | Pendiente (usuario) |
+| D12 | Aprobar la reparación del historial de migraciones CLI (`supabase migration repair`) | Migraciones aplicadas por editor SQL no aparecen en el historial CLI; cualquier `db push` automático sin conciliar es riesgo | Reparación manual y autorizada antes de cualquier `db push` | Pendiente (usuario) |
+| D13 | Nombre, foto, bio, credenciales y testimonios reales del profesor para la portada | La portada no se construye sin datos reales; no se inventan | Ninguno: se esperan datos textuales y de imagen del usuario | Pendiente (usuario) |
+| D14 | Alcance de lanzamiento de subtítulos, capítulos y bucle A–B | Depende de capacidades reales de Bunny que no se han verificado | Fuera de lanzamiento inicial; evaluar después | Pendiente (usuario) |
+| D15 | Duración de vídeo: metadatos del proveedor o dato editorial manual | La duración no se captura automáticamente; depende del proveedor | Duración manual (dato editorial separado) hasta la integración de Bunny | Pendiente (usuario) |
+| D16 | Copia de seguridad externa de PostgreSQL y restauración probada antes de cobrar | Riesgo de pérdida si se cobra sin respaldo probado | Concretar y probar antes de activar cobros con usuarios reales | Pendiente (usuario) |
+
+## 3. Dudas técnicas abiertas
+
+- Presupuesto Angular: el build de producción supera en ~13 kB el máximo de
+  500 kB del presupuesto inicial (versión observada 2026-11-17). Se puede
+  ajustar el límite, dividir más o aceptar el aviso, pero no se ha decidido.
+- `npm audit` informa 12 vulnerabilidades altas en desarrollo (entre ellas
+  `picomatch`); no todas tienen parche compatible sin cambio semver mayor.
+  Afectan a herramientas de desarrollo, no al bundle servido.
+- Runtime Deno no instalado: los tests de las Edge Functions se ejecutan en Node
+  con mocks (`npm run test:functions`) y no prueban el runtime real.
+- PGlite (`npm run test:sql`) no prueba concurrencia entre conexiones ni
+  Supabase/Auth/PostgREST/Storage reales.
+- Imágenes y capturas de pantalla del curso/del aula: pendientes.
+- Página de inicio con presentación del profesor: pendiente, sin datos ni diseño
+  cerrados.
+- Tipos de lección degradados en datos antiguos: las lecciones creadas antes
+  de `content_type` toman el valor por defecto `video` y no se corrigieron
+  retroactivamente.
+
+## 4. Orden de trabajo funcional restante
+
+1. Cerrar el SQL de fulfillment y su revisión (migración `..._paid_checkout_fulfillment` y prueba `0011`).
+2. Integrar el fulfillment en el handler del webhook con pruebas, manteniendo
+   firma, verificación e idempotencia, y el webhook deshabilitado hasta validarlo.
+3. Bunny Stream:
+   1. metadatos privados (`private.lesson_videos`) y SQL de lectura de servidor,
+   2. Edge Function de token firmado tras comprobar sesión y derecho o admin,
+   3. adaptador Angular desacoplado ya en código y provider registrado; falta activar el flag público y probarlo en real,
+   4. UI de administración para vincular vídeo a lección,
+   5. pruebas con mocks y después reales.
+4. Vincular `COLGAOS` a la primera lección real.
+5. Probar compra E2E en Stripe TEST con una cuenta de prueba autorizada.
+6. Páginas legales (aviso, privacidad, cookies, condiciones) y consentimiento;
+   banner solo si procede.
+7. Conciliación del historial de migraciones CLI (D12), después las páginas legales.
+8. Fase final de estilos y layout, según los requisitos ya aprobados.
+9. Foro y dudas por lección, al final.
+
+## 5. Fase final de estilos (aplazada, requisitos ya aprobados)
+
+No implementar ahora. Requisitos registrados en `AGENTS.md` y
+`docs/decisiones-producto.md`:
+
+- Barra de acciones **arriba** del vídeo: flechas anterior/siguiente y botón de
+  completar manual.
+- Índice **lateral izquierdo** por bloques, lecciones ordenadas y la activa
+  resaltada.
+- En móvil, menú **hamburguesa** que se despliega **desde la izquierda**.
+- **Vídeo central** de la lección; debajo, título, contenido de la lección,
+  materiales y conversación (dudas/foro cuando exista).
+- Estética de **identidad propia**: no copiar marca, tipografías ni assets de
+  terceros.
+- La accesibilidad y el responsive se mantienen: teclado, foco visible,
+  etiquetas, contraste y `lang="es"`.
+
+## 6. Reglas de seguridad que no cambian
+
+- Sin secretos en el repositorio, el chat o la configuración local compilada.
+- En cliente, solo la URL y la publishable key públicas de Supabase.
+- `service_role`, las claves de Stripe y los secretos de Bunny (Library API key
+  y signing key) viven solo en servidor, como secretos de Edge Functions
+  configurados a mano.
+- RLS es la barrera real; el rol admin no se autoasigna y la ruta de Angular no
+  protege nada por sí sola.
+- El acceso se concede por webhook firmado, verificado e idempotente; la página
+  de éxito no concede acceso.
+- PDFs y vídeos de pago son privados y se sirven con URL o token firmado después
+  de comprobar el derecho.
+- Sin DRM ni promesas de protección absoluta: un enlace puede compartirse hasta
+  caducar y no impide la grabación de pantalla.
+- No se copia contenido ni branding de terceros; las fuentes de autoría son las
+  aprobadas por el promotor.

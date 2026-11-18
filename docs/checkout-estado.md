@@ -2,14 +2,19 @@
 
 Registro público y breve de alcance. Describe una **fundación preparada en local**,
 no un flujo de pago operativo. No contiene claves de cuenta, precios reales ni
-datos de prueba de Stripe, y **no implementa** webhooks, pedidos, snapshot,
-consentimiento ni cobros.
+datos de prueba de Stripe. Pedidos, snapshot y webhook están versionados, pero
+**no desplegados ni probados en real**; no hay cobros ni consentimiento activo.
 
 ## Estado actual
 
 - La sesión de pago queda **deliberadamente deshabilitada**: el valor literal
   `enabled: false` en la Edge Function impide crear sesiones. No es un bloqueo
   permanente: se mantiene hasta que se cumplan las precondiciones de abajo.
+- Orden previsto, **no activo**: `reserve_checkout_order` reserva el pedido →
+  se crea la sesión con `metadata.order_id` → el webhook verificado e
+  idempotente concede el derecho por `order_id`. Sin la dependencia de reserva
+  inyectada, el controlador responde 409 y no llama a Stripe `create`: no se
+  crea una sesión que el webhook no podría conciliar.
 - Código versionado: `supabase/functions/create-checkout/` (controlador, entrada
   y pruebas), la migración `20261117190000_checkout_offer.sql` y la prueba
   `supabase/tests/0008_checkout_offer.psql`.

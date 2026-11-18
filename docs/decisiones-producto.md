@@ -22,6 +22,41 @@ temario o biografía.
   Esta comprobación se refiere a esa operación concreta de alta de curso y
   bloques; no se extiende a otros flujos.
 
+## Proveedor de vídeo (2026-11-18)
+
+Sustituye a la entrada «Vídeo provisional» de «Confirmado por el usuario».
+
+- **Elegido:** Bunny Stream sustituye a la política anterior (YouTube solo demo
+  en desarrollo, evaluar Mux, Bunny como alternativa no cerrada), por decisión
+  expresa del promotor.
+- **Reproducción:** solo con `url`/token firmado emitido en servidor (Edge
+  Function) tras verificar sesión y derecho activo, o rol admin para vista
+  previa. Nunca claves de firma, API key de Bunny ni tokens de larga duración en
+  el cliente o el repositorio.
+- **Secretos:** Library API key y Token authentication signing key viven en los
+  secretos de Edge Functions de Supabase; ambas quedan pendientes de configurar
+  a mano (ninguna está aún configurada) y jamás en el repo, el chat,
+  `environment.local.ts` ni filas públicas.
+- **Metadatos:** `private.lesson_videos` guarda como mínimo `lesson_id`,
+  `provider` = 'bunny', el library ID, el GUID del vídeo, estado de procesamiento
+  y duración; nada de eso en `public.lessons` ni en el catálogo público.
+- **Límites:** token de embed de corta duración; el enlace puede compartirse
+  hasta caducar. No es DRM ni impide grabar la pantalla: no se promete protección
+  absoluta.
+- **Desarrollo:** `video-demo.local.ts` (YouTube, ignorado) permanece como
+  *fallback* de maquetación solo cuando Bunny no esté configurado; se sustituye
+  por el adaptador Bunny sin eliminarlo de golpe. El reproductor sigue el
+  contrato desacoplado `VideoPlaybackProvider`/servicio inyectable.
+- **Coste:** mínimo aproximado 1 USD/mes y consumo variable; el trial de
+  20 USD/14 días es un dato, no un plan gratuito permanente. No se contrata ni
+  se añade tarjeta sin autorización explícita del promotor.
+- **Activación incremental:** primero código y pruebas con mocks, después los
+  secretos a mano en Supabase y solo entonces la verificación real.
+- **Muestra:** biblioteca de desarrollo 812678; `COLGAOS.mp4` es contenido propio
+  del promotor y será el vídeo de la primera lección del curso real. Ningún vídeo
+  se descarga ni copia al repo; los `*.mp4` pesados no se versionan. Sin copiar
+  branding, texto ni assets de otras plataformas.
+
 ## Prioridad y referencia funcional acordada (2026-11-17)
 
 - **Prioridad acordada:** completar la **funcionalidad restante antes** de
@@ -83,6 +118,13 @@ Agrupación y módulos, temario, plantilla de lección, metadatos y necesidades
 del profesor. Se enumeran como temas a revisar; no se fija aquí su forma,
 alcance ni contenido.
 
+### Límite sobre el proveedor de vídeo
+
+La afirmación de que este documento no cambia `AGENTS.md` ni `README.md` no se
+extiende al proveedor de vídeo: la entrada del 2026-11-18 sustituye la política
+anterior recogida en esas dos guías, porque este registro no es documento
+normativo de agentes. Se conserva la fecha de registro original del documento.
+
 ## Límites y fecha
 
 - Este documento **no cambia** `AGENTS.md`, `README.md` ni
@@ -90,3 +132,23 @@ alcance ni contenido.
 - Registrado el **2026-11-17** (fecha del entorno de trabajo). Si esa fecha no
   se considera válida como evidencia, debe entenderse como la del registro y no
   como una fecha de decisión de producto.
+
+## Precio de prueba Stripe (2026-11-18)
+
+- El promotor ha creado un precio en Stripe y lo ha facilitado como dato
+  **público de configuración** de servidor; no es un secreto de cuenta ni una
+  clave API.
+- Identificador del precio de curso de prueba en DEVELOPMENT: se anotará en el
+  panel de Supabase `course_prices` como referencia del curso real de pruebas
+  (no se pega aquí; solo en servidor pertinente).
+- La clave secreta de Stripe (`sk_test`) la ha configurado el promotor a mano en
+  los secretos de Edge Functions de Supabase; este repositorio no la contiene ni
+  debe contenerla.
+- Reglas que se mantienen: `price_...` no entra en el bundle Angular; el
+  navegador solo recibe la URL de checkout; la página de éxito no concede acceso;
+  el acceso se concede por webhook firmado e idempotente; el checkout `enabled`
+  sigue en `false` hasta completar la validación E2E en modo test.
+- Pendiente antes de cobrar con usuarios: completar fulfillment, integrar el
+  webhook desplegándolo en Supabase con su `whsec` real de test, probar compra con
+  tarjeta 4242 de test, y validar condiciones legales/fiscales (D3, D4, D16 de
+  la hoja de ruta).

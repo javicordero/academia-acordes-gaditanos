@@ -46,6 +46,18 @@ lección PDF o de texto: no se introduce manualmente ni se muestra a partir de
 valores antiguos. Obtenerla de metadatos reales del proveedor está pendiente;
 el iframe provisional no la facilita automáticamente.
 
+## Vincular el vídeo a una lección
+
+Con sesión de administrador, la ruta `/admin/<curso>/<lección>/video` permite
+indicar el GUID de un vídeo de Bunny y vincularlo a esa lección. El botón
+«Comprobar o cambiar» muestra el formulario; no se consulta ni se muestra una
+ficha de vídeo al abrir la página. El GUID se valida en cliente y se comprueba
+contra Bunny en servidor antes de guardarse; la biblioteca y la API key son
+secretos de la Edge Function y nunca aparecen en el navegador. Si faltan esos
+secretos, el servidor responde 503 y no guarda nada. El estado local y los
+pasos pendientes están en `docs/video-admin-estado.md`.
+En la estructura del curso, cada lección guardada ofrece «Vídeo de la lección» junto a «Materiales PDF»; las lecciones nuevas sin guardar no lo muestran.
+
 > **Documentación privada:** el repositorio será público. `docs/plan-maestro.md`
 > se aporta localmente y **no se publica**; está incluido en `.gitignore` junto
 > con `docs/privado/`, reservado para notas internas. El resto de `docs/` puede
@@ -151,7 +163,9 @@ npm run config:init
 - La URL y la **publishable key** son públicas por diseño y llegan al
   navegador. No son secretos, pero se mantienen fuera del repositorio.
 - **Nunca** poner `service_role`, la contraseña de la base de datos ni claves
-  de Bunny/Stripe en ese archivo ni en otro archivo del cliente.
+  de Bunny/Stripe en ese archivo ni en otro archivo del cliente. Los secretos
+  de Bunny (Library API key y Token authentication signing key) se configuran
+  solo a mano como secretos de Edge Functions en Supabase.
 - Sin esos dos valores la aplicación sigue funcionando, muestra un aviso de
   «autenticación pendiente de configuración local» y no simula cuentas ni
   accesos.
@@ -181,12 +195,23 @@ compartirse: **no protege contenido de pago**. En producción la demo está
 deshabilitada aunque el archivo tenga valores. No hay reproducción privada,
 firmas ni garantía de privacidad por usar `youtube-nocookie.com`.
 
-Antes del lanzamiento se evaluará Mux con pocos vídeos y condiciones PAYG
-vigentes; Bunny es una alternativa, no una elección definitiva. No se contrata
-ninguno ahora. Mux Free se está evaluando para un piloto de hasta 10 vídeos; no
-hay proveedor definitivo ni costes futuros garantizados. No se implanta Mux ni
-se contrata ningún servicio en la nube en esta fase. Velocidad, reanudación y bucle A–B quedan para evaluar según el proveedor;
-el progreso continúa siendo manual e independiente del visionado.
+El proveedor de vídeo **elegido es Bunny Stream** (decisión del 2026-11-18),
+sustituyendo la política anterior de YouTube solo como demo y Mux en evaluación.
+La reproducción usará siempre un URL/token firmado emitido en servidor tras
+comprobar sesión y derecho activo (o rol admin para vista previa); ninguna
+clave de firma, API key ni token de larga duración llegará al cliente, y la
+integración real sigue pendiente. El mapa local `video-demo.local.ts` (YouTube,
+ignorado) se mantiene únicamente como *fallback* de maquetación mientras Bunny no
+esté configurado; no protege contenido de pago y se sustituirá por el adaptador
+Bunny conservando el reproductor desacoplado del proveedor con el contrato
+`VideoPlaybackProvider`. Bunny no es gratuito (mínimo aproximado 1 USD/mes y
+consumo variable) y no se contrata ni se añade tarjeta sin autorización explícita
+del promotor; el vídeo de muestra `COLGAOS.mp4` es contenido propio y nunca se
+versiona en el repositorio. Velocidad, reanudación y bucle A–B quedan para
+evaluar según el proveedor; el progreso continúa siendo manual e independiente
+del visionado.
+
+El adaptador Bunny y su provider ya están en código: el flag público `videoPlaybackBunny` (por defecto `false`, sin secretos) se activa solo tras desplegar la Edge Function y configurar Bunny; hasta entonces el aula muestra un estado honesto (`docs/video-estado.md`).
 
 Para probar la integración real, una persona autorizada debe configurar en el
 panel de Supabase (no se ha tocado la nube en este bloque):
@@ -332,8 +357,14 @@ Todavía no están implementadas ni configuradas:
   están versionados y se aplicaron a desarrollo con autorización explícita.
 - Stripe Checkout y webhook firmado e idempotente; ninguna página de éxito
   concede acceso por sí sola. No hay precios ni claves reales.
-- Proveedor definitivo de vídeo privado y emisión de acceso temporal desde
-  servidor tras comprobar el derecho de acceso.
+- Integración real de Bunny Stream (proveedor ya elegido): token de embed de
+  corta duración emitido en servidor tras comprobar sesión y derecho activo (o
+  rol admin para vista previa), guardado de GUID y metadatos en
+  `private.lesson_videos`. Pendiente de configurar a mano los secretos de Bunny
+  (Library API key y signing key) como secretos de Edge Functions en Supabase, y
+  de la verificación de reproducción real con el vídeo de muestra `COLGAOS.mp4`.
+  El token no es DRM: el enlace puede compartirse hasta que caduque y no impide
+  grabar la pantalla.
 - Panel `/admin`: reordenación, precios, subida de vídeo y respuestas a
   preguntas (estas últimas junto al foro) siguen pendientes. La vista previa
   local no acredita una prueba E2E de compra ni un despliegue de producción.
@@ -374,28 +405,28 @@ están en `UPSTREAM.md`.
 Modelos autorizados para el flujo de agentes del proyecto:
 
 - **Sol** coordina, revisa y decide.
-- **Implementador principal:** GPT-6.1 Terra (OpenAI), ID de proveedor/modelo
-  `openai/gpt-6.1-terra` (sin variante). Autorizado para implementación y
-  reparaciones normales o complejas. Se desconoce su coste de catálogo: no se
-  afirma que sea gratuito ni más barato.
+- **Implementador principal:** DeepSeek V4.1 Flash de AMD Token Lab, ID de
+  proveedor/modelo `tokenlab/DeepSeek-V4.1-Flash` (sin variante). Autorizado
+  expresamente por el usuario para implementación y reparaciones normales o
+  complejas. Se desconoce su coste de catálogo: no se afirma que sea gratuito
+  ni más barato.
 - **Tareas MUY sencillas/operativas:** se reservan a los modelos gratuitos de
-  OpenCode, en este orden: DeepSeek V4.1 Flash Free
+  OpenCode, como fallback inmediato DeepSeek V4.1 Flash Free
   (`opencode/deepseek-v4.1-flash-free`) y, si agota cuota o no está disponible,
   Hy4 Free (`opencode/hy4-flash-free`) como última opción, decidido por quien
-  orquesta y limitado a la tarea afectada. Si los gratuitos están bloqueados por
-  cuota, informar antes de usar Terra en trabajo que se había asignado a los
-  gratuitos; Terra está autorizado de forma general y puede usarse según la
-  tarea, sin introducir nuevos proveedores.
+  orquesta y limitado a la tarea afectada. AMD puede tener limitaciones de
+  capacidad: ante un fallo por capacidad, no ignorar el error, no entrar en
+  bucle de reintento y no quedarse esperando; reportarlo a quien orquesta. Si
+  los gratuitos están bloqueados por cuota, informar a quien orquesta antes de
+  seguir.
 - **Revisor preferido:** Hy4 Free, ID `opencode/hy4-flash-free` (sin cambios).
-- **Fallback AMD retirado:** `tokenlab/DeepSeek-V4.1-Flash` (AMD Token Lab) ya no
-  forma parte del orden de preferencia vigente; no reintroducirlo ni usarlo
-  automáticamente sin que se pida expresamente.
 - No usar otro proveedor o modelo de pago sin permiso explícito.
 - La configuración vive en `opencode.jsonc`; no se cambia el modelo global de
   OpenCode ni el agente por defecto desde este repositorio. `opencode.jsonc` no
   admite un campo de fallback documentado: el implementador queda fijado en
-  Terra y el revisor en Hy4 Free; el orden de preferencia descrito arriba es una
-  pauta de orquestación, no una clave de configuración que haya que añadir.
+  DeepSeek V4.1 Flash de AMD y el revisor en Hy4 Free; el orden de preferencia
+  descrito arriba es una pauta de orquestación, no una clave de configuración
+  que haya que añadir.
 
 ## Aviso
 
