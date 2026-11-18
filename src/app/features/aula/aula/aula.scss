@@ -1,16 +1,110 @@
-.layout { display: grid; gap: 2rem; align-items:start; }
-.text { white-space: pre-wrap; overflow-wrap: anywhere; }
-.video { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
-.video-stage { background:#252323; color:#fff; aspect-ratio:16 / 9; border-radius:.6rem; padding:1.5rem; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
-.video-stage:has(iframe) { aspect-ratio:auto; padding:1rem; }
-.video-stage button { min-height: 44px; padding-inline: 1rem; color: #252323; }
-article h2 { font-size:clamp(1.7rem, 3vw, 2.5rem); }
-nav a { display: inline-block; margin-block: .25rem; }
-nav[aria-label="Navegación entre lecciones"] { display: flex; gap: 1rem; flex-wrap: wrap; margin-block: 1rem; }
-nav[aria-label="Navegación entre lecciones"] > * { min-height: 44px; display: inline-flex; align-items: center; }
-@media (max-width: 47.999rem) {
-  nav[aria-label="Navegación entre lecciones"] > * { width: 100%; overflow-wrap: anywhere; }
+.aula-layout {
+  --aula-gutter: 1.25rem;
+  display: grid;
+  gap: 1.25rem;
+  align-items: start;
 }
+
+/* min-height:0 permite que cada columna se contraiga y tenga scroll propio en escritorio. */
+.aula-sidebar { min-width: 0; min-height: 0; }
+.aula-content { min-width: 0; min-height: 0; }
+
+/* Carga inicial: esqueleto de altura estable, sin texto visible que desplace el layout. */
+.content-skeleton {
+  min-height: 24rem; border: 1px solid var(--border); border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--surface), var(--border), var(--surface));
+}
+/* Esqueleto previo al primer dato: no contiene app-classroom-nav. */
+.nav-skeleton {
+  min-height: 12rem; border: 1px solid var(--border); border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--surface), var(--border), var(--surface));
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+
+/* Iconos genéricos propios: mismo hueco y alineación que el referente, sin assets ajenos. */
+.icon { display: inline-block; width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Fila delgada de acciones: duración a la izquierda, resto a la derecha. */
+.lesson-actions {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: .5rem 1rem; min-height: 44px; margin-bottom: .5rem;
+}
+.lesson-duration { display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .9rem; }
+.icon--clock { width: 15px; height: 15px; font-size: .95rem; }
+.lesson-nav { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; margin: 0; }
+.lesson-nav__divider { width: 1px; height: 1.5rem; margin-inline: .35rem; background: var(--border); }
+.lesson-current { color: var(--muted); white-space: nowrap; }
+.lesson-nav a,
+.lesson-nav > span { display: inline-flex; align-items: center; gap: .35rem; min-height: 44px; padding: .35rem .25rem; font-size: .95rem; }
+
+/* Flecha circular de «siguiente»: rellena, a la derecha del texto y separada del botón de completar. */
+.arrow-glyph { display: inline-flex; align-items: center; justify-content: center; }
+.arrow-circle { display: inline-flex; align-items: center; justify-content: center; width: 1.55rem; height: 1.55rem; margin-inline-start: .2rem; }
+.arrow-circle svg { width: 100%; height: 100%; }
+.arrow-circle circle { fill: var(--accent); stroke: none; }
+.arrow-circle path { fill: none; stroke: var(--accent-ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.progress-button {
+  min-height: 44px; padding: .5rem .9rem;
+  border: 1px solid var(--accent); border-radius: 8px;
+  background: transparent; color: var(--accent);
+  font: inherit; font-weight: 650; cursor: pointer;
+}
+.progress-button:hover:not(:disabled) { background: #f1e9db; }
+.progress-button:disabled { opacity: .6; cursor: not-allowed; }
+
+.video-stage {
+  background: #252323; color: #fff; border-radius: .6rem; padding: 1rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; min-height: 12rem;
+}
+.video-stage:has(iframe) { display: block; padding: 0; background: none; border-radius: 0; min-height: 0; }
+.video-stage p { margin: .35rem 0; }
+.video-notice { max-width: 60ch; }
+.video {
+  display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: .6rem;
+}
+.video-button {
+  min-height: 44px; padding-inline: 1rem; border: 1px solid #fff; border-radius: 8px;
+  background: transparent; color: #fff; font: inherit; cursor: pointer;
+}
+
+.lesson-title { margin: 1rem 0 .75rem; font-size: clamp(1.7rem, 3vw, 2.5rem); }
+.aula-separator { border: 0; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+.aula-dudas { margin-block: 1.5rem; }
+.aula-dudas h2 { font-size: 1.2rem; }
+
 @media (min-width: 48rem) {
-  .layout { grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr); }
+  .aula-layout { grid-template-columns: minmax(0, 3fr) minmax(0, 7fr); gap: 1.5rem; }
+  /* El index ya se desplaza solo; el contenido hace lo mismo. 13rem = cabecera
+     del shell (~4rem) + padding superior e inferior de main (~4rem + 4rem). */
+  .aula-content {
+    max-height: calc(100vh - 13rem);
+    max-height: calc(100dvh - 13rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-inline-end: .35rem;
+  }
+}
+
+@media (max-width: 47.999rem) {
+  /* Vídeo a sangre completa: compensa el padding horizontal de main. */
+  .video-stage { margin-inline: calc(-1 * var(--aula-gutter)); border-radius: 0; }
+  .video { border-radius: 0; }
+  .lesson-nav { justify-content: flex-end; width: 100%; }
+  /* En móvil el reloj desaparece igual que en el referente; se conserva para lectores de pantalla. */
+  .lesson-duration {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-button, .video-button { transition: none; }
 }

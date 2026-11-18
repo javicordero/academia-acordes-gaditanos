@@ -29,6 +29,8 @@ export class Aula {
   private readonly heading = viewChild<ElementRef<HTMLElement>>('aulaHeading');
   private focusedLessonKey: string | null = null;
   private loadedKey: string | null = null;
+  private loadedCourse = '';
+  private loadedUser = '';
   private videoTimer: ReturnType<typeof setTimeout> | null = null;
   private videoRequest = 0;
   private readonly params = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
@@ -36,6 +38,8 @@ export class Aula {
   private destroyed = false;
   readonly state = signal<'loading' | 'unconfigured' | 'error' | 'denied' | 'ready'>('loading');
   readonly data = signal<AulaData | null>(null);
+  /** Cambio de lección dentro del mismo curso: se conservan índice y contenido previos. */
+  readonly switching = signal(false);
   readonly videoSource = signal<PlaybackSource | null>(null);
   readonly videoState = signal<VideoState>('idle');
   /** Aviso del proveedor; se conserva al caducar para no perder su explicación. */
@@ -45,6 +49,19 @@ export class Aula {
   readonly saveError = signal(false);
   readonly courseSlug = computed(() => this.params().get('courseSlug') ?? '');
   readonly lessonSlug = computed(() => this.params().get('lessonSlug') ?? '');
+  /** Datos del índice: se conservan durante el cambio de lección para no desmontar el nav. */
+  readonly navCourse = computed(() => {
+    const data = this.data();
+    return data ? {
+      id: data.course.id, title: data.course.title, teacher: data.course.teacher ?? '',
+      sections: data.sections, lessons: data.lessons,
+    } : null;
+  });
+  /** Selección derivada de la URL sobre las lecciones conocidas, sin estado local duplicado. */
+  readonly activeId = computed(() => {
+    const slug = this.lessonSlug();
+    return this.data()?.lessons.find(lesson => lesson.slug === slug)?.id ?? '';
+  });
   readonly orderedLessons = computed(() => {
     const data = this.data();
     return data ? data.sections.flatMap(s => data.lessons.filter(l => l.section_id === s.id)) : [];
@@ -57,6 +74,16 @@ export class Aula {
     const list = this.orderedLessons();
     const index = list.findIndex(l => l.id === this.data()?.lesson.id);
     return index < 0 ? null : list[index + 1] ?? null;
+  });
+  /** Orden real de la lección actual dentro del curso (ya ordenado por position). */
+  readonly currentIndex = computed(() => this.orderedLessons().findIndex(l => l.id === this.data()?.lesson.id));
+  /** Etiqueta de la lección actual: «Primera lección» solo en el índice 0; después, título y orden reales. */
+  readonly currentLabel = computed(() => {
+    const list = this.orderedLessons();
+    const index = this.currentIndex();
+    if (index <= 0) return 'Primera lección';
+    const lesson = list[index];
+    return lesson ? `Lección ${index + 1} de ${list.length}: ${lesson.title}` : '';
   });
   readonly returnUrl = computed(() => `/aula/${encodeURIComponent(this.courseSlug())}/${encodeURIComponent(this.lessonSlug())}`);
   private readonly retryCount = signal(0);
@@ -92,6 +119,7 @@ export class Aula {
         this.resetVideo();
         this.loadedKey = null;
         this.data.set(null);
+        this.switching.set(false);
         this.state.set('loading');
         return;
       }
@@ -99,6 +127,7 @@ export class Aula {
         this.resetVideo();
         this.loadedKey = null;
         this.data.set(null);
+        this.switching.set(false);
         this.state.set('unconfigured');
         return;
       }
@@ -110,23 +139,51 @@ export class Aula {
       const session = this.auth.session();
       const course = this.courseSlug();
       const lesson = this.lessonSlug();
+      const user = session?.user.id ?? 'anon';
+      // Cambiar de lección dentro del mismo curso conserva el árbol del índice
+      // y el contenido anterior; solo se limpia en logout, error, denegación o
+      // cambio de curso. El contador `request` descarta respuestas obsoletas.
+      const sameCourse = !!this.data() && this.loadedCourse === course && this.loadedUser === user;
       const request = ++this.request;
       this.loadedKey = key;
-      this.data.set(null);
+      this.loadedCourse = course;
+      this.loadedUser = user;
       this.resetVideo();
       this.saving.set(false);
       this.saveError.set(false);
-      if (this.auth.error() && !session) { this.state.set('error'); return; }
-      this.state.set('loading');
+
+      if (this.auth.error() && !session) {
+        this.data.set(null);
+        this.switching.set(false);
+        this.state.set('error');
+        return;
+      }
+      if (sameCourse) {
+        this.switching.set(true);
+      } else {
+        this.data.set(null);
+        this.switching.set(false);
+        this.state.set('loading');
+      }
+
       void this.repository.load(course, lesson, session?.user.id ?? null).then(data => {
         if (this.destroyed || request !== this.request) return;
         this.data.set(data);
-        this.state.set(data ? 'ready' : 'denied');
-        if (data) this.focusLesson(course, lesson);
-        // El vídeo se monta solo: contenido de la lección actual ya autorizada.
-        if (data?.lesson.content_type === 'video') this.loadVideo();
+        this.switching.set(false);
+        if (data) {
+          this.state.set('ready');
+          this.focusLesson(course, lesson);
+          // El vídeo se monta solo: contenido de la lección actual ya autorizada.
+          if (data.lesson.content_type === 'video') this.loadVideo();
+        } else {
+          this.state.set('denied');
+        }
       }).catch(() => {
-        if (!this.destroyed && request === this.request) this.state.set('error');
+        if (!this.destroyed && request === this.request) {
+          this.switching.set(false);
+          this.state.set('error');
+          this.data.set(null);
+        }
       });
     });
   }
@@ -214,6 +271,14 @@ export class Aula {
     this.loadedKey = null;
     this.retryCount.update(n => n + 1);
   }
+
+  /** Etiqueta corta para la duración opcional de la lección (mm:ss). */
+  durationLabel(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const rest = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${rest}`;
+  }
+
   async toggleProgress(): Promise<void> {
     const data = this.data();
     const userId = this.auth.session()?.user.id;

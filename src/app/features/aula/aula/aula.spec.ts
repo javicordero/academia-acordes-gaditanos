@@ -5,12 +5,13 @@ import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../../../core/auth/auth.service';
-import { AulaData, AulaRepository } from '../aula-repository';
+import { AulaData, AulaLesson, AulaRepository } from '../aula-repository';
+import { LessonResources } from '../../../shared/lesson-resources/lesson-resources';
 import { AULA_ROUTES } from '../aula.routes';
 import { Aula } from './aula';
 import { PlaybackSource, VIDEO_DEMO_CONFIG, VIDEO_DEMO_ENABLED, VideoPlaybackService } from '../video-playback';
 
-const lesson = { id: 'l', section_id: 's', slug: 'uno', title: 'Lección', summary: null, content_md: '<script>texto</script>', content_type: 'video' as const };
+const lesson = { id: 'l', section_id: 's', slug: 'uno', title: 'Lección', content_type: 'video' as const };
 const data: AulaData = { course: { id: 'c', title: 'Curso' }, lesson, sections: [{id: 's', title: 'Bloque'}], lessons: [lesson], canTrack: true, completed: false };
 const firstLesson = { ...lesson, id: 'l1', slug: 'uno' };
 const secondLesson = { ...lesson, id: 'l2', slug: 'dos' };
@@ -70,15 +71,18 @@ describe('Aula', () => {
     expect(nav.querySelector('a')?.textContent).toContain('Siguiente');
   });
 
-  it('muestra texto escapado y guarda progreso manual', async () => {
+  it('no renderiza la descripción de la lección y guarda progreso manual', async () => {
     const { save } = setup(vi.fn().mockResolvedValue(data));
     const harness = await RouterTestingHarness.create();
     const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
     await harness.fixture.whenStable();
     harness.detectChanges();
     expect(harness.routeNativeElement?.querySelector('script')).toBeNull();
-    expect(harness.routeNativeElement?.textContent).toContain('<script>texto</script>');
+    expect(harness.routeNativeElement?.textContent).not.toContain('<script>texto</script>');
+    expect(harness.routeNativeElement?.textContent).not.toContain('Contenido de la lección');
+    expect(harness.routeNativeElement?.textContent).not.toContain('contenido escrito');
     expect(harness.routeNativeElement?.querySelector('h1')?.getAttribute('tabindex')).toBe('-1');
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent).toBe('Lección');
     await component.toggleProgress();
     expect(save).toHaveBeenCalledWith('u', 'l', true);
     expect(component.data()?.completed).toBe(true);
@@ -97,12 +101,13 @@ describe('Aula', () => {
     await harness.navigateByUrl('/aula/curso/uno', Aula);
     await harness.fixture.whenStable(); harness.detectChanges();
     expect(harness.routeNativeElement?.querySelector('iframe, .video-stage')).toBeNull();
-    expect(harness.routeNativeElement?.textContent).toContain('Documento de la lección');
+    expect(harness.routeNativeElement?.textContent).toContain('Materiales de la lección');
     await harness.navigateByUrl('/aula/curso/dos', Aula);
     await harness.fixture.whenStable(); harness.detectChanges();
     expect(harness.routeNativeElement?.querySelector('iframe, .video-stage')).toBeNull();
     expect(harness.routeNativeElement?.querySelector('script')).toBeNull();
-    expect(harness.routeNativeElement?.textContent).toContain('<script>texto</script>');
+    expect(harness.routeNativeElement?.textContent).not.toContain('<script>texto</script>');
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent).toBe('Lección');
     expect(source).not.toHaveBeenCalled();
   });
 
@@ -390,7 +395,7 @@ describe('Aula', () => {
     await harness.fixture.whenStable();
     harness.detectChanges();
 
-    expect(document.activeElement?.textContent).toBe('Aula');
+    expect(document.activeElement?.textContent).toBe('Lección');
 
     const next = Array.from(harness.routeNativeElement?.querySelectorAll<HTMLAnchorElement>('a') ?? [])
       .find((a) => a.textContent?.startsWith('Siguiente:'));
@@ -400,7 +405,7 @@ describe('Aula', () => {
     await harness.fixture.whenStable();
     harness.detectChanges();
 
-    expect(document.activeElement?.textContent).toBe('Aula');
+    expect(document.activeElement?.textContent).toBe('Lección');
     expect(harness.routeNativeElement?.textContent).not.toContain('Siguiente:');
   });
 
@@ -519,7 +524,7 @@ describe('Aula', () => {
     const component = await harness.navigateByUrl('/aula/curso/dos', Aula);
     await harness.fixture.whenStable();
     harness.detectChanges();
-    expect(document.activeElement?.textContent).toBe('Aula');
+    expect(document.activeElement?.textContent).toBe('Lección');
 
     harness.routeNativeElement?.querySelector<HTMLButtonElement>('button')!.focus();
     expect(document.activeElement?.tagName).toBe('BUTTON');
@@ -530,5 +535,302 @@ describe('Aula', () => {
 
     expect(component.data()?.lesson.id).toBe('otro');
     expect(document.activeElement?.tagName).toBe('BUTTON');
+  });
+
+  it('dispone índice y contenido en dos columnas con un único h1 y los landmarks propios', async () => {
+    setup(vi.fn().mockResolvedValue(twoLessons));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+
+    // El main landmark lo aporta el shell; aquí sólo se añaden nav y complementary.
+    expect(root.querySelectorAll('h1').length).toBe(1);
+    expect(root.querySelector('h1')?.textContent).toBe('Lección');
+    expect(root.querySelector('main')).toBeNull();
+    expect(root.querySelector('.aula-layout')).not.toBeNull();
+    expect(root.querySelector('aside.aula-sidebar')).not.toBeNull();
+    expect(root.querySelector('article.aula-content')).not.toBeNull();
+    expect(root.querySelector('nav[aria-label="Lecciones del curso"]')).not.toBeNull();
+    expect(root.querySelector('nav[aria-label="Navegación entre lecciones"]')).not.toBeNull();
+  });
+
+  it('coloca las acciones antes del vídeo: duración a la izquierda, completar y flechas separadas a la derecha', async () => {
+    const timed = { ...twoLessons, lesson: { ...firstLesson, duration_seconds: 125 } };
+    const { source } = setup(vi.fn().mockResolvedValue(timed), undefined, true, () => Promise.resolve(fakeSource()));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+
+    const actions = root.querySelector<HTMLElement>('.lesson-actions')!;
+    const stage = root.querySelector<HTMLElement>('.video-stage')!;
+    const duration = root.querySelector<HTMLElement>('.lesson-duration')!;
+    const progress = root.querySelector<HTMLButtonElement>('.progress-button')!;
+    const next = Array.from(root.querySelectorAll<HTMLAnchorElement>('a'))
+      .find(a => a.textContent?.startsWith('Siguiente:'))!;
+    expect(actions.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(duration.textContent).toContain('2:05');
+    expect(duration.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(progress.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(root.querySelector('.lesson-nav__divider')).not.toBeNull();
+    expect(source).toHaveBeenCalledWith('l1');
+
+    // Iconografía genérica: reloj antes de la duración; flecha circular de siguiente
+    // a la derecha del texto y separada del botón outline de progreso (sin check ajeno).
+    const clock = duration.querySelector<SVGElement>('svg.icon--clock')!;
+    expect(clock).not.toBeNull();
+    expect(clock.getAttribute('aria-hidden')).toBe('true');
+    expect(clock.compareDocumentPosition(duration.querySelector('span')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(progress.matches('.progress-button')).toBe(true);
+    expect(progress.querySelector('svg')).toBeNull();
+    const arrow = next.querySelector<HTMLElement>('.arrow-circle')!;
+    expect(arrow).not.toBeNull();
+    expect(arrow.querySelector('svg')).not.toBeNull();
+    expect(next.textContent?.startsWith('Siguiente:')).toBe(true);
+    const nextLabel = [...next.childNodes].find(n => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').includes('Siguiente:'))!;
+    expect(nextLabel).toBeDefined();
+    expect(nextLabel.compareDocumentPosition(arrow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('deja los materiales bajo el separador y el foro como placeholder honesto', async () => {
+    setup(vi.fn().mockResolvedValue(data));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+
+    const separator = root.querySelector<HTMLElement>('.aula-separator')!;
+    const materials = root.querySelector<HTMLElement>('app-lesson-materials')!;
+    const dudas = root.querySelector<HTMLElement>('.aula-dudas')!;
+    expect(separator.compareDocumentPosition(materials) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(materials.compareDocumentPosition(dudas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(dudas.textContent).toContain('fase posterior');
+    expect(dudas.querySelector('form, textarea, button')).toBeNull();
+  });
+
+  it('coloca un icono de documento genérico junto a la cabecera y a cada PDF', async () => {
+    setup(vi.fn().mockResolvedValue(data));
+    TestBed.configureTestingModule({ providers: [
+      { provide: LessonResources, useValue: { list: vi.fn().mockResolvedValue([{ id: 'r', title: 'Apuntes' }]), download: vi.fn() } },
+    ] });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const materials = harness.routeNativeElement!.querySelector<HTMLElement>('app-lesson-materials')!;
+
+    const headingIcon = materials.querySelector<SVGElement>('h3 .material-icon')!;
+    const itemIcon = materials.querySelector<SVGElement>('.material-item .material-icon')!;
+    expect(headingIcon).not.toBeNull();
+    expect(itemIcon).not.toBeNull();
+    expect(headingIcon.getAttribute('aria-hidden')).toBe('true');
+    expect(itemIcon.closest('.material-item')?.textContent).toContain('Apuntes');
+    expect(materials.textContent).toContain('Materiales de la lección');
+  });
+
+  it('no muestra resumen ni contenido interno aunque vengan en los datos', async () => {
+    // El repositorio ya no pide estas columnas; se inyectan para comprobar que el aula las ignora.
+    const internos = { summary: 'RESUMEN INTERNO', content_md: 'CONTENIDO INTERNO' };
+    const described: AulaData = {
+      ...data,
+      lesson: { ...lesson, ...internos } as AulaLesson,
+    };
+    setup(vi.fn().mockResolvedValue(described));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+
+    expect(root.querySelector('h1')?.textContent).toBe('Lección');
+    expect(root.textContent).not.toContain('RESUMEN INTERNO');
+    expect(root.textContent).not.toContain('CONTENIDO INTERNO');
+    expect(root.querySelector('.lesson-text')).toBeNull();
+    expect(root.querySelector('app-lesson-materials')).not.toBeNull();
+  });
+
+  it('sin descripción no deja bloque vacío ni separador huérfano', async () => {
+    const plain: AulaData = {
+      ...data,
+      lesson,
+    };
+    setup(vi.fn().mockResolvedValue(plain));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+
+    expect(root.textContent).not.toContain('Contenido de la lección');
+    expect(root.textContent).not.toContain('contenido escrito');
+    const title = root.querySelector<HTMLElement>('.lesson-title')!;
+    const separator = root.querySelector<HTMLElement>('.aula-separator')!;
+    const materials = root.querySelector<HTMLElement>('app-lesson-materials')!;
+    expect(title.compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(separator.compareDocumentPosition(materials) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('cambia de lección sin texto de carga visible, sin recrear el nav y moviendo aria-current', async () => {
+    const first = { ...lesson, id: 'l1', slug: 'uno', title: 'Primera' };
+    const secondLessonData = { ...lesson, id: 'l2', slug: 'dos', title: 'Segunda' };
+    const make = (active: typeof first): AulaData => ({
+      ...twoLessons, lesson: active, lessons: [first, secondLessonData],
+      sections: [{ id: 's', title: 'Bloque' }],
+    });
+    let resolveSecond!: (value: AulaData) => void;
+    const load = vi.fn()
+      .mockResolvedValueOnce(make(first))
+      .mockReturnValueOnce(new Promise<AulaData>(r => resolveSecond = r));
+    setup(load);
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const navNode = root.querySelector<HTMLElement>('app-classroom-nav')!;
+    const target = [...navNode.querySelectorAll<HTMLAnchorElement>('a')]
+      .find(a => a.textContent?.includes('Segunda'))!;
+    expect(navNode.querySelector('a[aria-current="page"]')?.textContent).toContain('Primera');
+
+    target.focus();
+    expect(document.activeElement).toBe(target);
+    const sameComponent = await harness.navigateByUrl('/aula/curso/dos', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+
+    expect(sameComponent).toBe(component);
+    expect(root.querySelector('app-classroom-nav')).toBe(navNode);
+    expect(root.textContent).not.toContain('Cargando lección');
+    expect(root.querySelector('h1')?.textContent).toBe('Primera');
+    expect(root.querySelector('.video-stage')).not.toBeNull();
+    expect(root.querySelector('.sr-only[role="status"]')?.textContent).toContain('Preparando la lección siguiente');
+    expect(document.activeElement).toBe(target);
+
+    resolveSecond(make(secondLessonData));
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(component.switching()).toBe(false);
+    expect(root.querySelector('app-classroom-nav')).toBe(navNode);
+    expect(navNode.querySelector('a[aria-current="page"]')?.textContent).toContain('Segunda');
+    expect(root.querySelector('h1')?.textContent).toBe('Segunda');
+  });
+
+  it('conserva bloques plegados y desplazamiento del índice al cambiar de lección', async () => {
+    setup(vi.fn().mockResolvedValue(twoLessons));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const navNode = root.querySelector<HTMLElement>('app-classroom-nav')!;
+    const toggle = navNode.querySelector<HTMLButtonElement>('.block-toggle')!;
+    toggle.click(); harness.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    const index = navNode.querySelector<HTMLElement>('nav')!;
+    index.scrollTop = 42;
+
+    await harness.navigateByUrl('/aula/curso/dos', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(root.querySelector('app-classroom-nav')).toBe(navNode);
+    expect(navNode.querySelector<HTMLButtonElement>('.block-toggle')?.getAttribute('aria-expanded')).toBe('false');
+    expect(navNode.querySelector<HTMLElement>('nav')?.scrollTop).toBe(42);
+  });
+
+  it('un cambio de curso limpia el árbol mientras llegan los datos', async () => {
+    let resolveOther!: (value: AulaData) => void;
+    const load = vi.fn()
+      .mockResolvedValueOnce(twoLessons)
+      .mockReturnValueOnce(new Promise<AulaData>(r => resolveOther = r));
+    setup(load);
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('app-classroom-nav')).not.toBeNull();
+
+    await harness.navigateByUrl('/aula/otro/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(load).toHaveBeenLastCalledWith('otro', 'uno', 'u');
+    expect(harness.routeNativeElement?.querySelector('app-classroom-nav')).toBeNull();
+    expect(harness.routeNativeElement?.querySelector('.content-skeleton')).not.toBeNull();
+
+    resolveOther(twoLessons);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('app-classroom-nav')).not.toBeNull();
+  });
+
+  it('la fila derecha muestra estado, etiqueta de primera lección y siguiente real sobre el vídeo', async () => {
+    const first = { ...lesson, id: 'l1', slug: 'uno', title: 'Primera' };
+    const secondLesson = { ...lesson, id: 'l2', slug: 'dos', title: 'Siguiente real' };
+    const course: AulaData = {
+      ...twoLessons, lesson: first, lessons: [first, secondLesson],
+      sections: [{ id: 's', title: 'Bloque' }],
+    };
+    setup(vi.fn().mockResolvedValue(course));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const nav = root.querySelector<HTMLElement>('.lesson-nav')!;
+    const stage = root.querySelector<HTMLElement>('.video-stage')!;
+    const button = nav.querySelector<HTMLButtonElement>('.progress-button')!;
+    const current = nav.querySelector<HTMLElement>('.lesson-current')!;
+    const next = nav.querySelector<HTMLAnchorElement>('a[href="/aula/curso/dos"]')!;
+
+    expect(nav.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(button.textContent?.trim()).toBe('Marcar como completada');
+    expect(current.textContent).toBe('Primera lección');
+    expect(next.textContent).toContain('Siguiente: Siguiente real');
+    expect(nav.querySelector('a[href="/aula/curso/uno"]')).toBeNull();
+    expect(button.compareDocumentPosition(current) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(current.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('en una lección intermedia muestra orden y título reales junto a anterior y siguiente', async () => {
+    const first = { ...lesson, id: 'l1', slug: 'uno', title: 'Primera' };
+    const middle = { ...lesson, id: 'l2', slug: 'dos', title: 'Segunda real' };
+    const last = { ...lesson, id: 'l3', slug: 'tres', title: 'Tercera real' };
+    const course: AulaData = {
+      ...twoLessons, lesson: middle, lessons: [first, middle, last],
+      sections: [{ id: 's', title: 'Bloque' }],
+    };
+    setup(vi.fn().mockResolvedValue(course));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/dos', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const nav = harness.routeNativeElement!.querySelector<HTMLElement>('.lesson-nav')!;
+
+    expect(nav.querySelector('.lesson-current')?.textContent).toBe('Lección 2 de 3: Segunda real');
+    expect(nav.textContent).toContain('Anterior: Primera');
+    expect(nav.textContent).toContain('Siguiente: Tercera real');
+    expect(nav.textContent).not.toContain('Primera lección');
+  });
+
+  it('sin lección siguiente no deja texto de relleno ni hueco de vista previa', async () => {
+    const first = { ...lesson, id: 'l1', slug: 'uno', title: 'Primera' };
+    const last = { ...lesson, id: 'l2', slug: 'dos', title: 'Última real' };
+    const course: AulaData = {
+      ...twoLessons, lesson: last, lessons: [first, last],
+      sections: [{ id: 's', title: 'Bloque' }],
+    };
+    setup(vi.fn().mockResolvedValue(course));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/dos', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const nav = harness.routeNativeElement!.querySelector<HTMLElement>('.lesson-nav')!;
+
+    expect(nav.querySelector('.lesson-current')?.textContent).toBe('Lección 2 de 2: Última real');
+    expect(nav.textContent).not.toContain('Siguiente:');
+    expect(nav.textContent).not.toContain('Última lección');
+    expect(nav.querySelector('a[href="/aula/curso/dos"]')).toBeNull();
+  });
+
+  it('una lección completada ofrece Marcar como pendiente y guarda el estado real', async () => {
+    const { save } = setup(vi.fn().mockResolvedValue({ ...data, completed: true }));
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const nav = harness.routeNativeElement!.querySelector<HTMLElement>('.lesson-nav')!;
+    const button = nav.querySelector<HTMLButtonElement>('.progress-button')!;
+
+    expect(button.textContent?.trim()).toBe('Marcar como pendiente');
+    button.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(save).toHaveBeenCalledWith('u', 'l', false);
+    expect(component.data()?.completed).toBe(false);
+    expect(nav.querySelector('.progress-button')?.textContent?.trim()).toBe('Marcar como completada');
   });
 });

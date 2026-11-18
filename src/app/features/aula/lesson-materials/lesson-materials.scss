@@ -1,2 +1,12 @@
-﻿li { margin-block: 0.75rem; }
+﻿h3 { display: flex; align-items: center; gap: .5rem; }
+
+.material-icon {
+  display: inline-block; width: 1rem; height: 1rem; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.4;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+.material-item { display: inline-flex; align-items: center; gap: .45rem; }
+
+li { margin-block: 0.75rem; }
 li > * { margin-inline-end: 0.75rem; }

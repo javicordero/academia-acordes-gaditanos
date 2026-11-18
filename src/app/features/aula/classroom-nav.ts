@@ -1,4 +1,4 @@
-import { afterNextRender, Component, DestroyRef, ElementRef, inject, input, signal, viewChild } from '@angular/core';
+import { afterNextRender, Component, DestroyRef, effect, ElementRef, inject, input, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 interface Section { id: string; title: string }
@@ -8,48 +8,144 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
 @Component({
   selector: 'app-classroom-nav',
   imports: [RouterLink],
+  host: { '(document:keydown.escape)': 'onDocumentEscape()' },
   template: `
-    <button #menu class="menu" type="button" aria-controls="classroom-index"
-      [attr.aria-expanded]="open()" (click)="open.set(!open())" (keydown.escape)="closeMenu()">Lecciones del curso</button>
+    <button #menu class="menu" type="button" aria-controls="classroom-index" aria-label="Lecciones del curso"
+      title="Lecciones del curso" [attr.aria-expanded]="open()" (click)="open.set(!open())">
+      <svg class="icon menu__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <path d="M3 5.5h14M3 10h14M3 14.5h14" />
+      </svg>
+      <span class="menu__label">Lecciones del curso</span>
+    </button>
+    @if (open()) { <div class="nav-backdrop" aria-hidden="true" (click)="closeMenu()"></div> }
     <nav #index id="classroom-index" aria-label="Lecciones del curso" [class.open]="open()" (keydown.escape)="closeMenu()">
-      <a [routerLink]="admin() ? '/admin' : '/mis-cursos'">← {{ admin() ? 'Volver a administración' : 'Volver a mis cursos' }}</a>
+      <div class="nav-head">
+        <a class="nav-back" [routerLink]="admin() ? '/admin' : '/mis-cursos'">
+          <svg class="icon nav-back__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3 5 8l5 5" /></svg>
+          <span>{{ admin() ? 'Volver a administración' : 'Volver a mis cursos' }}</span>
+        </a>
+        <button class="nav-close" type="button" aria-label="Cerrar índice de lecciones" title="Cerrar índice de lecciones"
+          (click)="closeMenu()">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        </button>
+      </div>
       <h2>{{ title() }}</h2>
+      @if (teacher()) { <p class="nav-teacher">{{ teacher() }}</p> }
       @for (section of sections(); track section.id) {
-        <details open>
-          <summary>{{ section.title }}</summary>
-          <ul>
+        <section class="nav-block">
+          <button type="button" class="block-toggle" [attr.aria-expanded]="isExpanded(section.id)"
+            [attr.aria-controls]="'bloque-' + section.id" (click)="toggleBlock(section.id)">
+            <svg class="icon block-toggle__folder" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M2 4.5h4l1.3 1.6H14v6.4H2z" />
+            </svg>
+            <span class="block-toggle__title">{{ section.title }}</span>
+            <span class="block-toggle__chevron" aria-hidden="true">{{ isExpanded(section.id) ? '▾' : '▸' }}</span>
+          </button>
+          <ul [id]="'bloque-' + section.id" [hidden]="!isExpanded(section.id)">
             @for (lesson of lessons(); track lesson.id) {
               @if (lesson.section_id === section.id) {
                 <li><a [routerLink]="admin() ? ['/admin/vista-previa', courseId(), lesson.id] : ['/aula', courseSlug(), lesson.slug]"
-                  [attr.aria-current]="lesson.id === activeId() ? 'page' : null" (click)="open.set(false)">
-                  <span aria-hidden="true">{{ lesson.content_type === 'video' ? '▶' : lesson.content_type === 'pdf' ? '▤' : '≡' }}</span>
+                  [attr.aria-current]="lesson.id === activeId() ? 'page' : null" (click)="closeMenu()">
+                  <span class="lesson-icon" aria-hidden="true">
+                    @switch (lesson.content_type) {
+                      @case ('video') {
+                        <svg viewBox="0 0 16 16" focusable="false"><rect x="2" y="3.5" width="12" height="9" rx="1.6" /><path d="M6.6 6.3 10 8l-3.4 1.7z" /></svg>
+                      }
+                      @case ('pdf') {
+                        <svg viewBox="0 0 16 16" focusable="false"><path d="M4 2h5l3 3v9H4z" /><path d="M9 2v3h3M6 9h4M6 11.5h4" /></svg>
+                      }
+                      @default {
+                        <svg viewBox="0 0 16 16" focusable="false"><path d="M3 4h10M3 8h10M3 12h7" /></svg>
+                      }
+                    }
+                  </span>
                   <span class="sr-only">{{ lesson.content_type === 'video' ? 'Vídeo' : lesson.content_type === 'pdf' ? 'PDF' : 'Texto' }}:</span>
-                  {{ lesson.title }} @if (lesson.is_free_preview) { <small>Muestra</small> }
+                  <span class="lesson-title">{{ lesson.title }}</span> @if (lesson.is_free_preview) { <small>Muestra</small> }
                 </a></li>
               }
             }
           </ul>
-        </details>
+        </section>
       }
     </nav>
   `,
   styles: [`
     :host { display:block; min-width:0; }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-    nav { background:#f3f0e9; border:1px solid #e2dbce; border-radius:.75rem; padding:1.25rem; }
-    nav > a { font-size:.9rem; }
-    h2 { font-size:1.2rem; overflow-wrap:anywhere; margin:1.25rem 0; }
-    details { border-top:1px solid #d9d0c1; padding:.8rem 0; }
-    summary { cursor:pointer; font-weight:700; }
-    ul { list-style:none; margin:.5rem 0 0; padding:0; }
-    li a { display:flex; align-items:baseline; gap:.6rem; padding:.65rem; color:inherit; text-decoration:none; border-radius:.4rem; overflow-wrap:anywhere; }
-    li a[aria-current=page] { background:#e5d4c3; font-weight:700; border-left:3px solid #7b3f2a; }
+    :focus-visible { outline:3px solid var(--focus); outline-offset:2px; border-radius:2px; }
+    .icon { display:inline-block; width:1em; height:1em; flex:none; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
+
+    nav {
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:1rem;
+      max-height:calc(100vh - 2.5rem);
+      overflow-y:auto;
+      overscroll-behavior:contain;
+    }
+    .nav-head { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+    .nav-back { display:inline-flex; align-items:center; gap:.4rem; min-height:44px; font-size:.9rem; }
+    .nav-back__icon { width:.85rem; height:.85rem; }
+    .nav-close { display:none; }
+    h2 { font-size:1.2rem; overflow-wrap:anywhere; margin:1rem 0 .25rem; }
+    .nav-teacher { margin:0 0 1rem; color:var(--muted); font-size:.9rem; }
+    .nav-block { border-top:1px solid var(--border); padding:.35rem 0; }
+    .block-toggle {
+      display:flex; align-items:center; gap:.5rem; width:100%;
+      min-height:44px; padding:.5rem .35rem;
+      border:0; border-radius:8px; background:none; color:inherit;
+      font:inherit; font-weight:700; text-align:left; cursor:pointer;
+    }
+    .block-toggle:hover { background:#f1e9db; }
+    .block-toggle__folder { width:1rem; height:1rem; }
+    .block-toggle__title { flex:1 1 auto; }
+    .block-toggle__chevron { flex:none; font-size:.8rem; }
+    ul { list-style:none; margin:.25rem 0 .5rem; padding:0; }
+    li a {
+      display:flex; align-items:center; gap:.55rem; min-height:44px;
+      padding:.5rem .6rem; color:inherit; text-decoration:none;
+      border-radius:8px; overflow-wrap:anywhere;
+    }
+    .lesson-icon { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; flex:none; }
+    .lesson-icon svg { width:100%; height:100%; }
+    .lesson-title { min-width:0; }
+    li a[aria-current=page] { background:#f1e9db; font-weight:700; border-left:3px solid var(--accent); }
     small { font-weight:400; }
+
     .menu { display:none; }
-    @media (min-width:48rem) { nav { max-height:calc(100vh - 8rem); overflow:auto; position:sticky; top:1rem; } }
+    .menu__label { flex:1 1 auto; }
+
     @media (max-width:47.999rem) {
-      .menu { display:block; width:100%; }
+      .menu {
+        display:flex; align-items:center; gap:.6rem;
+        min-height:44px; padding:.6rem .75rem;
+        border:1px solid var(--accent); border-radius:8px;
+        background:var(--surface); color:var(--accent);
+        font:inherit; font-weight:700; cursor:pointer;
+      }
+      .menu__icon { width:1.1rem; height:1.1rem; }
+      /* Barra con icono a la izquierda, como el referente; el nombre sigue disponible para lectores de pantalla. */
+      .menu__label { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+      .nav-backdrop { position:fixed; inset:0; z-index:30; background:rgb(0 0 0 / 35%); }
       nav:not(.open) { display:none; }
+      nav.open {
+        position:fixed; inset:0 auto 0 0; z-index:40;
+        width:85%; max-width:24rem; height:100vh; height:100dvh;
+        max-height:none; border-radius:0;
+        overflow-y:auto; overscroll-behavior:contain;
+        box-shadow:.5rem 0 1.5rem rgb(0 0 0 / 20%);
+      }
+      .nav-close {
+        display:inline-flex; align-items:center; justify-content:center;
+        min-width:44px; min-height:44px; padding:.6rem;
+        border:1px solid var(--border); border-radius:8px;
+        background:var(--surface); color:inherit; font:inherit; cursor:pointer;
+      }
+      .nav-close .icon { width:1.1rem; height:1.1rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .menu, nav, .nav-backdrop, .nav-close { transition:none; }
     }
   `],
 })
@@ -58,6 +154,7 @@ export class ClassroomNav {
   private readonly index = viewChild<ElementRef<HTMLElement>>('index');
   private readonly menu = viewChild<ElementRef<HTMLButtonElement>>('menu');
   readonly title = input.required<string>();
+  readonly teacher = input('');
   readonly sections = input.required<Section[]>();
   readonly lessons = input.required<Lesson[]>();
   readonly activeId = input.required<string>();
@@ -65,7 +162,24 @@ export class ClassroomNav {
   readonly courseSlug = input('');
   readonly admin = input(false);
   readonly open = signal(false);
+  private readonly collapsed = signal<ReadonlySet<string>>(new Set());
+  private previousBodyOverflow = '';
+  private savedScrollY: number | null = null;
+
   constructor() {
+    // El cajón móvil bloquea el scroll del documento mientras está abierto y
+    // devuelve el desplazamiento previo al cerrar (o al destruir el componente).
+    effect(() => {
+      if (this.open()) {
+        if (this.savedScrollY === null) {
+          this.savedScrollY = window.scrollY;
+          this.previousBodyOverflow = document.body.style.overflow;
+          document.body.style.overflow = 'hidden';
+        }
+      } else {
+        this.restoreScroll();
+      }
+    });
     afterNextRender(() => {
       const index = this.index()?.nativeElement;
       if (index) index.scrollTop = ClassroomNav.scrollPositions.get(this.key()) ?? 0;
@@ -73,9 +187,33 @@ export class ClassroomNav {
     inject(DestroyRef).onDestroy(() => {
       const index = this.index()?.nativeElement;
       if (index) ClassroomNav.scrollPositions.set(this.key(), index.scrollTop);
+      this.restoreScroll();
     });
   }
+
   private key(): string { return `${this.admin() ? 'admin' : 'aula'}:${this.courseId()}`; }
+
+  private restoreScroll(): void {
+    if (this.savedScrollY === null) return;
+    document.body.style.overflow = this.previousBodyOverflow;
+    if (window.scrollY !== this.savedScrollY) window.scrollTo(0, this.savedScrollY);
+    this.savedScrollY = null;
+  }
+
+  isExpanded(id: string): boolean { return !this.collapsed().has(id); }
+
+  toggleBlock(id: string): void {
+    this.collapsed.update(current => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  onDocumentEscape(): void {
+    if (this.open()) this.closeMenu();
+  }
+
   closeMenu(): void {
     if (!this.open()) return;
     this.open.set(false);

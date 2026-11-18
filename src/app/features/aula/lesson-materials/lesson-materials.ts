@@ -7,14 +7,16 @@ import { LessonResources, PdfResource } from '../../../shared/lesson-resources/l
 /**
  * Material PDF de la lección. Los enlaces firmados se preparan automáticamente
  * al entrar, solo para los recursos de la lección actual ya autorizada, y se
- * ofrecen directamente como «Abrir PDF». No se abre ni descarga nada por sí
- * solo: el enlace es la acción final y única del alumno.
+ * ofrecen directamente como «Descargar PDF». No se descarga nada por sí solo:
+ * el enlace es la acción final y única del alumno.
  *
  * El enlace dura 60 s (TTL del servidor). Al caducar se retira, pero el botón
- * sigue siendo «Abrir PDF»: dentro de ese único clic se pide una firma nueva y
- * se navega en la misma pestaña con la URL validada. Sin ventanas emergentes
+ * sigue siendo «Descargar PDF»: dentro de ese único clic se pide una firma nueva
+ * y se navega con la URL validada. El servidor envía Content-Disposition
+ * attachment, así que el navegador guarda el archivo en el dispositivo; no se
+ * promete apertura en pestaña ni vuelta con «Atrás». Sin ventanas emergentes
  * (que en Chrome real quedaron en about:blank), sin segundo clic y sin
- * renovación periódica; el botón «Atrás» del navegador devuelve al aula.
+ * renovación periódica.
  */
 const TTL_MS = 60_000;
 /** Breve bloqueo tras navegar: evita doble tap; luego libera sin efectos. */
@@ -104,8 +106,8 @@ export class LessonMaterials {
    * Única acción del alumno: navega con la firma ya preparada o, si caducó,
    * pide una nueva dentro del clic y navega al terminar. Sin popup: en Chrome
    * real la ventana creada con `window.open` se quedó en about:blank y nunca
-   * alcanzó Storage. La navegación en la misma pestaña es observable y permite
-   * volver con «Atrás». Nunca se descarga el cuerpo del PDF en el cliente.
+   * alcanzó Storage. La respuesta del servidor fuerza la descarga del archivo;
+   * el cuerpo del PDF no se gestiona en el cliente.
    */
   async open(item: PdfResource): Promise<void> {
     // Solo se llama desde el botón; nunca desde la preparación automática,
@@ -163,12 +165,12 @@ export class LessonMaterials {
     this.cooldowns.delete(id);
   }
 
-  /** Navegación aislada para poder comprobarla sin navegar en las pruebas. */
+  /** Navegación aislada a la URL firmada para comprobarla sin descargar en las pruebas. */
   private navigate(url: string): void {
     window.location.assign(url);
   }
 
-  /** Reintento tras error: la misma acción única vuelve a abrir el PDF. */
+  /** Reintento tras error: la misma acción única vuelve a descargar el PDF. */
   retry(item: PdfResource): void {
     if (this.auth.status() !== 'authenticated' || !this.auth.session()) return;
     void this.open(item);
@@ -197,7 +199,7 @@ export class LessonMaterials {
     this.links.update(value => { const next = { ...value }; delete next[id]; return next; });
     this.expired.update(value => { const next = { ...value }; delete next[id]; return next; });
   }
-  /** Caducidad del enlace: se retira y queda la acción única de apertura. */
+  /** Caducidad del enlace: se retira y queda la acción única de descarga. */
   private expire(id: string): void {
     if (!this.links()[id]) return;
     this.clearTimer(id);

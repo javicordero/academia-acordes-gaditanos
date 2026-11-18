@@ -1,5 +1,10 @@
 ﻿<section aria-labelledby="materials-heading">
-  <h3 id="materials-heading">{{ primary() ? 'Documento de la lección' : 'Materiales PDF' }}</h3>
+  <h3 id="materials-heading">
+    <svg class="material-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M4 2h5l3 3v9H4z" /><path d="M9 2v3h3M6 9h4M6 11.5h4" />
+    </svg>
+    Materiales de la lección
+  </h3>
   @switch (state()) {
     @case ('loading') { <p role="status">Consultando materiales…</p> }
     @case ('unconfigured') { <p>Los materiales están pendientes de configuración.</p> }
@@ -11,22 +16,26 @@
     @case ('ready') {
       @if (!items().length) { <p>{{ primary() ? 'El documento de la lección está pendiente.' : 'No hay materiales disponibles para esta lección.' }}</p> }
       @else {
-        <p>Los enlaces se preparan al entrar y caducan en un minuto; si uno caduca, al abrirlo se pide uno nuevo. El PDF se abre en esta pestaña: usa «Atrás» para volver.</p>
         <ul>
           @for (item of items(); track item.id) {
             <li>
-              <span>{{ item.title }}</span>
+              <span class="material-item">
+                <svg class="material-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <path d="M4 2h5l3 3v9H4z" /><path d="M9 2v3h3" />
+                </svg>
+                <span>{{ item.title }}</span>
+              </span>
               @if (errors()[item.id]) {
                 <button type="button" [disabled]="pending()[item.id]" (click)="retry(item)"
-                  [attr.aria-label]="'Reintentar apertura de ' + item.title">Reintentar</button>
+                  [attr.aria-label]="'Reintentar descarga de ' + item.title">Reintentar</button>
               } @else {
                 <button type="button" [disabled]="pending()[item.id]" (click)="open(item)"
-                  [attr.aria-label]="'Abrir PDF: ' + item.title">Abrir PDF</button>
+                  [attr.aria-label]="'Descargar PDF: ' + item.title">Descargar PDF</button>
               }
               <span role="status" aria-live="polite" aria-atomic="true">
                 @if (pending()[item.id]) { Preparando… }
-                @else if (errors()[item.id]) { No se pudo abrir el PDF. Inténtalo de nuevo. }
-                @else if (expired()[item.id]) { El enlace ha caducado. Al abrirlo se pedirá uno nuevo. }
+                @else if (errors()[item.id]) { No se pudo descargar el PDF. Inténtalo de nuevo. }
+                @else if (expired()[item.id]) { El enlace ha caducado. Al descargarlo se pedirá uno nuevo. }
               </span>
             </li>
           }

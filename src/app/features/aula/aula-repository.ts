@@ -3,12 +3,15 @@ import { SUPABASE_CLIENT } from '../../core/supabase/supabase-client';
 import { LessonContentType } from '../../shared/lesson-content-type';
 
 export interface AulaLesson {
+  /** Solo columnas que el aula necesita: resumen y contenido son de uso interno. */
   id: string; section_id: string; slug: string; title: string;
-  summary: string | null; content_md: string | null; content_type: LessonContentType;
+  content_type: LessonContentType;
+  /** Opcional: la consulta pública actual no lo expone; se muestra sólo si existe. */
+  duration_seconds?: number | null;
 }
 export interface AulaSection { id: string; title: string }
 export interface AulaData {
-  course: { id: string; title: string };
+  course: { id: string; title: string; teacher?: string | null };
   lesson: AulaLesson;
   sections: AulaSection[];
   lessons: AulaLesson[];
@@ -28,7 +31,7 @@ export class AulaRepository {
     const course = courseResult.data;
     if (!course) return null;
     const lessonResult = await this.client.from('lessons')
-      .select('id,section_id,slug,title,summary,content_md,content_type')
+      .select('id,section_id,slug,title,content_type')
       .eq('course_id', course.id).eq('slug', lessonSlug).eq('is_published', true)
       .maybeSingle<AulaLesson>();
     if (lessonResult.error) throw new Error('load');
@@ -37,7 +40,7 @@ export class AulaRepository {
     const [sections, lessons] = await Promise.all([
       this.client.from('course_sections').select('id,title').eq('course_id', course.id)
         .order('position').returns<AulaSection[]>(),
-      this.client.from('lessons').select('id,section_id,slug,title,summary,content_md,content_type')
+      this.client.from('lessons').select('id,section_id,slug,title,content_type')
         .eq('course_id', course.id).eq('is_published', true).order('position').returns<AulaLesson[]>(),
     ]);
     if (sections.error || lessons.error) throw new Error('load');

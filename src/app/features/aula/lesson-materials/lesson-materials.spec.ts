@@ -69,12 +69,23 @@ describe('Materiales del alumno', () => {
     await settle(fixture);
     expect(download).toHaveBeenCalledTimes(1);
     expect(download).toHaveBeenCalledWith('lesson', 'resource');
-    const open = buttonWith(fixture.nativeElement, 'Abrir PDF');
+    const open = buttonWith(fixture.nativeElement, 'Descargar PDF');
     expect(open).toBeTruthy();
-    expect(open.getAttribute('aria-label')).toBe('Abrir PDF: <b>Apuntes</b>');
+    expect(open.getAttribute('aria-label')).toBe('Descargar PDF: <b>Apuntes</b>');
     expect(fixture.nativeElement.querySelectorAll('a').length).toBe(0);
     expect(fixture.nativeElement.textContent).not.toContain(url);
+    const heading = fixture.nativeElement.querySelector('h3') as HTMLElement;
+    expect(heading.textContent?.trim()).toBe('Materiales de la lección');
+    expect(fixture.nativeElement.textContent).not.toContain('Materiales PDF');
+    expect(fixture.nativeElement.textContent).not.toContain('Documento de la lección');
+    expect(fixture.nativeElement.textContent).not.toContain('El archivo se descarga en tu dispositivo');
+    expect(fixture.nativeElement.textContent).not.toContain('Los enlaces se preparan');
+    expect(fixture.nativeElement.textContent).not.toContain('minuto');
+    expect(fixture.nativeElement.textContent).not.toContain('caduc');
+    expect(fixture.nativeElement.textContent).not.toContain('se pide uno nuevo');
     expect(fixture.nativeElement.textContent).not.toContain('Preparar descarga');
+    expect(fixture.nativeElement.textContent).not.toContain('en esta pestaña');
+    expect(fixture.nativeElement.textContent).not.toContain('Atrás');
     expect(nav).not.toHaveBeenCalled();
     expect(popup).not.toHaveBeenCalled();
 
@@ -105,7 +116,7 @@ describe('Materiales del alumno', () => {
     const { fixture } = setup(undefined, vi.fn().mockResolvedValue(bad));
     const { nav } = spies(fixture);
     await settle(fixture);
-    expect(fixture.nativeElement.textContent).toContain('No se pudo abrir el PDF');
+    expect(fixture.nativeElement.textContent).toContain('No se pudo descargar el PDF');
     expect(fixture.nativeElement.textContent).not.toContain(bad);
     const retry = buttonWith(fixture.nativeElement, 'Reintentar');
     expect(retry).toBeTruthy();
@@ -118,7 +129,7 @@ describe('Materiales del alumno', () => {
     const { fixture } = setup(undefined, download);
     const { nav, popup } = spies(fixture);
     await settle(fixture);
-    expect(fixture.nativeElement.textContent).toContain('No se pudo abrir el PDF');
+    expect(fixture.nativeElement.textContent).toContain('No se pudo descargar el PDF');
     expect(nav).not.toHaveBeenCalled();
 
     buttonWith(fixture.nativeElement, 'Reintentar').click();
@@ -185,21 +196,21 @@ describe('Materiales del alumno', () => {
     expect(nav).not.toHaveBeenCalled();
   });
 
-  it('al caducar mantiene una sola acción «Abrir PDF» que pide firma nueva y navega', async () => {
+  it('al caducar mantiene una sola acción «Descargar PDF» que pide firma nueva y navega', async () => {
     vi.useFakeTimers();
     try {
       const { fixture, download } = setup();
       const { nav, popup } = spies(fixture);
       fixture.detectChanges();
       for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
-      expect(buttonWith(fixture.nativeElement, 'Abrir PDF')).toBeTruthy();
+      expect(buttonWith(fixture.nativeElement, 'Descargar PDF')).toBeTruthy();
       vi.advanceTimersByTime(60_000);
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('El enlace ha caducado');
       expect(fixture.nativeElement.textContent).not.toContain('Renovar');
       expect(nav).not.toHaveBeenCalled();
 
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
       await Promise.resolve();
       fixture.detectChanges();
       expect(download).toHaveBeenCalledTimes(2);
@@ -222,10 +233,10 @@ describe('Materiales del alumno', () => {
       for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
       vi.advanceTimersByTime(60_000);
       fixture.detectChanges();
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
       await Promise.resolve();
       fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain('No se pudo abrir el PDF');
+      expect(fixture.nativeElement.textContent).toContain('No se pudo descargar el PDF');
       expect(nav).not.toHaveBeenCalled();
 
       buttonWith(fixture.nativeElement, 'Reintentar').click();
@@ -252,7 +263,7 @@ describe('Materiales del alumno', () => {
       for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
       vi.advanceTimersByTime(60_000);
       fixture.detectChanges();
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
 
       session.set(null);
       status.set('anonymous');
@@ -278,7 +289,7 @@ describe('Materiales del alumno', () => {
       for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
       vi.advanceTimersByTime(60_000);
       fixture.detectChanges();
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
       fixture.destroy();
       resolveFresh(url);
       await Promise.resolve();
@@ -295,7 +306,7 @@ describe('Materiales del alumno', () => {
     expect(download).toHaveBeenCalledWith('lesson', item.id);
     expect(download).toHaveBeenCalledWith('lesson', other.id);
     const buttons = [...fixture.nativeElement.querySelectorAll('button')] as HTMLButtonElement[];
-    expect(buttons.filter(b => b.textContent?.trim() === 'Abrir PDF')).toHaveLength(2);
+    expect(buttons.filter(b => b.textContent?.trim() === 'Descargar PDF')).toHaveLength(2);
   });
 
   it('montaje, listado, expiración y cambio de lección nunca navegan ni descargan el PDF', async () => {
@@ -323,7 +334,7 @@ describe('Materiales del alumno', () => {
     const { fixture, download } = setup();
     const { nav, popup } = spies(fixture);
     await settle(fixture);
-    const open = buttonWith(fixture.nativeElement, 'Abrir PDF');
+    const open = buttonWith(fixture.nativeElement, 'Descargar PDF');
     open.click(); open.click();
     await Promise.resolve();
     expect(nav).toHaveBeenCalledTimes(1);
@@ -344,7 +355,7 @@ describe('Materiales del alumno', () => {
       for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
       vi.advanceTimersByTime(60_000);
       fixture.detectChanges();
-      const open = buttonWith(fixture.nativeElement, 'Abrir PDF');
+      const open = buttonWith(fixture.nativeElement, 'Descargar PDF');
       open.click(); open.click();
       expect(download).toHaveBeenCalledTimes(2); // una inicial + una del clic
       resolve(url);
@@ -355,7 +366,7 @@ describe('Materiales del alumno', () => {
       // El cooldown no es un bloqueo permanente: tras 1 s un clic novo abre.
       vi.advanceTimersByTime(1_000);
       fixture.detectChanges();
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
       await Promise.resolve();
       expect(nav).toHaveBeenCalledTimes(2);
     } finally {
@@ -370,7 +381,7 @@ describe('Materiales del alumno', () => {
       const { nav, popup } = spies(fixture);
       fixture.detectChanges();
       for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
       await Promise.resolve();
       expect(nav).toHaveBeenCalledTimes(1);
       expect(download).toHaveBeenCalledTimes(1);
@@ -380,7 +391,7 @@ describe('Materiales del alumno', () => {
       expect(download).toHaveBeenCalledTimes(1);
       expect(popup).not.toHaveBeenCalled();
 
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
       await Promise.resolve();
       expect(nav).toHaveBeenCalledTimes(2);
       expect(download).toHaveBeenCalledTimes(1); // reutiliza la firma vigente
@@ -396,7 +407,7 @@ describe('Materiales del alumno', () => {
       const { nav } = spies(fixture);
       fixture.detectChanges();
       for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
       await Promise.resolve();
       expect(nav).toHaveBeenCalledTimes(1);
 
@@ -411,7 +422,7 @@ describe('Materiales del alumno', () => {
       session.set({ user: { id: 'two' } });
       fixture.detectChanges();
       for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
       await Promise.resolve();
       expect(nav).toHaveBeenCalledTimes(2);
       const callsAtDestroy = nav.mock.calls.length;
@@ -430,7 +441,7 @@ describe('Materiales del alumno', () => {
       const { nav } = spies(fixture);
       fixture.detectChanges();
       for (let i = 0; i < 5; i++) { await Promise.resolve(); fixture.detectChanges(); }
-      buttonWith(fixture.nativeElement, 'Abrir PDF').click();
+      buttonWith(fixture.nativeElement, 'Descargar PDF').click();
       await Promise.resolve();
       fixture.detectChanges();
       expect(nav).toHaveBeenCalledTimes(1);

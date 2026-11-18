@@ -23,7 +23,7 @@ describe('AulaRepository', () => {
     return { repo: TestBed.inject(AulaRepository), calls };
   }
   const ok = (data: unknown) => ({data, error: null});
-  const lesson = {id: 'l', section_id: 's', slug: 'uno', title: 'Uno', summary: null, content_md: null, content_type: 'pdf'};
+  const lesson = {id: 'l', section_id: 's', slug: 'uno', title: 'Uno', content_type: 'pdf'};
 
   it('filtra curso y lección publicados y no consulta progreso anónimo', async () => {
     const {repo, calls} = setup({courses: [ok({id: 'c', title: 'Curso'})], lessons: [ok(lesson), ok([lesson])], course_sections: [ok([])]});
@@ -32,7 +32,9 @@ describe('AulaRepository', () => {
     expect(calls).toContainEqual(['courses', 'eq', 'status', 'published']);
     expect(calls).toContainEqual(['lessons', 'eq', 'course_id', 'c']);
     expect(calls).toContainEqual(['lessons', 'eq', 'is_published', true]);
-    expect(calls).toContainEqual(['lessons', 'select', 'id,section_id,slug,title,summary,content_md,content_type']);
+    const selects = calls.filter(c => c[0] === 'lessons' && c[1] === 'select').map(c => c[2]);
+    expect(selects).toEqual(['id,section_id,slug,title,content_type', 'id,section_id,slug,title,content_type']);
+    expect(selects.every(s => !/summary|content_md/.test(String(s)))).toBe(true);
     expect(data?.lesson.content_type).toBe('pdf');
     expect(calls.some(c => c[0] === 'lesson_progress')).toBe(false);
   });
