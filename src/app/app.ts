@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import {
   Component,
   ChangeDetectionStrategy,
@@ -5,7 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   NavigationEnd,
   Router,
@@ -13,7 +14,7 @@ import {
   RouterLinkActive,
   RouterOutlet,
 } from '@angular/router';
-import { filter, map } from 'rxjs';
+import { filter, map, skip } from 'rxjs';
 
 import { AnalyticsService } from './core/analytics/analytics.service';
 import { AuthService } from './core/auth/auth.service';
@@ -30,17 +31,30 @@ import { SiteFooter } from './shared/site-footer/site-footer';
 export class App {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly document = inject(DOCUMENT);
   /** Se instancia al arrancar para escuchar NavigationEnd tras el consentimiento. */
   private readonly analytics = inject(AnalyticsService);
   readonly logoutError = signal<string | null>(null);
 
+  /** Un único stream de navegaciones para la URL y el foco, sin duplicar filtros. */
+  private readonly navigationEnd$ = this.router.events.pipe(
+    filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+  );
+
   private readonly currentUrl = toSignal(
-    this.router.events.pipe(
-      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-      map((event) => event.urlAfterRedirects),
-    ),
+    this.navigationEnd$.pipe(map((event) => event.urlAfterRedirects)),
     { initialValue: this.router.url },
   );
+
+  constructor() {
+    // La primera navegación es la carga inicial: no le robamos el foco al usuario.
+    // En navegaciones posteriores llevamos el foco al contenido principal.
+    this.navigationEnd$
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => {
+        this.document.getElementById('contenido-principal')?.focus();
+      });
+  }
 
   /**
    * El aula pública y la vista previa de administración comparten el layout a

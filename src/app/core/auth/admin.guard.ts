@@ -2,7 +2,7 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 
 import { AuthService } from './auth.service';
-import { safeLoginReturnUrl } from './return-url';
+import { requestedLoginReturnUrl } from './return-url';
 
 /**
  * Exige sesión y rol admin comprobado contra `public.user_roles`.
@@ -18,7 +18,7 @@ export const adminGuard: CanActivateFn = async () => {
   await auth.whenInitialized();
 
   if (!auth.session()) {
-    const returnUrl = safeLoginReturnUrl(router.url);
+    const returnUrl = requestedLoginReturnUrl(router);
 
     return router.createUrlTree(['/auth/login'], {
       queryParams: returnUrl ? { returnUrl } : {},

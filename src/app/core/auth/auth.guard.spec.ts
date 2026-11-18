@@ -25,7 +25,8 @@ function createAuth(overrides: {
   } as unknown as AuthService;
 }
 
-function createRouter(url = '/admin') {
+/** `navigationUrl` simula la ruta solicitada; las UrlTree se representan como texto. */
+function createRouter(url = '/admin', navigationUrl: string | null = null) {
   const createUrlTree = vi.fn((commands: unknown[], extras?: unknown) => ({
     commands,
     extras,
@@ -33,6 +34,12 @@ function createRouter(url = '/admin') {
 
   return {
     url,
+    currentNavigation: vi.fn(() =>
+      navigationUrl === null
+        ? null
+        : { extractedUrl: navigationUrl, finalUrl: navigationUrl },
+    ),
+    serializeUrl: vi.fn((tree: { toString(): string }) => tree.toString()),
     createUrlTree,
   } as unknown as Router;
 }
@@ -84,6 +91,28 @@ describe('guards de autenticación', () => {
     });
   });
 
+  it('usa la navegación en curso aunque router.url siga siendo la anterior', async () => {
+    const router = createRouter('/', '/admin');
+    configure(createAuth(), router);
+
+    await TestBed.runInInjectionContext(() => authGuard(route, state));
+
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/auth/login'], {
+      queryParams: { returnUrl: '/admin' },
+    });
+  });
+
+  it('conserva la consulta y el fragmento de /mis-cursos', async () => {
+    const router = createRouter('/', '/mis-cursos?curso=abc#leccion');
+    configure(createAuth(), router);
+
+    await TestBed.runInInjectionContext(() => authGuard(route, state));
+
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/auth/login'], {
+      queryParams: { returnUrl: '/mis-cursos?curso=abc#leccion' },
+    });
+  });
+
   it('no propaga returnUrl externo', async () => {
     const router = createRouter('https://ejemploexterno.invalid/admin');
     configure(createAuth(), router);
@@ -107,6 +136,17 @@ describe('guards de autenticación', () => {
 
   it('redirige a login si no hay sesión en /admin', async () => {
     const router = createRouter('/admin');
+    configure(createAuth(), router);
+
+    await TestBed.runInInjectionContext(() => adminGuard(route, state));
+
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/auth/login'], {
+      queryParams: { returnUrl: '/admin' },
+    });
+  });
+
+  it('adminGuard usa la ruta solicitada aunque router.url siga siendo la anterior', async () => {
+    const router = createRouter('/', '/admin');
     configure(createAuth(), router);
 
     await TestBed.runInInjectionContext(() => adminGuard(route, state));

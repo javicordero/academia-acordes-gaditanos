@@ -186,6 +186,26 @@ describe('Índice del aula', () => {
     expect(chevron.textContent).toBe('▸');
   });
 
+  it('el botón de bloque nombra solo el título y oculta el chevron decorativo', async () => {
+    await TestBed.configureTestingModule({ imports: [ClassroomNav], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ClassroomNav);
+    fixture.componentRef.setInput('title', 'Curso');
+    fixture.componentRef.setInput('courseId', 'curso');
+    fixture.componentRef.setInput('sections', [{ id: 's', title: 'Praiafa' }]);
+    fixture.componentRef.setInput('lessons', []);
+    fixture.componentRef.setInput('activeId', '');
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const toggle = root.querySelector<HTMLButtonElement>('.block-toggle')!;
+    const chevron = toggle.querySelector<HTMLElement>('.block-toggle__chevron')!;
+
+    expect(toggle.getAttribute('aria-label')).toBe('Praiafa');
+    expect(chevron.textContent).toBe('▾');
+    expect(chevron.getAttribute('aria-hidden')).toBe('true');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle.getAttribute('aria-controls')).toBe('bloque-s');
+  });
+
   it('la fila de vídeo no muestra icono ni etiqueta de tipo de recurso', async () => {
     const { root } = await setup('video');
     expect(root.querySelector('.lesson-icon')).toBeNull();

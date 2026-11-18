@@ -26,7 +26,9 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
           <span>{{ admin() ? 'Volver a administración' : 'Volver a mis cursos' }}</span>
         </a>
         <!-- Compresión de escritorio: dentro del raíl, junto al título; el hamburger
-             de cajón (.menu) solo existe en móvil, así que nunca se duplican. -->
+             de cajón (.menu) solo existe en móvil, así que nunca se duplican.
+             Se anuncia como botón de alternancia (aria-pressed con el modo
+             compacto), no como expansionable: el nav sigue visible al comprimir. -->
         <button type="button" class="index-compress" data-action="compress-index"
           [attr.aria-label]="compact() ? 'Expandir índice' : 'Comprimir índice'"
           [attr.title]="compact() ? 'Expandir índice' : 'Comprimir índice'"
@@ -40,7 +42,8 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
       @if (teacher()) { <p class="nav-teacher">{{ teacher() }}</p> }
       @for (section of sections(); track section.id) {
         <section class="nav-block">
-          <button type="button" class="block-toggle" [attr.aria-expanded]="isExpanded(section.id)"
+          <button type="button" class="block-toggle" [attr.aria-label]="section.title"
+            [attr.aria-expanded]="isExpanded(section.id)"
             [attr.aria-controls]="'bloque-' + section.id" (click)="toggleBlock(section.id)">
             <span class="block-toggle__title" [attr.title]="section.title">{{ section.title }}</span>
             <span class="block-toggle__chevron" aria-hidden="true">{{ isExpanded(section.id) ? '▾' : '▸' }}</span>

@@ -128,11 +128,13 @@ const previewUrl =
 
 describe('App shell · cabecera según la ruta', () => {
   async function createShell(url?: string): Promise<ComponentFixture<App>> {
-    const router = TestBed.inject(Router);
-    if (url) {
-      await router.navigateByUrl(url);
-    }
+    // Creamos el shell antes de navegar para que su primer NavigationEnd sea el
+    // de carga inicial y lo consuma el skip(1) del foco, no una navegación posterior.
     const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    if (url) {
+      await TestBed.inject(Router).navigateByUrl(url);
+    }
     await fixture.whenStable();
     fixture.detectChanges();
     return fixture;
@@ -246,6 +248,34 @@ describe('App shell · cabecera según la ruta', () => {
     expect(mains[0].getAttribute('tabindex')).toBe('-1');
     skipLink.focus();
     expect(document.activeElement).toBe(skipLink);
+  });
+
+  it('no roba el foco en la carga inicial', async () => {
+    const centinela = document.createElement('button');
+    centinela.type = 'button';
+    centinela.textContent = 'Foco previo';
+    document.body.appendChild(centinela);
+    centinela.focus();
+    expect(document.activeElement).toBe(centinela);
+
+    await createShell('/cursos');
+
+    expect(document.activeElement).toBe(centinela);
+    centinela.remove();
+  });
+
+  it('mueve el foco al contenido principal en una navegación explícita', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const main = element.querySelector<HTMLElement>('main')!;
+    const skipLink = element.querySelector<HTMLAnchorElement>('.skip-link')!;
+
+    skipLink.focus();
+    expect(document.activeElement).toBe(skipLink);
+
+    await goto(fixture, '/comunidad');
+
+    expect(document.activeElement).toBe(main);
   });
 
   it('el hamburger nombra el panel y mantiene aria-expanded sincronizado', async () => {

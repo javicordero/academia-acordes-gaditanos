@@ -1,3 +1,5 @@
+import { Router } from '@angular/router';
+
 /**
  * Devuelve una ruta interna segura o `null`.
  *
@@ -48,4 +50,19 @@ export function safeLoginReturnUrl(
   }
 
   return safe;
+}
+
+/**
+ * URL objetivo de la navegación en curso, saneada para usarla como returnUrl.
+ *
+ * Mientras se ejecuta un guard, `router.url` sigue apuntando a la ruta anterior
+ * (en la carga inicial, `/`), así que propagarlo devolvería siempre al inicio.
+ * `currentNavigation()` expone la ruta solicitada: `finalUrl` tras redirecciones
+ * internas y `extractedUrl` como respaldo. Nunca se acepta una URL externa.
+ */
+export function requestedLoginReturnUrl(router: Router): string | null {
+  const navigation = router.currentNavigation();
+  const target = navigation?.finalUrl ?? navigation?.extractedUrl;
+
+  return safeLoginReturnUrl(target ? router.serializeUrl(target) : router.url);
 }

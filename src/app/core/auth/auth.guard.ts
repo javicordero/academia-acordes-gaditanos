@@ -2,7 +2,7 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 
 import { AuthService } from './auth.service';
-import { safeLoginReturnUrl } from './return-url';
+import { requestedLoginReturnUrl } from './return-url';
 
 /** Exige sesión y espera la restauración inicial para evitar carreras. */
 export const authGuard: CanActivateFn = async () => {
@@ -15,7 +15,7 @@ export const authGuard: CanActivateFn = async () => {
     return true;
   }
 
-  const returnUrl = safeLoginReturnUrl(router.url);
+  const returnUrl = requestedLoginReturnUrl(router);
 
   return router.createUrlTree(['/auth/login'], {
     queryParams: returnUrl ? { returnUrl } : {},
