@@ -17,6 +17,7 @@ export const CONFIG_NOTICE =
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const LIBRARY = /^[0-9]{1,12}$/;
 const MAX_BODY_BYTES = 2048;
+const utf8Bytes = (text: string) => new TextEncoder().encode(text).byteLength;
 const EMBED = 'https://player.mediadelivery.net/embed';
 
 export type Config = {
@@ -66,7 +67,7 @@ export function usableVideo(row: unknown): { libraryId: string; videoId: string 
 }
 
 export function parseBody(raw: string): string | null {
-  if (raw.length > MAX_BODY_BYTES) return null;
+  if (utf8Bytes(raw) > MAX_BODY_BYTES) return null;
   let body: unknown;
   try {
     body = JSON.parse(raw);
@@ -103,7 +104,9 @@ export function makeHandler(
   const keyOk = typeof config.tokenAuthKey === 'string' && config.tokenAuthKey.length > 0;
   // Solo el valor literal true activa el modo DEV; undefined/otro valor -> fail-closed.
   const allowUnsigned = config.allowUnsignedDev === true;
-  const rawTtl = Number.isInteger(config.ttlSeconds) ? config.ttlSeconds : DEFAULT_TTL_SECONDS;
+  const rawTtl = typeof config.ttlSeconds === 'number' && Number.isInteger(config.ttlSeconds)
+    ? config.ttlSeconds
+    : DEFAULT_TTL_SECONDS;
   const ttl = Math.min(MAX_TTL_SECONDS, Math.max(MIN_TTL_SECONDS, rawTtl));
 
   const base: Record<string, string> = {

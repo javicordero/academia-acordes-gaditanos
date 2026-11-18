@@ -207,6 +207,53 @@ describe('lesson video token', () => {
     expect((await handler(native(over))).status).toBe(400);
   });
 
+  it('mide el limite de 2048 en bytes UTF-8, no en unidades UTF-16', async () => {
+    const { io, handler } = setup();
+    const encoder = new TextEncoder();
+    const bytes = (text: string) => encoder.encode(text).byteLength;
+    const LIMIT = 2048;
+    // JSON.parse conserva la ultima clave repetida: el relleno vive en la primera
+    // `lessonId` (se descarta) y la clave efectiva es un UUID valido. Asi el body
+    // sigue siendo JSON valido con una sola clave y solo varia su tamano en bytes.
+    const withPad = (pad: string) => `{"lessonId":"${pad}","lessonId":"${LESSON}"}`;
+    const fixedLen = withPad('').length;
+    const fixedBytes = bytes(withPad(''));
+
+    // Relleno ASCII justo en el limite: aceptado. La fila del mock tiene video,
+    // asi que 200 es inequivoco (no 403 por falta de derecho).
+    const ascii = withPad('x'.repeat(LIMIT - fixedBytes));
+    expect(bytes(ascii)).toBe(LIMIT);
+    expect((await handler(native(ascii))).status).toBe(200);
+    expect(io.video).toHaveBeenCalledWith('verified-user', LESSON);
+
+    // Multibyte: length <= 2048 pero bytes > 2048. Con conteo UTF-16 este body
+    // llegaria a la RPC y devolveria 200; con el contrato real de bytes debe
+    // rechazarse con 400 antes de invocar `io.video`.
+    const multibyteOver = withPad('ñ'.repeat(LIMIT - fixedLen));
+    expect(multibyteOver.length).toBeLessThanOrEqual(LIMIT);
+    expect(bytes(multibyteOver)).toBeGreaterThan(LIMIT);
+    io.video.mockClear();
+    expect((await handler(native(multibyteOver))).status).toBe(400);
+    expect(io.video).not.toHaveBeenCalled();
+
+    // Multibyte por debajo de 2048 bytes: pasa el filtro de tamano y llega a la RPC.
+    const multibyteUnder = withPad('ñ'.repeat(Math.floor((LIMIT - fixedBytes) / 2) - 10));
+    expect(bytes(multibyteUnder)).toBeLessThan(LIMIT);
+    expect((await handler(native(multibyteUnder))).status).toBe(200);
+    expect(io.video).toHaveBeenCalledWith('verified-user', LESSON);
+
+    // Frontera estricta del codigo (`>`): 2048 bytes entra, 2049 no.
+    io.video.mockClear();
+    const atLimit = withPad('x'.repeat(LIMIT - fixedBytes));
+    expect(bytes(atLimit)).toBe(LIMIT);
+    expect((await handler(native(atLimit))).status).toBe(200);
+    io.video.mockClear();
+    const overLimit = withPad('x'.repeat(LIMIT + 1 - fixedBytes));
+    expect(bytes(overLimit)).toBe(LIMIT + 1);
+    expect((await handler(native(overLimit))).status).toBe(400);
+    expect(io.video).not.toHaveBeenCalled();
+  });
+
   it('lee TTL entre 60 y 1800 segundos y cae al defecto si es invalido', async () => {
     expect(ttlFromEnv(undefined)).toBe(DEFAULT_TTL_SECONDS);
     expect(ttlFromEnv('')).toBe(DEFAULT_TTL_SECONDS);
