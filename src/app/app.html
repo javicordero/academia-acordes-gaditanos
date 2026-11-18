@@ -57,6 +57,7 @@
           <a routerLink="/perfil" routerLinkActive="is-active" ariaCurrentWhenActive="page">Mi perfil</a>
           @if (auth.isAdmin()) {
             <a
+              class="session-actions__admin"
               routerLink="/admin"
               routerLinkActive="is-active"
               ariaCurrentWhenActive="page"

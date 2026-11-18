@@ -10,6 +10,32 @@
   --focus: #145a9e;
   --radius: 12px;
   --max-width: 68rem;
+
+  /* Base visual del panel de administración, derivada de los tokens de marca. */
+  --admin-surface: var(--surface);
+  --admin-surface-soft: var(--bg);
+  --admin-surface-hover: #f1e9db;
+  --admin-field-bg: #ffffff;
+  --admin-border: var(--border);
+  --admin-border-strong: #8a8073;
+  --admin-text: var(--ink);
+  --admin-text-muted: var(--muted);
+  --admin-accent: var(--accent);
+  --admin-accent-strong: #6f2b1e;
+  --admin-accent-ink: var(--accent-ink);
+  --admin-focus: var(--focus);
+  --admin-disabled-border: #a89f94;
+  --admin-disabled-surface: #e5e0d8;
+  --admin-disabled-text: #514c45;
+  --admin-success: #2f6b46;
+  --admin-success-surface: #eaf5ee;
+  --admin-success-text: #225136;
+  --admin-warn: #a06a12;
+  --admin-warn-surface: #fff4d6;
+  --admin-warn-text: #4a3a12;
+  --admin-danger: #9b2c2c;
+  --admin-danger-surface: #fbe9e9;
+  --admin-danger-text: #6f1d1d;
 }
 
 *,
@@ -88,8 +114,8 @@ a:hover {
 }
 
 .site-header {
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  border-bottom: 1px solid var(--admin-border);
+  background: var(--admin-surface);
 }
 
 .site-header__inner {
@@ -118,37 +144,61 @@ a:hover {
   font-size: 0.9rem;
 }
 
-.session-actions a {
-  padding: 0.35rem 0.55rem;
+/* Objetivos táctiles y patrón de hover compartido por toda la cabecera. */
+.session-actions a,
+.link-button,
+.nav-list a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
   border-radius: 999px;
-  color: var(--ink);
+  color: var(--admin-text);
+  font-size: 0.95rem;
   font-weight: 600;
   text-decoration: none;
 }
 
 .session-actions a:hover,
-.session-actions a.is-active {
-  background: #f1e9db;
+.session-actions a.is-active,
+.link-button:hover,
+.nav-list a:hover {
+  background: var(--admin-surface-hover);
+  color: var(--admin-text);
+}
+
+/* Enlace de administración: acción de navegación diferenciada y visible en móvil. */
+.session-actions a.session-actions__admin {
+  border: 1px solid var(--admin-accent);
+  padding-inline: 0.85rem;
+  color: var(--admin-accent);
+}
+
+.session-actions a.session-actions__admin:hover,
+.session-actions a.session-actions__admin.is-active {
+  border-color: var(--admin-accent-strong);
+  background: var(--admin-accent-strong);
+  color: var(--admin-accent-ink);
 }
 
 .session-actions__user {
+  min-width: 0;
   max-width: 16rem;
   overflow: hidden;
-  color: var(--muted);
+  color: var(--admin-text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .session-actions__status {
-  color: var(--muted);
+  color: var(--admin-text-muted);
 }
 
 .link-button {
-  padding: 0.35rem 0.55rem;
   border: 0;
-  border-radius: 999px;
   background: none;
-  color: var(--accent);
+  color: var(--admin-accent);
   font: inherit;
   font-weight: 600;
   text-decoration: underline;
@@ -157,29 +207,30 @@ a:hover {
 }
 
 .link-button:hover {
-  background: #f1e9db;
+  background: var(--admin-surface-hover);
+  color: var(--admin-accent);
 }
 
 .config-banner {
   margin: 0;
   padding: 0.6rem 1.25rem;
-  border-bottom: 1px solid #e2c98c;
-  background: #fff4d6;
-  color: #4a3a12;
+  border-bottom: 1px solid var(--admin-warn);
+  background: var(--admin-warn-surface);
+  color: var(--admin-warn-text);
   font-size: 0.9rem;
   text-align: center;
 }
 
 .config-banner--error {
-  border-bottom-color: #d8a3a3;
-  background: #fbe9e9;
-  color: #6f1d1d;
+  border-bottom-color: var(--admin-danger);
+  background: var(--admin-danger-surface);
+  color: var(--admin-danger-text);
 }
 
 .brand {
   display: flex;
   flex-direction: column;
-  color: var(--ink);
+  color: var(--admin-text);
   line-height: 1.1;
   text-decoration: none;
 }
@@ -207,24 +258,9 @@ a:hover {
   list-style: none;
 }
 
-.nav-list a {
-  display: inline-block;
-  padding: 0.5rem 0.75rem;
-  border-radius: 999px;
-  color: var(--ink);
-  font-size: 0.95rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.nav-list a:hover {
-  background: #f1e9db;
-  color: var(--ink);
-}
-
 .nav-list a.is-active {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--admin-accent);
+  color: var(--admin-accent-ink);
 }
 
 main {
@@ -295,23 +331,63 @@ main:focus {
   background: #efe7d8;
 }
 
-.button {
-  display: inline-block;
-  padding: 0.7rem 1.1rem;
-  border-radius: 10px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
+/* Botones: base única para enlaces, formularios y panel de administración. */
+.button,
+.admin-workspace :is(button, a[download]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  margin: 0.25rem 0.35rem 0.25rem 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--admin-accent);
+  border-radius: var(--radius);
+  background: var(--admin-surface);
+  color: var(--admin-accent);
+  font: inherit;
+  font-weight: 650;
+  line-height: 1.3;
+  text-align: center;
   text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.button:hover {
-  background: #722d20;
-  color: #fff;
+.button,
+.admin-workspace :is(button.button, button[type='submit'], a[download]) {
+  background: var(--admin-accent);
+  color: var(--admin-accent-ink);
 }
 
-.button:disabled {
-  opacity: 0.65;
+/* Secundarios del panel: botones sin variante principal. */
+.admin-workspace button:not(.button):not([type='submit']):hover:not(:disabled) {
+  border-color: var(--admin-accent-strong);
+  background: var(--admin-surface-hover);
+  color: var(--admin-accent-strong);
+}
+
+/* Hover principal: mismo patrón para enlaces y botones. */
+.button:hover:not(:disabled),
+.admin-workspace :is(button.button, button[type='submit'], a[download]):hover:not(:disabled) {
+  border-color: var(--admin-accent-strong);
+  background: var(--admin-accent-strong);
+  color: var(--admin-accent-ink);
+}
+
+/* Active: misma base que hover con realce de pulsación. */
+.button:active:not(:disabled),
+.admin-workspace :is(button, a[download]):active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Disabled coherente en toda la aplicación. */
+.button:disabled,
+.admin-workspace :is(button:disabled, fieldset:disabled button) {
+  border-color: var(--admin-disabled-border);
+  background: var(--admin-disabled-surface);
+  color: var(--admin-disabled-text);
+  opacity: 1;
   cursor: not-allowed;
 }
 
@@ -406,12 +482,15 @@ main:focus {
 @media (max-width: 40rem) {
   .site-header__inner {
     align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
   }
 
   .site-header__tools {
     width: 100%;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 0.5rem;
   }
 
   nav {
@@ -419,11 +498,13 @@ main:focus {
   }
 
   .nav-list {
-    gap: 0.15rem;
+    gap: 0.25rem;
   }
 
-  .nav-list a {
-    padding: 0.5rem 0.6rem;
+  .nav-list a,
+  .session-actions a,
+  .link-button {
+    padding-inline: 0.65rem;
   }
 
   .session-actions {
@@ -432,6 +513,19 @@ main:focus {
 
   .session-actions__user {
     max-width: 100%;
+  }
+}
+
+@media (max-width: 20rem) {
+  .site-header__inner {
+    padding-inline: 0.75rem;
+  }
+
+  .nav-list a,
+  .session-actions a,
+  .link-button {
+    padding-inline: 0.55rem;
+    font-size: 0.9rem;
   }
 }
 
@@ -454,50 +548,6 @@ main:focus {
   margin-top: 2rem;
 }
 
-.admin-workspace :is(button, a[download]) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  max-width: 100%;
-  margin: 0.25rem 0.35rem 0.25rem 0;
-  padding: 0.6rem 0.9rem;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--accent);
-  font: inherit;
-  font-weight: 650;
-  line-height: 1.3;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.admin-workspace :is(button.button, button[type='submit'], a[download]) {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-.admin-workspace :is(button, a[download]):hover:not(:disabled) {
-  border-color: #6f2b1e;
-  background: #f1e9db;
-  color: #6f2b1e;
-}
-
-.admin-workspace :is(button.button, button[type='submit'], a[download]):hover:not(:disabled) {
-  background: #6f2b1e;
-  color: var(--accent-ink);
-}
-
-.admin-workspace :is(button:disabled, fieldset:disabled button) {
-  border-color: #a89f94;
-  background: #e5e0d8;
-  color: #514c45;
-  opacity: 1;
-  cursor: not-allowed;
-}
-
 .admin-workspace :is(.admin-courses, app-structure ul, app-lesson-materials ul) {
   display: grid;
   gap: 0.75rem;
@@ -506,36 +556,28 @@ main:focus {
   list-style: none;
 }
 
-.admin-workspace :is(.admin-courses > li, app-structure section, app-structure li, app-lesson-materials section) {
+/* Una sola base de tarjeta para listas, bloques y formularios del panel. */
+.admin-workspace :is(.admin-courses > li, app-structure section, app-structure li,
+  app-lesson-materials section, form) {
   min-width: 0;
-  padding: 1rem;
-  border: 1px solid var(--border);
+  margin: 1rem 0;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid var(--admin-border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--admin-surface);
   overflow-wrap: anywhere;
 }
 
-.admin-workspace :is(app-structure section, app-lesson-materials section) {
-  margin-block: 1rem;
-}
-
 .admin-workspace :is(app-structure li, app-lesson-materials li) {
-  background: var(--bg);
+  background: var(--admin-surface-soft);
 }
 
 .admin-workspace :is(form, fieldset) {
   min-width: 0;
 }
 
-.admin-workspace form {
-  margin-block: 1.25rem;
-  padding: clamp(1rem, 3vw, 1.5rem);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
 .admin-workspace fieldset {
+  margin: 0;
   padding: 0;
   border: 0;
 }
@@ -548,16 +590,26 @@ main:focus {
   margin-bottom: 1rem;
 }
 
-.admin-workspace :is(input:not([type='checkbox']), textarea, select) {
+/* Campos: base, hover, foco e inválido con el mismo patrón. */
+.admin-workspace :is(input:not([type='checkbox']):not([type='file']), textarea, select) {
   width: 100%;
   min-width: 0;
   min-height: 44px;
   padding: 0.6rem 0.7rem;
-  border: 1px solid #8a8073;
+  border: 1px solid var(--admin-border-strong);
   border-radius: 8px;
-  background: #fff;
-  color: var(--ink);
+  background: var(--admin-field-bg);
+  color: var(--admin-text);
   font: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.admin-workspace :is(input:not([type='checkbox']):not([type='file']), textarea, select):hover:not(:disabled) {
+  border-color: var(--admin-accent);
+}
+
+.admin-workspace :is(input:not([type='checkbox']):not([type='file']), textarea, select)[aria-invalid='true'] {
+  border: 2px solid var(--admin-danger);
 }
 
 .admin-workspace textarea {
@@ -567,28 +619,73 @@ main:focus {
 .admin-workspace input[type='checkbox'] {
   width: 1.2rem;
   height: 1.2rem;
+  min-height: 0;
   vertical-align: middle;
+  accent-color: var(--admin-accent);
+}
+
+.admin-workspace input[type='file'] {
+  min-height: 44px;
 }
 
 .admin-workspace input[type='file']::file-selector-button {
   min-height: 36px;
   margin-right: 0.75rem;
   padding: 0.4rem 0.75rem;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--accent);
+  border: 1px solid var(--admin-accent);
+  border-radius: 8px;
+  background: var(--admin-surface);
+  color: var(--admin-accent);
   font: inherit;
   font-weight: 650;
   cursor: pointer;
 }
 
-.admin-workspace :is(input, textarea, select)[aria-invalid='true'] {
-  border: 2px solid #9b2c2c;
+/* Feedback: una base y tres variantes con tokens success/warn/danger. */
+.admin-workspace :is(.feedback, p[role='alert'], form p[id$='-error']:not(.field-error)) {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--admin-border);
+  border-left-width: 4px;
+  border-left-color: var(--admin-border);
+  border-radius: 8px;
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  font-size: 0.95rem;
 }
 
-.admin-workspace :is(form p[role='alert'], form p[id$='-error']) {
-  margin: 0;
-  color: #8a1f1f;
-  font-size: 0.9rem;
+.admin-workspace :is(.feedback--error, p[role='alert'], form p[id$='-error']:not(.field-error)) {
+  border-left-color: var(--admin-danger);
+  background: var(--admin-danger-surface);
+  color: var(--admin-danger-text);
+}
+
+.admin-workspace .feedback--success {
+  border-left-color: var(--admin-success);
+  background: var(--admin-success-surface);
+  color: var(--admin-success-text);
+}
+
+.admin-workspace .feedback--warning {
+  border-left-color: var(--admin-warn);
+  background: var(--admin-warn-surface);
+  color: var(--admin-warn-text);
+}
+
+/* Foco visible con el mismo token en todos los controles del panel. */
+.admin-workspace :is(button, a[download], input:not([type='checkbox']), textarea, select):focus-visible {
+  outline: 3px solid var(--admin-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .admin-workspace :is(button, a[download], input:not([type='checkbox']):not([type='file']), textarea, select) {
+    transition: none;
+  }
+
+  .button:active,
+  .admin-workspace :is(button, a[download]):active {
+    transform: none;
+  }
 }
