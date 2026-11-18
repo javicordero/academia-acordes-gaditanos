@@ -7,9 +7,11 @@ datos de prueba de Stripe. Pedidos, snapshot y webhook están versionados, pero
 
 ## Estado actual
 
-- La sesión de pago queda **deliberadamente deshabilitada**: el valor literal
-  `enabled: false` en la Edge Function impide crear sesiones. No es un bloqueo
-  permanente: se mantiene hasta que se cumplan las precondiciones de abajo.
+- La sesión de pago sigue **cerrada**. La versión inicial desplegada en DEV
+  mantiene el literal `enabled: false`; en local esa decisión pasa por una guarda
+  TEST con fail-closed, pero **sin flags explícitos sigue respondiendo 409** y no
+  crea sesiones. No es un bloqueo permanente: se mantiene hasta que se cumplan
+  las precondiciones de abajo.
 - Orden implementado en código, **no activo**: identidad de Auth →
   `reserve_checkout_order` reserva el pedido → se consulta el precio real a
   Stripe y se comprueban `active`, `one_time`, importe y moneda → se crea la
@@ -28,8 +30,32 @@ datos de prueba de Stripe. Pedidos, snapshot y webhook están versionados, pero
   usuario/curso/intento: un reintento recupera la misma sesión y la misma
   snapshot. Los metadatos enviados al proveedor contienen solo identificadores y
   la versión de condiciones; **no incluyen correos ni otros datos personales**.
-- Nada de esto está desplegado. Los secretos del proveedor se leen en servidor
-  desde variables de entorno; no hay claves ni precios reales en el repositorio.
+- La versión inicial desplegada en DEV sigue deshabilitada. Los secretos del
+  proveedor se leen en servidor desde variables de entorno; no hay claves ni
+  precios reales en el repositorio.
+
+## Guard TEST local y variables de entorno
+
+Los módulos `supabase/functions/_shared/test-gates.ts` y `test-gate-env.ts` son
+**sólo locales, aún no redeployados**. Los index locales pasan únicamente
+`Deno.env` del servidor: nunca leen petición, cuerpo ni configuración Angular.
+No hay ningún flag activado en este repositorio.
+
+| Variable | Contrato para abrir la rama TEST | Por defecto |
+|---|---|---|
+| `CHECKOUT_ENABLED` | string `'true'` exacto | ausente ⇒ cerrado |
+| `CHECKOUT_MODE` | exactamente `'test'`; `'live'`, otra casing o ausente cierran | ausente ⇒ cerrado |
+| `STRIPE_SECRET_KEY` | clave secreta real `sk_test_...` con sufijo y sin whitespace; `sk_test_unused`, `pk_`, `sk_live_` o espacios cierran | ausente ⇒ cerrado |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | presencia en servidor | ausentes ⇒ cerrado |
+| `CHECKOUT_TERMS_VERSION` | versión **presente**; comprobar presencia no aprueba legalmente unas condiciones | fila/valor ausente en DEV |
+| `CHECKOUT_ALLOWED_ORIGINS`, `APP_ORIGIN` | allowlist y origen ya validados en el handler | `http://localhost:4200` |
+
+Con la gate cerrada no se instancian SDK ni cliente de base de datos: la
+respuesta sigue siendo el 409 «Compra no disponible» de siempre. La fila de
+términos en BD está **ausente** y la decisión legal sigue **pendiente**: no se ha
+fabricado ni insertado versión alguna. Las migraciones aplicadas en DEV, según
+informe, son 19/20/21/22/24/25/28, pero el historial de la CLI **no está
+reconciliado**. No se afirma prueba E2E ni cobro real.
 
 ## Verificación
 

@@ -1,6 +1,6 @@
 # Recepción del webhook: implementación local, sin desplegar
 
-**Estado real:** la función sigue **deshabilitada** (`enabled: false`) y **no desplegada**. El `whsec` de test está pendiente de configurarse a mano como secreto de la función; no hay cuenta, claves ni pruebas con Stripe real. Nada de lo descrito aquí significa que los pagos estén listos.
+**Estado real:** la versión inicial desplegada en DEV sigue **deshabilitada** (`enabled: false`). En local la decisión la toma una guarda TEST fail-closed, con todos los flags apagados y **aún no redeployada**. El `whsec` de test está configurado bajo el **NOMBRE** de la variable `STRIPE_WEBHOOK_SECRET`, pero su **validez no ha sido verificada**; no hay cuenta, claves ni pruebas con Stripe real. Nada de lo descrito aquí significa que los pagos estén listos.
 
 La firma se verifica con Stripe SDK 23.1.0 (misma versión que checkout) y se rechazan cuerpo alterado, firma ausente, fechas fuera de tolerancia y `livemode` distinto del esperado (sólo test). Se registra el id y tipo de evento, modo, hash SHA-256 de los bytes originales, sesión y pedido; nunca el payload, correos ni datos de pago. Los tipos no soportados y los eventos que no cumplen las comprobaciones comerciales se ack con 200 sin concesión.
 
@@ -19,6 +19,28 @@ Cuando la lectura canónica no encuentra pedido con esa sesión, el adaptador co
 - **503 (sin fulfillment y sin estado cambiado):** fallo de registro, de lectura del pedido o de la RPC (incluidos `invalid payment`, `order mismatch`, `actor mismatch` y errores de BD), fallo al clasificar la reserva y, sobre todo, `pending` pre-bind. La RPC es transaccional: un error no deja derechos ni pedidos a medias ni marca el recibo como procesado; el mismo evento puede volver a procesarse tras el bind. La respuesta no filtra mensajes privados.
 
 La doble concesión se evita en tres capas: el registro previo devuelve `processed` y el handler no vuelve a llamar a `fulfill`; la RPC es idempotente (`already_processed`, `already_paid`, `already_entitled`) y el índice único de derechos activos impide duplicarlos. Un duplicado pendiente (`received_unprocessed`) sí reintenta fulfillment, que decide de forma atómica.
+
+## Guard TEST local y variables de entorno
+
+Los módulos `supabase/functions/_shared/test-gates.ts` y `test-gate-env.ts` son
+**sólo locales, aún no redeployados**. El index local pasa únicamente `Deno.env`
+del servidor: nunca petición, cuerpo ni configuración Angular. No hay flags
+activados en este repositorio.
+
+| Variable | Contrato para abrir la rama TEST | Por defecto |
+|---|---|---|
+| `STRIPE_WEBHOOK_ENABLED` | string `'true'` exacto | ausente ⇒ cerrado |
+| `CHECKOUT_MODE` | exactamente `'test'`; `'live'`, otra casing o ausente cierran | ausente ⇒ cerrado |
+| `STRIPE_WEBHOOK_SECRET` | prefijo `whsec_` con sufijo sin whitespace; la forma criptográfica la valida Stripe | guardado bajo el NOMBRE, validez no probada |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | presencia para el cliente de servidor (`clientAvailable`) | ausentes ⇒ cerrado |
+| `STRIPE_SECRET_KEY` | opcional; si se pasa debe ser `sk_test_...` real, sin `sk_test_unused`, `pk_`, `sk_live_` ni espacios | el placeholder del SDK nunca satisface la guarda |
+
+Con la gate cerrada no se construyen SDK, cliente ni verificador: la respuesta
+sigue siendo el 503 de siempre. El webhook **puede activarse en TEST sin checkout
+ni términos** para probar la firma; eso no crea compras ni derechos.
+`expectedLiveMode` es `false` fijo, sin variable de entorno que lo cambie.
+Migraciones aplicadas en DEV según informe: 19/20/21/22/24/25/28; el historial
+de la CLI **no está reconciliado**. No se afirma E2E ni validez del `whsec`.
 
 ## Pruebas y gate de activación
 
