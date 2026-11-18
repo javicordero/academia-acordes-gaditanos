@@ -1,7 +1,102 @@
-.filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; }
-label { display: grid; gap: .25rem; }
-input, select, button { font: inherit; padding: .45rem; }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 1rem; list-style: none; padding: 0; }
-.cards li { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; overflow-wrap: anywhere; }
-.cards h2 { margin-top: 0; }
-.checkout-notice { font-weight: 600; }
+:host {
+  /* Maquetación provisional del catálogo: geometría y orden, sin decisiones de marca. */
+  --catalog-gap: clamp(1rem, 2.5vw, 1.75rem);
+  --catalog-field-min: 44px;
+}
+
+.catalog-header {
+  max-width: 46rem;
+  margin-bottom: var(--catalog-gap);
+}
+
+.checkout-notice {
+  font-weight: 600;
+}
+
+.state {
+  color: var(--muted);
+}
+
+.retry {
+  min-height: var(--catalog-field-min);
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--catalog-gap);
+  margin-bottom: var(--catalog-gap);
+  padding: var(--catalog-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.filters__field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.filters label {
+  font-weight: 600;
+}
+
+.filters :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--catalog-field-min);
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+
+.empty {
+  color: var(--muted);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--catalog-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cards__item {
+  display: flex;
+  min-width: 0;
+}
+
+.cards__item app-course-card {
+  width: 100%;
+}
+
+/* Tablet: dos columnas. móvil (320px incluido): una columna. */
+@media (min-width: 48rem) {
+  .filters {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    align-items: end;
+  }
+
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Escritorio: tres columnas dentro del ancho máximo del shell. */
+@media (min-width: 64rem) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 20rem) {
+  .filters {
+    padding: 0.75rem;
+  }
+}

@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { SUPABASE_CONFIG } from '../../../environments/supabase-config';
 import { Cursos } from './cursos';
 import { PublicCourse, PublicCoursesRepository } from './public-courses-repository';
+import { readFileSync } from 'node:fs';
+
+const cursosStyles = readFileSync('src/app/features/cursos/cursos.scss', 'utf8');
 
 describe('Catálogo', () => {
   it('presenta texto escapado y enlace a la ficha', async () => {
@@ -98,5 +101,115 @@ describe('Catálogo', () => {
     const parsed = new URL(href, 'https://interno.test');
     expect(parsed.pathname).toBe('/cursos/ejemplo');
     expect(parsed.searchParams.get('comprar')).toBe('1');
+  });
+
+  const publicados: PublicCourse[] = [
+    { id: '1', slug: 'ritmos', title: 'Ritmos', summary: 'Resumen de ritmos', description: null, level: 'basico' },
+    { id: '2', slug: 'punteos', title: 'Punteos', summary: null, description: null, level: 'iniciacion' },
+  ];
+
+  async function renderCatalog(courses: PublicCourse[] = publicados, checkoutTestEnabled = false) {
+    TestBed.configureTestingModule({ imports: [Cursos], providers: [
+      provideRouter([]),
+      { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '', checkoutTestEnabled } },
+      { provide: PublicCoursesRepository, useValue: { list: vi.fn().mockResolvedValue(courses) } },
+    ] });
+    const fixture = TestBed.createComponent(Cursos);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('estructura la página en cabecera, filtros etiquetados y lista semántica', async () => {
+    const fixture = await renderCatalog();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('header.catalog-header h1')?.textContent?.trim()).toBe('Cursos');
+    expect(root.querySelector('.catalog-header .eyebrow')?.textContent?.trim()).toBe('Catálogo');
+    expect(root.querySelector('.catalog-header .lead')?.textContent).toContain('Explora los cursos publicados');
+    expect(root.querySelector('section.catalog')?.getAttribute('aria-labelledby')).toBe('catalog-eyebrow');
+    expect(root.querySelector('[role="search"]')).not.toBeNull();
+    expect(root.querySelector('label[for="filtro-busqueda"]')?.textContent?.trim()).toBe('Buscar cursos');
+    expect(root.querySelector('#filtro-busqueda')?.getAttribute('type')).toBe('search');
+    expect(root.querySelector('label[for="filtro-nivel"]')?.textContent?.trim()).toBe('Nivel');
+    const level = root.querySelector('#filtro-nivel') as HTMLSelectElement;
+    expect(Array.from(level.options).map((option) => option.value)).toEqual(['', 'iniciacion', 'basico', 'intermedio']);
+    const list = root.querySelector('ul.cards');
+    expect(list).not.toBeNull();
+    expect(list?.querySelectorAll('li.cards__item')).toHaveLength(2);
+    expect(list?.querySelectorAll('app-course-card')).toHaveLength(2);
+  });
+
+  it('conserva el orden del repositorio y la jerarquía visual de cada tarjeta', async () => {
+    const fixture = await renderCatalog();
+    const cards = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('app-course-card'));
+    expect(cards.map((card) => card.querySelector('.card__title')?.textContent?.trim())).toEqual(['Ritmos', 'Punteos']);
+    expect(cards[0].querySelector('.card__level')?.textContent?.trim()).toBe('Básico');
+    expect(cards[0].querySelector('.card__visual')?.getAttribute('aria-hidden')).toBe('true');
+    expect(cards[0].querySelector('.card__summary')?.textContent?.trim()).toBe('Resumen de ritmos');
+    expect(cards[1].querySelector('.card__summary')).toBeNull();
+    expect(cards[0].querySelector('.card__view')?.textContent?.trim()).toBe('Ver curso');
+  });
+
+  it('filtra por búsqueda y nivel sin robar el foco y anuncia solo el resultado vacío', async () => {
+    const fixture = await renderCatalog();
+    const root = fixture.nativeElement as HTMLElement;
+    const search = root.querySelector('#filtro-busqueda') as HTMLInputElement;
+    const level = root.querySelector('#filtro-nivel') as HTMLSelectElement;
+    expect(search.hasAttribute('autofocus')).toBe(false);
+    expect(level.hasAttribute('autofocus')).toBe(false);
+    expect(root.querySelector('.empty')).toBeNull();
+
+    search.value = 'punteos';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(root.querySelectorAll('app-course-card')).toHaveLength(1);
+    expect(root.querySelector('.card__title')?.textContent?.trim()).toBe('Punteos');
+
+    search.value = '';
+    search.dispatchEvent(new Event('input'));
+    level.value = 'basico';
+    level.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(root.querySelectorAll('app-course-card')).toHaveLength(1);
+    expect(root.querySelector('.card__title')?.textContent?.trim()).toBe('Ritmos');
+
+    level.value = 'intermedio';
+    level.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(root.querySelectorAll('app-course-card')).toHaveLength(0);
+    expect(root.querySelector('.empty[role="status"]')?.textContent).toContain('No hay cursos que coincidan con los filtros.');
+    expect(document.activeElement).not.toBe(search);
+  });
+
+  it('mantiene los roles de estado y el objetivo táctil del reintento', async () => {
+    let resolveList!: (value: PublicCourse[]) => void;
+    const pending = new Promise<PublicCourse[]>((resolve) => { resolveList = resolve; });
+    TestBed.configureTestingModule({ imports: [Cursos], providers: [
+      provideRouter([]),
+      { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '', checkoutTestEnabled: false } },
+      { provide: PublicCoursesRepository, useValue: { list: vi.fn().mockReturnValue(pending) } },
+    ] });
+    const fixture = TestBed.createComponent(Cursos);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('p[role="status"]')?.textContent).toContain('Cargando cursos');
+    resolveList([]);
+    await pending;
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(root.querySelector('.state')?.textContent).toContain('No hay cursos publicados');
+  });
+
+  it('declara la rejilla responsive de una, dos y tres columnas', () => {
+    expect(cursosStyles).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+    expect(cursosStyles).toMatch(/@media\s*\(min-width:\s*48rem\)[\s\S]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    expect(cursosStyles).toMatch(/@media\s*\(min-width:\s*64rem\)[\s\S]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    expect(cursosStyles).toContain('--catalog-field-min: 44px');
+  });
+
+  it('no añade precios, profesor ni testimonios al catálogo', async () => {
+    const fixture = await renderCatalog(publicados, true);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).not.toMatch(/\d+\s*€|EUR|profesor|testimonio/i);
   });
 });

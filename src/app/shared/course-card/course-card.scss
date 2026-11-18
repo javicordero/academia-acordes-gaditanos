@@ -1,0 +1,91 @@
+:host {
+  /* Maquetación provisional: se ajustará en el rediseño, sin tokens de marca nuevos. */
+  --card-pad: clamp(1rem, 2.5vw, 1.5rem);
+  --card-visual-height: clamp(7rem, 16vw, 10rem);
+
+  display: block;
+  height: 100%;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.card__visual {
+  position: relative;
+  min-height: var(--card-visual-height);
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      135deg,
+      transparent 0 1rem,
+      var(--border) 1rem calc(1rem + 1px)
+    );
+    opacity: 0.75;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset-block-start: 1.25rem;
+    inset-inline-end: 1.25rem;
+    width: clamp(2.5rem, 6vw, 3.5rem);
+    height: clamp(2.5rem, 6vw, 3.5rem);
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    opacity: 0.35;
+  }
+}
+
+.card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: var(--card-pad);
+}
+
+.card__level {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.card__title {
+  margin: 0;
+  font-size: clamp(1.15rem, 2vw, 1.35rem);
+  overflow-wrap: anywhere;
+}
+
+.card__summary {
+  margin: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.card__actions {
+  margin-top: auto;
+  padding-top: 0.8rem;
+}
+
+.card__view {
+  min-height: 44px;
+}
+
+.card__checkout {
+  display: block;
+}

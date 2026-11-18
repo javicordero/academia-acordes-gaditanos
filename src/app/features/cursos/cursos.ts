@@ -1,15 +1,14 @@
 import { Component, ChangeDetectionStrategy, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
 
 import { CHECKOUT_TEST_NOTICE } from '../../core/checkout/checkout';
-import { CheckoutButton } from '../../core/checkout/checkout-button';
+import { CourseCard } from '../../shared/course-card/course-card';
 import { SUPABASE_CONFIG } from '../../../environments/supabase-config';
 import { PublicCourse, PublicCoursesRepository, levelLabels } from './public-courses-repository';
 
 @Component({
   selector: 'app-cursos',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, CheckoutButton],
+  imports: [CourseCard],
   templateUrl: './cursos.html',
   styleUrl: './cursos.scss',
 })

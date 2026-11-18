@@ -1,0 +1,23 @@
+<article class="card" [attr.data-access]="accessState() || null">
+  <div class="card__visual" aria-hidden="true"></div>
+  <div class="card__body">
+    <p class="card__level">{{ levelLabel() }}</p>
+    <h2 class="card__title" [id]="titleId()">{{ course().title }}</h2>
+    @if (course().summary) {
+      <p class="card__summary">{{ course().summary }}</p>
+    }
+    <div class="card__actions">
+      <a
+        class="button card__view"
+        [routerLink]="['/cursos', course().slug]"
+        [attr.aria-describedby]="titleId()"
+      >Ver curso</a>
+      <app-checkout-button
+        class="card__checkout"
+        mode="link"
+        [courseSlug]="course().slug"
+        [accessState]="accessState() ?? ''"
+      />
+    </div>
+  </div>
+</article>
