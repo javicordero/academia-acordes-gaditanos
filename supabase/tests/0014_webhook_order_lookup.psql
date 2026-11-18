@@ -1,0 +1,88 @@
+﻿\set ON_ERROR_STOP on
+-- Puente de lectura del webhook (solo service_role). Logica SQL sobre PGlite:
+-- no prueba Supabase, PostgREST ni un webhook real de Stripe.
+begin;
+do $$ begin
+ if has_function_privilege('anon','public.server_checkout_order_for_event(uuid,text)','execute')
+ or has_function_privilege('authenticated','public.server_checkout_order_for_event(uuid,text)','execute')
+ or not has_function_privilege('service_role','public.server_checkout_order_for_event(uuid,text)','execute') then raise exception 'privileges'; end if;
+end $$;
+set local role anon;
+do $$ begin
+ begin perform public.server_checkout_order_for_event(null::uuid, null::text); raise exception 'access';
+ exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+ begin perform public.server_checkout_order_for_event(null::uuid, null::text); raise exception 'access';
+ exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+insert into auth.users(id) values ('00000000-0000-0000-0000-0000000000a1');
+insert into public.courses(id,slug,title,status,published_at) values
+ ('10000000-0000-0000-0000-0000000000a1','lookup','Lookup','published',now());
+insert into public.course_prices(id,course_id,amount_minor,currency) values
+ ('20000000-0000-0000-0000-0000000000a1','10000000-0000-0000-0000-0000000000a1',100,'EUR');
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values
+ ('20000000-0000-0000-0000-0000000000a1','stripe','price_lookup');
+insert into private.checkout_order_config values (true,'fixture');
+select * from public.reserve_checkout_order(
+ '00000000-0000-0000-0000-0000000000a1','10000000-0000-0000-0000-0000000000a1',
+ '30000000-0000-0000-0000-0000000000a1',3600);
+
+do $$
+declare o uuid; n integer;
+begin
+ select order_id into o from private.checkout_attempts
+  where attempt_id='30000000-0000-0000-0000-0000000000a1';
+ -- Sin sesion fijada en el pedido no se devuelve nada.
+ select count(*) into n from public.server_checkout_order_for_event(o, 'cs_test_lookup');
+ if n <> 0 then raise exception 'unbound session %', n; end if;
+end $$;
+
+
+-- Sesion valida, pedido pendiente del mismo actor: el servidor obtiene actor,
+-- importe y moneda sin confiar en ellos.
+do $$
+declare o uuid; r record; n integer;
+begin
+ select order_id into o from private.checkout_attempts
+  where attempt_id='30000000-0000-0000-0000-0000000000a1';
+ if public.bind_checkout_session('00000000-0000-0000-0000-0000000000a1', o,
+   'cs_test_lookup') <> 'bound' then raise exception 'bind'; end if;
+end $$;
+
+do $$
+declare o uuid; r record; n integer;
+  s text := 'cs_test_lookup';
+begin
+ select order_id into o from private.checkout_attempts
+  where attempt_id='30000000-0000-0000-0000-0000000000a1';
+ select count(*) into n from public.server_checkout_order_for_event(o, s);
+ if n <> 1 then raise exception 'bound lookup %', n; end if;
+ select * into r from public.server_checkout_order_for_event(o, s);
+ if r.user_id <> '00000000-0000-0000-0000-0000000000a1'
+  or r.amount_minor <> 100 or r.currency <> 'EUR'
+   then raise exception 'lookup values'; end if;
+ -- Otra sesion u otro pedido no devuelven nada.
+ select count(*) into n from public.server_checkout_order_for_event(o, 'cs_test_other');
+ if n <> 0 then raise exception 'other session'; end if;
+ select count(*) into n from public.server_checkout_order_for_event(gen_random_uuid(), s);
+ if n <> 0 then raise exception 'other order'; end if;
+end $$;
+
+do $$
+declare n integer;
+begin
+ -- Un pedido ya pagado se sigue devolviendo: el handler comprueba processed.
+ update public.orders set status='paid'
+  where id=(select order_id from private.checkout_attempts
+   where attempt_id='30000000-0000-0000-0000-0000000000a1');
+ select count(*) into n from public.server_checkout_order_for_event(
+  (select order_id from private.checkout_attempts
+   where attempt_id='30000000-0000-0000-0000-0000000000a1'), 'cs_test_lookup');
+ if n <> 1 then raise exception 'paid lookup %', n; end if;
+end $$;
+rollback;
