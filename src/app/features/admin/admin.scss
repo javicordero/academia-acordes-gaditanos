@@ -28,12 +28,27 @@
 }
 
 .status-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding: 0.15rem 0.5rem;
   border: 1px solid var(--accent);
   border-radius: 999px;
   color: var(--accent);
   font-weight: 650;
+  white-space: nowrap;
+}
+
+/* La forma distingue el estado además del texto y del color. */
+.status-badge--draft {
+  border-style: dashed;
+}
+
+.status-badge--published {
+  border-style: solid;
+}
+
+.status-badge--archived {
+  border-style: dotted;
 }
 
 .course-nav {
@@ -74,6 +89,42 @@
   margin-top: 1.5rem;
 }
 
+.course-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.course-row__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+}
+
+.course-row__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.course-row__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  overflow-wrap: anywhere;
+}
+
+.state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.empty-state {
+  color: var(--muted);
+}
+
 .lesson-note,
 .status-panel {
   max-width: 100%;
@@ -99,6 +150,15 @@
   }
 
   .course-header__back {
+    width: 100%;
+  }
+
+  .course-row__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .course-row__link {
     width: 100%;
   }
 }

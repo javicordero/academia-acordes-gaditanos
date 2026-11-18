@@ -15,3 +15,31 @@ textarea, select {
 }
 
 textarea { min-height: 6rem; }
+
+.editor-note {
+  margin-bottom: 1rem;
+  color: var(--muted);
+}
+
+.form-error-summary {
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.form-error-summary h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.form-error-summary ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.form-error-summary a {
+  font-weight: 650;
+}

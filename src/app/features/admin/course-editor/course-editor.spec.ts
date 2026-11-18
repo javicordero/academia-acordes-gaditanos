@@ -54,4 +54,64 @@ describe('Editor de cursos', () => {
     await first;
     expect(saved).toHaveBeenCalledOnce();
   });
+
+  it('resume los campos inválidos y usa texto neutro sobre el acceso', async () => {
+    const fixture = TestBed.createComponent(CourseEditor);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).not.toContain('políticas de acceso');
+    expect(el.querySelector('.editor-note')?.textContent).toContain('datos editoriales');
+    expect(el.querySelector('#slug-hint')?.textContent).toContain('Minúsculas');
+    expect(el.querySelector('#order-hint')?.textContent).toContain('entero');
+
+    const editor = fixture.componentInstance;
+    editor.model.set({
+      title: '   ', slug: 'MAL slug', summary: '', description: '',
+      level: 'basico', status: 'draft', sort_order: '1.5',
+    });
+    await editor.save();
+    fixture.detectChanges();
+    const summary = el.querySelector<HTMLElement>('.form-error-summary')!;
+    expect(summary.getAttribute('role')).toBe('alert');
+    expect(summary.textContent).toContain('Título');
+    expect(summary.textContent).toContain('Identificador (slug)');
+    expect(summary.textContent).toContain('Orden');
+    expect(summary.querySelector('a[href="#course-title"]')).not.toBeNull();
+    expect(el.querySelectorAll('button[type="submit"]').length).toBe(1);
+    expect(el.querySelector('button[type="submit"]')?.textContent?.trim()).toBe('Guardar');
+  });
+
+  it('alinea etiqueta, ayuda y error y lleva el foco al encabezado', async () => {
+    const fixture = TestBed.createComponent(CourseEditor);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('table')).toBeNull();
+    expect(el.querySelector('.form-field .field-hint')).not.toBeNull();
+    expect(document.activeElement?.textContent?.trim()).toBe('Crear curso');
+
+    const editor = fixture.componentInstance;
+    editor.model.set({
+      title: 'Curso', slug: 'MAL slug', summary: '', description: '',
+      level: 'basico', status: 'draft', sort_order: '0',
+    });
+    await editor.save();
+    fixture.detectChanges();
+    expect(el.querySelector('#course-slug')?.getAttribute('aria-describedby')).toBe('slug-hint slug-error');
+    expect(el.querySelector('#slug-error')).not.toBeNull();
+  });
+
+  it('los controles con aria-label incluyen su texto visible', () => {
+    const fixture = TestBed.createComponent(CourseEditor);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const labelled = el.querySelectorAll<HTMLElement>(
+      'button[aria-label], a[aria-label], input[aria-label], select[aria-label]',
+    );
+    for (const control of labelled) {
+      const visible = (control.textContent ?? '').trim();
+      if (visible) {
+        expect((control.getAttribute('aria-label') ?? '').toLowerCase()).toContain(visible.toLowerCase());
+      }
+    }
+  });
 });

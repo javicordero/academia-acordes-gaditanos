@@ -9,7 +9,10 @@
       <div class="course-header__info">
         <h2 class="course-header__title">Curso: {{ selectedCourse()?.title ?? 'Curso' }}</h2>
         @if (selectedCourse(); as course) {
-          <p class="course-header__status">Estado: <span class="status-badge">{{ statusOf(course) }}</span></p>
+          <p class="course-header__status">Estado: <span class="status-badge"
+            [class.status-badge--draft]="course.status === 'draft'"
+            [class.status-badge--published]="course.status === 'published'"
+            [class.status-badge--archived]="course.status === 'archived'">{{ statusOf(course) }}</span></p>
         }
       </div>
       <button class="course-header__back" type="button" (click)="backToCourses()">Volver a cursos</button>
@@ -38,15 +41,23 @@
         <p role="status">Cargando cursos…</p>
       } @else if (error()) {
         <p class="feedback feedback--error" role="alert">No se han podido cargar los cursos. Comprueba la conexión y tus permisos.</p>
-        <button type="button" (click)="load()">Reintentar</button>
+        <div class="state-actions">
+          <button type="button" (click)="load()">Reintentar</button>
+        </div>
       } @else if (courses().length === 0) {
-        <p>No hay cursos disponibles.</p>
+        <p class="empty-state">No hay cursos disponibles. Usa «Crear curso» para añadir el primero.</p>
       } @else {
         <ul class="admin-courses">
           @for (course of courses(); track course.id) {
-            <li>
-              <strong>{{ course.title }}</strong> — {{ statusOf(course) }}
-              <a [routerLink]="['/admin', 'curso', course.id, 'datos']">Editar curso: {{ course.title }}</a>
+            <li class="course-row">
+              <div class="course-row__head">
+                <strong class="course-row__title">{{ course.title }}</strong>
+                <span class="status-badge"
+                  [class.status-badge--draft]="course.status === 'draft'"
+                  [class.status-badge--published]="course.status === 'published'"
+                  [class.status-badge--archived]="course.status === 'archived'">{{ statusOf(course) }}</span>
+              </div>
+              <a class="course-row__link" [routerLink]="['/admin', 'curso', course.id, 'datos']">Editar curso: {{ course.title }}</a>
             </li>
           }
         </ul>
@@ -62,7 +73,9 @@
         <p role="status">Cargando datos del curso…</p>
       } @else {
         <p class="feedback feedback--error" role="alert">No se ha podido cargar este curso. Comprueba la conexión y tus permisos.</p>
-        <button type="button" (click)="load()">Reintentar</button>
+        <div class="state-actions">
+          <button type="button" (click)="load()">Reintentar</button>
+        </div>
       }
     }
     @case ('estructura') {
@@ -72,7 +85,9 @@
         <p role="status">Cargando estructura…</p>
       } @else {
         <p class="feedback feedback--error" role="alert">No se ha podido cargar este curso. Comprueba la conexión y tus permisos.</p>
-        <button type="button" (click)="load()">Reintentar</button>
+        <div class="state-actions">
+          <button type="button" (click)="load()">Reintentar</button>
+        </div>
       }
     }
     @case ('leccion') {

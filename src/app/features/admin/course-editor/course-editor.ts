@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnInit, inject, input, output, signal, viewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormField, form, submit, validate } from '@angular/forms/signals';
 import { Course, CourseLevel, CourseStatus, CoursesRepository } from '../courses-repository';
 
@@ -17,6 +17,7 @@ export class CourseEditor implements OnInit, AfterViewInit {
   private readonly repository = inject(CoursesRepository);
   readonly saving = signal(false);
   readonly error = signal(false);
+  readonly submitAttempted = signal(false);
   readonly model = signal({
     title: '', slug: '', summary: '', description: '',
     level: 'iniciacion', status: 'draft', sort_order: '0',
@@ -40,6 +41,21 @@ export class CourseEditor implements OnInit, AfterViewInit {
       ? undefined : { kind: 'status', message: 'Selecciona un estado válido.' });
   });
 
+  /** Campos rechazados por el formulario, para mostrarlos como resumen accesible. */
+  readonly invalidFields = computed(() => {
+    const fields = this.fields;
+    const checks: Array<[boolean, string, string]> = [
+      [fields.title().invalid(), 'course-title', 'Título'],
+      [fields.slug().invalid(), 'course-slug', 'Identificador (slug)'],
+      [fields.level().invalid(), 'course-level', 'Nivel'],
+      [fields.status().invalid(), 'course-status', 'Estado'],
+      [fields.sort_order().invalid(), 'course-order', 'Orden'],
+    ];
+    return checks
+      .filter(([invalid]) => invalid)
+      .map(([, id, label]) => ({ id, label }));
+  });
+
   ngOnInit(): void {
     const course = this.course();
     if (course) this.model.set({
@@ -53,6 +69,7 @@ export class CourseEditor implements OnInit, AfterViewInit {
 
   async save(): Promise<void> {
     if (this.saving()) return;
+    this.submitAttempted.set(true);
     await submit(this.fields, async () => {
       if (this.saving()) return;
       this.saving.set(true);

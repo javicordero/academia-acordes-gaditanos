@@ -263,4 +263,104 @@ describe('Administración de cursos', () => {
     expect(admin.lessonNote()).toBe('');
     expect((harness.fixture.nativeElement as HTMLElement).querySelector('.lesson-note')).toBeNull();
   });
+
+  it('muestra el estado como badge con texto y forma, y el listado con jerarquía', async () => {
+    const published = { ...course, id: 'c2', title: 'Curso dos', status: 'published' as const };
+    setup(vi.fn().mockResolvedValue([course, published]));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/admin', Admin);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    const badges = [...el.querySelectorAll<HTMLElement>('.admin-courses .status-badge')];
+    expect(badges.map((badge) => badge.textContent?.trim())).toEqual(['Borrador', 'Publicado']);
+    expect(badges[0].classList.contains('status-badge--draft')).toBe(true);
+    expect(badges[1].classList.contains('status-badge--published')).toBe(true);
+    expect(el.querySelector('.course-row__title')?.textContent).toContain('Curso uno');
+    expect(el.querySelector('.course-row__link')?.textContent).toContain('Editar curso: Curso uno');
+  });
+
+  it('el estado vacío ofrece la acción real y no un botón falso', async () => {
+    setup(vi.fn().mockResolvedValue([]));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/admin', Admin);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.empty-state')?.textContent).toContain('No hay cursos disponibles');
+    const labels = [...el.querySelectorAll('button')].map((button) => button.textContent?.trim());
+    expect(labels).toContain('Crear curso');
+    expect(labels).not.toContain('Volver a cursos');
+  });
+
+  it('el error de carga ofrece Reintentar y conserva Volver a cursos', async () => {
+    setup(vi.fn().mockRejectedValue(new Error('detalle privado')));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/admin/curso/c1/datos', Admin);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('No se ha podido cargar este curso');
+    expect(el.textContent).not.toContain('detalle privado');
+    const labels = [...el.querySelectorAll('button')].map((button) => button.textContent?.trim());
+    expect(labels).toContain('Reintentar');
+    expect(labels).toContain('Volver a cursos');
+  });
+
+  it('los nombres accesibles incluyen el texto visible de los controles', async () => {
+    setup();
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/admin/curso/c1/datos', Admin);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    const labelled = el.querySelectorAll<HTMLElement>(
+      'button[aria-label], a[aria-label], input[aria-label], select[aria-label]',
+    );
+    for (const control of labelled) {
+      const visible = (control.textContent ?? '').trim();
+      if (visible) {
+        expect((control.getAttribute('aria-label') ?? '').toLowerCase()).toContain(visible.toLowerCase());
+      }
+    }
+    await harness.navigateByUrl('/admin');
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const link = el.querySelector<HTMLAnchorElement>('.admin-courses a')!;
+    expect(link.getAttribute('aria-label')).toBeNull();
+    expect(link.textContent).toContain('Editar curso: Curso uno');
+  });
+
+  it('usa clases responsive y sin tablas para listado y navegación', async () => {
+    setup();
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/admin', Admin);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('table')).toBeNull();
+    expect(el.querySelector('.admin-courses .course-row')).not.toBeNull();
+    await harness.navigateByUrl('/admin/curso/c1/datos');
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const nav = el.querySelector('nav[aria-label="Secciones del curso"]');
+    expect(nav?.querySelector('.course-nav__list')).not.toBeNull();
+    expect(nav?.querySelector('.course-nav__link')).not.toBeNull();
+  });
+
+  it('devuelve el foco al encabezado al salir del editor', async () => {
+    setup();
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/admin/nuevo', Admin);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    const back = [...el.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Volver a cursos')!;
+    back.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    await Promise.resolve();
+    harness.detectChanges();
+    expect(document.activeElement?.textContent).toBe('Cursos');
+  });
 });
