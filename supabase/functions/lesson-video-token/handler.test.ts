@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import {
   DEFAULT_TTL_SECONDS, MAX_TTL_SECONDS, MESSAGES, MIN_TTL_SECONDS, NOTICE,
-  makeHandler, ttlFromEnv, type Dependencies,
+  UNSIGNED_NOTICE, isDevelopmentEnvironment, makeHandler, ttlFromEnv, type Dependencies,
 } from './handler';
 import { createDependencies } from './adapter';
 
@@ -188,6 +188,47 @@ describe('lesson video token', () => {
     expect(io.sign).not.toHaveBeenCalled();
     const noKey = makeHandler(io, { libraryId: LIBRARY, tokenAuthKey: null }, async s => io.sign(s));
     expect((await noKey(request({ lessonId: LESSON }))).status).toBe(503);
+  });
+
+  it('el flag sin firma se ignora fuera de DEV y sigue fail-closed', async () => {
+    const { io } = setup({ key: null });
+    for (const environment of [undefined, '', 'production', 'prod', 'Development', ' development ', 'staging']) {
+      const config = {
+        libraryId: LIBRARY, tokenAuthKey: null, allowUnsignedDev: true,
+        ...(environment === undefined ? {} : { environment }),
+      };
+      const handler = makeHandler(io, config, async seed => io.sign(seed));
+      const response = await handler(request({ lessonId: LESSON }));
+      expect(response.status).toBe(503);
+      expect(await response.text()).not.toContain(TEST_KEY);
+      expect(io.getUser).not.toHaveBeenCalled();
+      expect(io.video).not.toHaveBeenCalled();
+      expect(io.sign).not.toHaveBeenCalled();
+    }
+    expect(isDevelopmentEnvironment('development')).toBe(true);
+    expect(isDevelopmentEnvironment('dev')).toBe(true);
+    for (const value of [undefined, null, 'production', 'DEV', ' dev ']) {
+      expect(isDevelopmentEnvironment(value)).toBe(false);
+    }
+  });
+
+  it('en DEV el flag sin firma mantiene el comportamiento actual', async () => {
+    const { io } = setup({ key: null });
+    for (const environment of ['development', 'dev']) {
+      const handler = makeHandler(io, {
+        libraryId: LIBRARY, tokenAuthKey: null, allowUnsignedDev: true, environment,
+      }, async seed => io.sign(seed));
+      const response = await handler(request({ lessonId: LESSON }));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        embedUrl: `https://player.mediadelivery.net/embed/${LIBRARY}/${VIDEO}`,
+        expiresAt: 0,
+        notice: UNSIGNED_NOTICE,
+        unsigned: true,
+      });
+      expect(io.sign).not.toHaveBeenCalled();
+    }
+    expect(io.video).toHaveBeenCalledTimes(2);
   });
 
   it('error inesperado responde 500 generico sin filtrar el mensaje', async () => {

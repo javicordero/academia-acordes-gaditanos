@@ -3,9 +3,9 @@
 Registro técnico y honesto. El **backend** (migración `20261118140000` y Edge
 Function `video-upload`) fue desplegado en **DEV desde el commit `15036ab`** por
 el operador de nube; no se ha aplicado a producción. El estado remoto comprobado
-se detalla más abajo. La **interfaz local** sigue pendiente de demostración por
-el usuario: no se ha subido ningún archivo real ni se ha comprobado una carga de
-extremo a extremo. No se ha creado ningún objeto en Bunny con datos reales, no
+se detalla más abajo. La **interfaz local** está integrada en el inspector del
+panel; en DEV se subió un vídeo de prueba, sin afirmar una carga de extremo a
+extremo completa. No se ha creado ningún objeto en Bunny con datos reales, no
 se ha contratado nada y las decisiones comerciales (precio, duración del acceso,
 política de reembolsos) siguen pendientes.
 

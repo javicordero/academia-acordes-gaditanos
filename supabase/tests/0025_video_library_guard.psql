@@ -1,0 +1,120 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID, GUID y library ficticios; sin datos reales ni PII.
+-- a = comprador con derecho; b = alumno sin derecho; d = admin.
+insert into auth.users (id) values
+  ('00000000-0000-0000-0000-00000000000a'),
+  ('00000000-0000-0000-0000-00000000000b'),
+  ('00000000-0000-0000-0000-00000000000d');
+insert into public.user_roles (user_id, role) values
+  ('00000000-0000-0000-0000-00000000000d', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values
+  ('10000000-0000-0000-0000-000000000001', 'library-guard-one', 'Uno', 'published', now()),
+  ('10000000-0000-0000-0000-000000000002', 'library-guard-draft', 'Dos', 'draft', null);
+insert into public.course_sections (id, course_id, title, position) values
+  ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Sección', 1),
+  ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'Sección', 1);
+-- ok: library válida; null/empty: library ausente; paid-null: derecho activo sin
+-- library; draft: borrador sin library; draft-course: curso borrador sin library.
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview) values
+  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'ok', 'Ok', 1, true, false),
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'null-lib', 'Null', 2, true, true),
+  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'empty-lib', 'Empty', 3, true, true),
+  ('30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'draft', 'Draft', 4, false, false),
+  ('30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'paid-null', 'Paid', 5, true, false),
+  ('30000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', 'draft-course', 'Curso', 1, true, false);
+insert into public.entitlements (user_id, course_id) values
+  ('00000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001');
+insert into private.lesson_videos (lesson_id, provider_video_id, provider_library_id, duration_seconds, status) values
+  ('30000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '900123', 90, 'ready'),
+  ('30000000-0000-0000-0000-000000000002', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', null, 12, 'ready'),
+  ('30000000-0000-0000-0000-000000000003', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '', 13, 'ready'),
+  ('30000000-0000-0000-0000-000000000004', 'dddddddd-dddd-dddd-dddd-dddddddddddd', null, 14, 'ready'),
+  ('30000000-0000-0000-0000-000000000005', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', null, 15, 'ready'),
+  ('30000000-0000-0000-0000-000000000006', 'ffffffff-ffff-ffff-ffff-ffffffffffff', null, 16, 'ready');
+-- La definición vigente no puede contener el fallback hardcodeado.
+do $$ begin
+  if pg_get_functiondef('public.server_lesson_video(uuid,uuid)'::regprocedure) like '%812678%'
+  then raise exception 'Fallback de library hardcodeado'; end if;
+end $$;
+-- Grants intactos: solo service_role.
+do $$ begin
+  if not has_function_privilege('service_role', 'public.server_lesson_video(uuid,uuid)', 'EXECUTE')
+  or has_function_privilege('anon', 'public.server_lesson_video(uuid,uuid)', 'EXECUTE')
+  or has_function_privilege('authenticated', 'public.server_lesson_video(uuid,uuid)', 'EXECUTE')
+  then raise exception 'Grants alterados'; end if;
+end $$;
+set local role anon;
+do $$ begin
+  begin perform public.server_lesson_video(null, null); raise exception 'anon ejecutó';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+  begin perform public.server_lesson_video(null, null); raise exception 'authenticated ejecutó';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role service_role;
+do $$ declare
+  a uuid := '00000000-0000-0000-0000-00000000000a';
+  b uuid := '00000000-0000-0000-0000-00000000000b';
+  d uuid := '00000000-0000-0000-0000-00000000000d';
+  ok uuid := '30000000-0000-0000-0000-000000000001';
+  nul uuid := '30000000-0000-0000-0000-000000000002';
+  empty uuid := '30000000-0000-0000-0000-000000000003';
+  draft uuid := '30000000-0000-0000-0000-000000000004';
+  paid uuid := '30000000-0000-0000-0000-000000000005';
+  course_draft uuid := '30000000-0000-0000-0000-000000000006';
+  r jsonb;
+  u uuid;
+begin
+  -- Control positivo: la library viene de la fila privada, no de un literal.
+  r := public.server_lesson_video(d, ok);
+  if r is null or r->'video'->>'library_id' <> '900123'
+  or r->'video'->>'video_id' <> 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+  then raise exception 'Library de la fila: %', r; end if;
+  -- Muestra gratuita con library null: fila visible, video null, GUID oculto.
+  for u in select unnest(array[b, d, null::uuid]) as u loop
+    r := public.server_lesson_video(u, nul);
+    if r is null or (r->>'preview')::boolean is not true
+    or (r->'video') <> 'null'::jsonb
+    or r::text like '%bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb%'
+    then raise exception 'Library null en muestra: %', r; end if;
+  end loop;
+  -- Cadena vacía: tampoco es library válida.
+  r := public.server_lesson_video(b, empty);
+  if r is null or (r->'video') <> 'null'::jsonb
+  or r::text like '%cccccccc-cccc-cccc-cccc-cccccccccccc%'
+  then raise exception 'Library vacía: %', r; end if;
+  -- Comprador con derecho, library null: video null sin filtrar el GUID.
+  r := public.server_lesson_video(a, paid);
+  if r is null or (r->>'preview')::boolean is not false
+  or (r->'video') <> 'null'::jsonb
+  or r::text like '%eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee%'
+  then raise exception 'Library null con derecho: %', r; end if;
+  -- Admin en borradores con library null: ve la fila, nunca el GUID.
+  r := public.server_lesson_video(d, draft);
+  if r is null or (r->'video') <> 'null'::jsonb
+  or r::text like '%dddddddd-dddd-dddd-dddd-dddddddddddd%'
+  then raise exception 'Borrador admin: %', r; end if;
+  r := public.server_lesson_video(d, course_draft);
+  if r is null or (r->'video') <> 'null'::jsonb
+  or r::text like '%ffffffff-ffff-ffff-ffff-ffffffffffff%'
+  then raise exception 'Curso borrador admin: %', r; end if;
+  -- La autorización no se relaja: nadie más ve esos borradores.
+  if public.server_lesson_video(a, draft) is not null
+  or public.server_lesson_video(b, draft) is not null
+  or public.server_lesson_video(null, draft) is not null
+  or public.server_lesson_video(a, course_draft) is not null
+  or public.server_lesson_video(b, course_draft) is not null
+  or public.server_lesson_video(null, course_draft) is not null
+  then raise exception 'Borrador filtrado'; end if;
+  -- Sin derecho sigue sin haber fila aunque la library sea válida.
+  if public.server_lesson_video(b, ok) is not null
+  or public.server_lesson_video(null, ok) is not null
+  then raise exception 'Sin derecho'; end if;
+end $$;
+reset role;
+rollback;

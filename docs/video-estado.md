@@ -20,6 +20,9 @@ El único interruptor es `videoPlaybackBunny`, configuración pública que vive 
 
 En DEV la integración Bunny está activa y verificada: vídeo de prueba subido y
 listo, token authentication activo y modo sin firma apagado (verificado en DEV).
+El modo sin firma exige ahora un entorno explícitamente `development`/`dev`
+(`BUNNY_ENVIRONMENT`, ausente = `production`) además de `BUNNY_ALLOW_UNSIGNED_EMBED=1`;
+en producción el flag se ignora y la función sigue respondiendo 503 fail-closed.
 La plantilla versionada y el valor por defecto siguen siendo `false` (producción
 segura, sin demo); YouTube queda solo como flag local de desarrollo. El coste de
 Bunny (almacenamiento y transferencia) es independiente del reproductor y no es
@@ -38,10 +41,15 @@ cero.
   - solo lección publicada de curso `published` y con derecho de `p_user_id`:
     muestra gratuita, o admin en `public.user_roles`, o `entitlement` vigente;
   - `video` solo si hay fila `provider = 'bunny'`, `status = 'ready'`, GUID con
-    forma UUID y library numérica (1-12 dígitos); si no, `video` es `null`;
+    forma UUID y library numérica (1-12 dígitos) leyéndose de la fila privada;
+    la migración aditiva `20261118190000_server_lesson_video_library.sql`
+    eliminó el fallback hardcodeado: con library null/vacía, `video` es `null`
+    y el GUID no se propaga;
   - `EXECUTE` revocado a `public`, `anon` y `authenticated`; concedido solo a
     `service_role`. `p_user_id` debe salir de una sesión verificada en servidor.
-- Prueba SQL local `supabase/tests/0012_server_lesson_video.psql`.
+- Pruebas SQL locales `supabase/tests/0012_server_lesson_video.psql`,
+  `0016_admin_draft_lesson_video.psql` y `0025_video_library_guard.psql`
+  (library ausente, admin incluido y grants).
 
 Todo lo anterior es **SQL local**, ejercitado con PGlite (`npm run test:sql`).
 
@@ -66,20 +74,25 @@ Todo lo anterior es **SQL local**, ejercitado con PGlite (`npm run test:sql`).
   el estado de carga, y no se mueve el foco al iframe. Caducar retira el `src`;
   solo entonces, o ante un error, se ofrece renovar/reintentar.
 
-## Qué NO está hecho
+## Verificado en DEV y pendiente
 
 - Despliegue de producción: hay un proyecto Supabase de desarrollo migrado y
   funciones desplegadas, pero nada aplicado en producción.
-- Las Edge Functions (`lesson-video-token`, `link-lesson-video`) están
-  desplegadas y probadas en DEV (verificado en DEV/TEST).
+- Las Edge Functions (`lesson-video-token`, `link-lesson-video`, `video-upload`)
+  están desplegadas y probadas en DEV (verificado en DEV/TEST).
 - **Token authentication de Bunny está activo** y el modo sin firma está apagado
-  (verificado en DEV).
+  por defecto (verificado en DEV). Solo puede activarse con entorno
+  `development`/`dev`; en producción el flag se ignora y responde 503.
 - Vídeo de prueba subido por TUS desde `/admin` y listo en Bunny (verificado en
-  DEV); el vídeo definitivo sigue sujeto a decisión pendiente.
+  DEV); el enlace de vídeo está en «Estructura» y la subida TUS se gestiona desde
+  el inspector de la lección. El vídeo definitivo sigue sujeto a decisión
+  pendiente.
 - La configuración de servidor ya está aplicada en DEV; nada de ella en el
   repositorio, el chat, `environment.local.ts` ni filas públicas.
-- La comprobación visual en móvil sigue pendiente; la reproducción con Bunny
-  real sí se verificó en DEV, no en producción.
+- No se afirma una prueba E2E completa con Bunny más allá de lo verificado: la
+  comprobación se limitó a configuración, subida de prueba y carga del
+  reproductor. La comprobación visual en móvil y la reproducción en producción
+  siguen pendientes.
 - `VideoPlaybackService.expiresAt()` queda como API latente sin consumidores: el
   aula usa `PlaybackSource.expiresAt`. No se refactoriza en este cambio.
 

@@ -26,6 +26,12 @@ function request(body: unknown, token = 'jwt', origin = 'http://localhost:4200')
     body: JSON.stringify(body),
   });
 }
+function requestRaw(body: string) {
+  return new Request('http://localhost/function', {
+    method: 'POST', headers: { authorization: 'Bearer jwt', origin: 'http://localhost:4200' },
+    body,
+  });
+}
 const list = { operation: 'list', lessonId: lesson };
 const download = { ...list, operation: 'download', resourceId: resource };
 const prepare = { operation: 'prepare-upload', lessonId: lesson, title: 'Partitura', fileName: 'partitura.pdf', fileSize: 1024, mimeType: 'application/pdf' };
@@ -147,6 +153,42 @@ describe('lesson resources', () => {
     io.resources.mockResolvedValue({ course_id: course, items: [{ ...row, bucket: 'otro' }] });
     expect((await handler(request(download))).status).toBe(403);
     expect(io.sign).not.toHaveBeenCalled();
+  });
+  it('mide el límite de 2048 en bytes UTF-8, no en unidades UTF-16', async () => {
+    const { handler, io } = setup();
+    const encoder = new TextEncoder();
+    const bytes = (text: string) => encoder.encode(text).byteLength;
+    // Clave duplicada: JSON.parse conserva la última (`title` válido), así que
+    // el cuerpo es operativo; solo cambia su tamaño real en bytes.
+    const build = (pad: string) =>
+      `{"operation":"prepare-upload","lessonId":"${lesson}","title":"${pad}",` +
+      `"title":"Partitura","fileName":"partitura.pdf","fileSize":1,"mimeType":"application/pdf"}`;
+    const fixed = bytes(build(''));
+
+    // ASCII en la frontera estricta: 2048 bytes entra, 2049 no.
+    const atLimit = build('x'.repeat(2048 - fixed));
+    expect(bytes(atLimit)).toBe(2048);
+    expect((await handler(requestRaw(atLimit))).status).toBe(200);
+    expect(io.reserve).toHaveBeenCalledOnce();
+    io.reserve.mockClear();
+    const overAscii = build('x'.repeat(2049 - fixed));
+    expect(bytes(overAscii)).toBe(2049);
+    expect((await handler(requestRaw(overAscii))).status).toBe(400);
+    expect(io.reserve).not.toHaveBeenCalled();
+
+    // Multibyte: length <= 2048 pero bytes > 2048. Con conteo UTF-16 pasaría
+    // el filtro y reservaría; con el contrato real de bytes debe dar 400.
+    const overMultibyte = build('ñ'.repeat(2048 - fixed));
+    expect(overMultibyte.length).toBe(2048);
+    expect(bytes(overMultibyte)).toBeGreaterThan(2048);
+    expect((await handler(requestRaw(overMultibyte))).status).toBe(400);
+    expect(io.reserve).not.toHaveBeenCalled();
+
+    // Multibyte por debajo del límite: pasa y llega a reservar.
+    const under = build('ñ'.repeat(Math.floor((2048 - fixed) / 2) - 10));
+    expect(bytes(under)).toBeLessThan(2048);
+    expect((await handler(requestRaw(under))).status).toBe(200);
+    expect(io.reserve).toHaveBeenCalledOnce();
   });
   it('rechaza errores de entrada y CORS, maneja preflight y falla cerrado', async () => {
     const { handler, io } = setup();

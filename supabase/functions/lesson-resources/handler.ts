@@ -45,7 +45,7 @@ export function makeHandler(io: Dependencies, origins = ['http://localhost:4200'
       let body: Record<string, unknown>;
       try {
         const raw = await request.text();
-        if (raw.length > 2048) return reply(400, { error: 'Solicitud inválida' });
+        if (new TextEncoder().encode(raw).byteLength > 2048) return reply(400, { error: 'Solicitud inválida' });
         body = JSON.parse(raw);
       } catch { return reply(400, { error: 'Solicitud inválida' }); }
       if (!body || typeof body !== 'object' || Array.isArray(body) ||

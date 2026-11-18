@@ -38,12 +38,16 @@ futura) se rechaza y el reproductor no se monta.
 Solo en **desarrollo**, con un interruptor explícito del servidor:
 
 ```
+BUNNY_ENVIRONMENT=development
 BUNNY_ALLOW_UNSIGNED_EMBED=1
 ```
 
-El valor debe ser exactamente `1`; cualquier otro valor (incluido no definirlo)
-deja el modo desactivado. Sirve únicamente para comprobar el vídeo real de una
-biblioteca DEV cuando el «Embed view token authentication» de Bunny está
+El valor del flag debe ser exactamente `1`; cualquier otro valor (incluido no
+definirlo) deja el modo desactivado. Además, `BUNNY_ENVIRONMENT` debe ser
+exactamente `development` o `dev`: si falta (por defecto `production`) o tiene
+otro valor, el flag se ignora y la función responde 503. Sirve únicamente para
+comprobar el vídeo real de una biblioteca DEV cuando el «Embed view token
+authentication» de Bunny está
 desactivado y todavía no se ha copiado la signing key a Supabase. Es una
 excepción temporal de maquetación, no una forma de eludir la firma: el enlace no
 caduca y se puede compartir, y no es DRM ni impide grabar la pantalla.
@@ -62,9 +66,10 @@ Para volver a la operación normal, en cuanto la firma esté disponible:
 ## Producción
 
 En producción **`BUNNY_ALLOW_UNSIGNED_EMBED` debe estar OFF** y la signing key
-configurada en el servidor. Sin esos dos condiciones la función responde 503 y
-el aula muestra un estado honesto; nunca se concede acceso sin firma por
-defecto. La clave de firma y la API key de Bunny viven solo como secretos de
+configurada en el servidor. `BUNNY_ENVIRONMENT` ausente o distinto de
+`development`/`dev` equivale a producción: aunque el flag valga `1`, la función
+responde 503. Nunca se concede acceso sin firma por defecto; el aula muestra un
+estado honesto. La clave de firma y la API key de Bunny viven solo como secretos de
 Edge Functions en Supabase: no se escriben en el repositorio, en
 `environment.local.ts`, en el chat ni en filas públicas.
 

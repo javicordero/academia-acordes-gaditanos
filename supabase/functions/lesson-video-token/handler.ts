@@ -26,7 +26,14 @@ export type Config = {
   ttlSeconds?: number;
   /** Solo DEV. Con este flag a true y sin signing key se emite un embed sin firma. Por defecto false. */
   allowUnsignedDev?: boolean;
+  /** Entorno de despliegue; ausente equivale a 'production' (fail-closed). */
+  environment?: string;
 };
+
+/** Solo los literales exactos 'development'/'dev' habilitan el modo sin firma. */
+export function isDevelopmentEnvironment(value: string | undefined | null): boolean {
+  return value === 'development' || value === 'dev';
+}
 
 export type VideoRow = {
   course_id: string;
@@ -102,8 +109,9 @@ export function makeHandler(
 ) {
   const libraryOk = typeof config.libraryId === 'string' && LIBRARY.test(config.libraryId);
   const keyOk = typeof config.tokenAuthKey === 'string' && config.tokenAuthKey.length > 0;
-  // Solo el valor literal true activa el modo DEV; undefined/otro valor -> fail-closed.
-  const allowUnsigned = config.allowUnsignedDev === true;
+  // Doble condición: flag literal true Y entorno explícitamente de desarrollo.
+  // En producción o con el entorno ausente el flag se ignora -> fail-closed 503.
+  const allowUnsigned = config.allowUnsignedDev === true && isDevelopmentEnvironment(config.environment);
   const rawTtl = typeof config.ttlSeconds === 'number' && Number.isInteger(config.ttlSeconds)
     ? config.ttlSeconds
     : DEFAULT_TTL_SECONDS;

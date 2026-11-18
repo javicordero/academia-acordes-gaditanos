@@ -4,7 +4,7 @@ Kimberley, resumen corto y honesto.
 
 ## Qué hay
 
-- Edge Function `link-lesson-video` (local, **no desplegada**): exige JWT
+- Edge Function `link-lesson-video` (**desplegada en DEV**): exige JWT
   verificado y rol `admin` en `public.user_roles`. Nunca lee `user_metadata`.
 - El cuerpo acepta solo `{ lessonId, videoId }`. El library ID y la API key
   salen de los secretos de entorno `BUNNY_STREAM_LIBRARY_ID` y
@@ -20,17 +20,20 @@ Kimberley, resumen corto y honesto.
 - Formulario `/admin/:courseId/:lessonId/video` con estados
   `idle`/`validando`/`vinculado`/`error`/`sin-config`/`sin-video`. No carga
   ninguna ficha al montar; no muestra el GUID guardado ni metadatos privados.
+- Hay enlace desde «Estructura» al vídeo de la lección, y la subida TUS está
+  integrada en el inspector del panel (`video-upload`).
 
-## Qué NO está hecho
+## Estado real y límites
 
-- Nada de esto está aplicado en la nube: ni migraciones, ni funciones, ni
-  secretos configurados en Supabase.
-- No se ha probado el vídeo real desde la aplicación; las pruebas son locales
-  con mocks y GUID ficticios.
-- El token auth de Bunny sigue **OFF**. No se activa hasta desplegar y probar
-  `lesson-video-token`; activarlo antes deja los embeds sin token en 403.
-- No hay enlace desde «Estructura» al formulario: se accede por URL directa
-  mientras se integra el panel editorial definitivo.
+- En DEV están aplicadas las migraciones y desplegadas las funciones; en
+  producción nada de esto está aplicado. La configuración de servidor vive solo
+  en secretos de Supabase.
+- Token auth de Bunny **activo** en DEV. El modo sin firma está apagado por
+  defecto: exige entorno explícitamente `development`/`dev` además del flag, y
+  en producción se ignora (503 fail-closed).
+- En DEV se verificó la configuración, la subida de un vídeo de prueba y la
+  carga del reproductor; las pruebas automáticas usan mocks y GUID ficticios.
+  No se afirma una reproducción E2E completa con Bunny más allá de lo verificado.
 - No se promete protección absoluta ni DRM.
 
 Los identificadores reales de la biblioteca y los vídeos son datos internos:
