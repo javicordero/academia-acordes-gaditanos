@@ -16,12 +16,28 @@ export function createDependencies(stripe: any, cryptoProvider: any, client: any
   return {
     verify: (body, signature, secret) => stripe.webhooks.constructEventAsync(body, signature, secret, 300, cryptoProvider),
     async record(event) {
-      const { data, error } = await client.rpc('record_stripe_event', {
+      const { data, error } = await client.rpc('record_stripe_event_canonical', {
         p_event_id: event.eventId, p_event_type: event.eventType, p_live_mode: event.liveMode,
         p_hash: event.hash, p_session_id: event.sessionId, p_order_id: event.orderId,
       });
       if (error) throw error;
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const status = resultOf<Recorded>((data as any).status, RECORDED, 'Registro no disponible');
+        const eventId = (data as any).event_id;
+        if (typeof eventId !== 'string' || !/^evt_[A-Za-z0-9]+$/.test(eventId)) {
+          throw new Error('Registro no disponible');
+        }
+        return { status, eventId };
+      }
+      // Compatibilidad con despliegues que aún exponen la RPC que devuelve texto.
       return resultOf<Recorded>(data, RECORDED, 'Registro no disponible');
+    },
+    // Un recibo que no concede queda marcado en BD: nunca bloquea recompra.
+    async noGrant(mark) {
+      const { error } = await client.rpc('mark_stripe_event_no_grant', {
+        p_event_id: mark.eventId, p_session_id: mark.sessionId, p_event_type: mark.eventType,
+      });
+      if (error) throw error;
     },
     // Lectura mínima del pedido por su id (service_role). No concede nada.
     // Sin respuesta utilizable se lanza: el handler responde 503 sin conceder.

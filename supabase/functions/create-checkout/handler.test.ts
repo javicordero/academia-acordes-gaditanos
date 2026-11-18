@@ -27,7 +27,9 @@ function setup() {
     sessionStatus: vi.fn().mockResolvedValue({
       status: 'open', paymentStatus: 'unpaid',
       metadata: { user_id: user, course_id: course, attempt_id: attempt, order_id: order },
+      url: 'https://checkout.stripe.com/c/pay/test',
     }),
+    boundSession: vi.fn().mockResolvedValue(null),
   };
   const config = { origins: ['http://localhost:4200'], appOrigin: 'http://localhost:4200', enabled: true, termsVersion: 'test', allowHttpTestOrigin: false };
   const call = (
@@ -251,7 +253,7 @@ describe('create-checkout', () => {
       expect(text).not.toContain('cs_test_session123');
     }
   });
-  it('already_bound de la MISMA sesión es válido; un conflicto con otra no devuelve URL', async () => {
+  it('already_bound de la MISMA sesión es válido; sin recuperación el conflicto da 409 accionable', async () => {
     const s = setup();
     vi.mocked(s.io.bind).mockResolvedValueOnce('already_bound');
     const ok = await s.call();
@@ -261,8 +263,63 @@ describe('create-checkout', () => {
     });
     vi.mocked(s.io.bind).mockResolvedValueOnce('binding_conflict');
     const res = await s.call();
-    expect(res.status).toBe(500);
-    expect(await res.text()).not.toContain('checkout.stripe.com');
+    expect(res.status).toBe(409);
+    const text = await res.text();
+    expect(text).toContain('Reintenta desde el curso');
+    expect(text).not.toContain('checkout.stripe.com');
+  });
+  it('binding conflict con id distinto: reutiliza la sesión ya vinculada sin duplicar cobro', async () => {
+    const s = setup();
+    const bound = 'cs_test_bound456';
+    const recovered = 'https://checkout.stripe.com/c/pay/bound456';
+    vi.mocked(s.io.create).mockResolvedValueOnce({ id: 'cs_test_new789', url: 'https://checkout.stripe.com/c/pay/new789' });
+    vi.mocked(s.io.bind).mockResolvedValueOnce('binding_conflict').mockResolvedValueOnce('already_bound');
+    vi.mocked(s.io.boundSession).mockResolvedValueOnce(bound);
+    vi.mocked(s.io.sessionStatus).mockImplementation(async (id: string) => id === bound ? {
+      status: 'open', paymentStatus: 'unpaid',
+      metadata: { user_id: user, course_id: course, attempt_id: canonical, order_id: order },
+      url: recovered,
+    } : null);
+    const res = await s.call();
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      url: recovered, sessionId: bound, attemptId: canonical,
+    });
+    expect(s.io.create).toHaveBeenCalledOnce();
+    expect(s.io.boundSession).toHaveBeenCalledWith(user, order);
+    expect(s.io.bind).toHaveBeenNthCalledWith(2, user, order, bound);
+  });
+  it('binding conflict irrecuperable: 409 accionable sin URL ni sesión', async () => {
+    const cases: Array<(s: ReturnType<typeof setup>) => void> = [
+      (s) => { delete (s.io as any).boundSession; },
+      (s) => { vi.mocked(s.io.boundSession).mockResolvedValueOnce('cs_test_other999'); },
+      (s) => {
+        vi.mocked(s.io.boundSession).mockResolvedValueOnce('cs_test_bound456');
+        vi.mocked(s.io.sessionStatus).mockResolvedValueOnce({
+          status: 'open',
+          metadata: { user_id: user, course_id: course, attempt_id: attempt, order_id: '40000000-0000-0000-0000-000000000099' },
+          url: 'https://checkout.stripe.com/c/pay/bound456',
+        });
+      },
+      (s) => {
+        vi.mocked(s.io.boundSession).mockResolvedValueOnce('cs_test_bound456');
+        vi.mocked(s.io.sessionStatus).mockResolvedValueOnce({
+          status: 'open',
+          metadata: { user_id: user, course_id: course, attempt_id: attempt, order_id: order },
+          url: 'https://evil.example/pay',
+        });
+      },
+    ];
+    for (const arrange of cases) {
+      const s = setup();
+      vi.mocked(s.io.bind).mockResolvedValueOnce('binding_conflict');
+      arrange(s);
+      const res = await s.call();
+      expect(res.status).toBe(409);
+      const text = await res.text();
+      expect(text).toContain('Reintenta desde el curso');
+      expect(text).not.toContain('checkout.stripe.com');
+    }
   });
   it('el reintento usa la misma clave canónica y la misma snapshot', async () => {
     const s = setup();

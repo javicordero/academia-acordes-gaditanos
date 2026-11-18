@@ -1,0 +1,152 @@
+\set ON_ERROR_STOP on
+-- Endurecimiento de pagos: recibo recibido != acceso, consistencia monetaria,
+-- dedup por sesión, recuperación de sesión vinculada y revalidación del pago.
+-- Sólo lógica SQL sobre PGlite: no es Supabase, Auth ni Stripe reales.
+begin;
+
+do $$ begin
+  if has_function_privilege('anon','public.record_stripe_event_canonical(text,text,boolean,text,text,uuid)','execute')
+  or has_function_privilege('authenticated','public.record_stripe_event_canonical(text,text,boolean,text,text,uuid)','execute')
+  or not has_function_privilege('service_role','public.record_stripe_event_canonical(text,text,boolean,text,text,uuid)','execute')
+  then raise exception 'privilegios record canónico'; end if;
+  if has_function_privilege('anon','public.mark_stripe_event_no_grant(text,text,text)','execute')
+  or has_function_privilege('authenticated','public.mark_stripe_event_no_grant(text,text,text)','execute')
+  or not has_function_privilege('service_role','public.mark_stripe_event_no_grant(text,text,text)','execute')
+  then raise exception 'privilegios no grant'; end if;
+  if has_function_privilege('anon','public.server_checkout_bound_session(uuid,uuid)','execute')
+  or has_function_privilege('authenticated','public.server_checkout_bound_session(uuid,uuid)','execute')
+  or not has_function_privilege('service_role','public.server_checkout_bound_session(uuid,uuid)','execute')
+  then raise exception 'privilegios sesión vinculada'; end if;
+  if not exists(select 1 from pg_indexes where schemaname='private' and tablename='commerce_events'
+      and indexname='checkout_event_session_unique') then raise exception 'falta índice de sesión'; end if;
+end $$;
+
+set local role authenticated;
+do $$ begin
+  begin perform public.mark_stripe_event_no_grant(null,null,null); raise exception 'acceso indebido';
+  exception when insufficient_privilege then null; end;
+  begin perform public.server_checkout_bound_session(null,null); raise exception 'acceso indebido';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+insert into auth.users(id) values
+  ('00000000-0000-0000-0000-000000000041'),
+  ('00000000-0000-0000-0000-000000000042'),
+  ('00000000-0000-0000-0000-000000000043'),
+  ('00000000-0000-0000-0000-000000000044');
+insert into public.courses(id,slug,title,status,published_at) values
+  ('10000000-0000-0000-0000-000000000041','hard28a','Hardening 28 A','published',now()),
+  ('10000000-0000-0000-0000-000000000042','hard28b','Hardening 28 B','published',now()),
+  ('10000000-0000-0000-0000-000000000043','hard28c','Hardening 28 C','published',now()),
+  ('10000000-0000-0000-0000-000000000044','hard28d','Hardening 28 D','published',now());
+insert into public.course_prices(id,course_id,amount_minor,currency) values
+  ('20000000-0000-0000-0000-000000000041','10000000-0000-0000-0000-000000000041',100,'EUR'),
+  ('20000000-0000-0000-0000-000000000042','10000000-0000-0000-0000-000000000042',100,'EUR'),
+  ('20000000-0000-0000-0000-000000000043','10000000-0000-0000-0000-000000000043',100,'EUR'),
+  ('20000000-0000-0000-0000-000000000044','10000000-0000-0000-0000-000000000044',100,'EUR');
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values
+  ('20000000-0000-0000-0000-000000000041','stripe','price_hard28a'),
+  ('20000000-0000-0000-0000-000000000042','stripe','price_hard28b'),
+  ('20000000-0000-0000-0000-000000000043','stripe','price_hard28c'),
+  ('20000000-0000-0000-0000-000000000044','stripe','price_hard28d');
+insert into private.checkout_order_config values (true,'fixture28');
+
+-- Disparador SOLO de prueba: simula el pago que se comete en la ventana.
+create function private.checkout_late_payment_28() returns trigger language plpgsql as $$
+begin
+  if current_setting('tests.late28', true) = 'on' then
+    insert into private.commerce_events(provider,external_event_id,event_type,processing_state,processed_at,stripe_session_id,order_reference,fulfillment_result)
+      values ('stripe','evt_late28','checkout.session.completed','processed',now(),'cs_test_late28',new.order_id,'fulfilled');
+  end if;
+  return new;
+end $$;
+create trigger checkout_late_payment_28 after insert on private.checkout_attempts
+  for each row execute function private.checkout_late_payment_28();
+
+do $$
+declare
+  u1 uuid := '00000000-0000-0000-0000-000000000041';
+  u2 uuid := '00000000-0000-0000-0000-000000000042';
+  u3 uuid := '00000000-0000-0000-0000-000000000043';
+  u4 uuid := '00000000-0000-0000-0000-000000000044';
+  c1 uuid := '10000000-0000-0000-0000-000000000041';
+  c2 uuid := '10000000-0000-0000-0000-000000000042';
+  c3 uuid := '10000000-0000-0000-0000-000000000043';
+  c4 uuid := '10000000-0000-0000-0000-000000000044';
+  a1 uuid := '30000000-0000-0000-0000-000000000041';
+  a2 uuid := '30000000-0000-0000-0000-000000000042';
+  a3 uuid := '30000000-0000-0000-0000-000000000043';
+  a4 uuid := '30000000-0000-0000-0000-000000000044';
+  o1 uuid; o2 uuid; o2b uuid; o3 uuid; o4 uuid;
+  n integer; st text; fr text; r1 jsonb; r2 jsonb;
+begin
+  -- (1) Un evento RECIBIDO sin fulfillment_result NO es estado terminal.
+  select order_id into o1 from public.reserve_checkout_order(u1,c1,a1,900);
+  update private.checkout_attempts set closed_at=now() where attempt_id=a1;
+  perform public.record_stripe_event('evt_recv28','checkout.session.completed',false,repeat('a',64),'cs_test_recv28',o1);
+  select processing_state, fulfillment_result into st, fr
+    from private.commerce_events where external_event_id='evt_recv28';
+  if st <> 'received' or fr is not null then raise exception 'recibo no registrado como recibido'; end if;
+  select order_id into o2 from public.reserve_checkout_order(u1,c1,a1,900);
+  if o2 = o1 then raise exception 'recibo recibido bloqueó el sucesor'; end if;
+  if (select count(*) from public.orders where user_id=u1) <> 2 then raise exception 'sucesor no creado'; end if;
+
+  -- El marcado como NO concedido sigue sin bloquear y es reanudable.
+  if public.mark_stripe_event_no_grant('evt_recv28','cs_test_recv28','checkout.session.completed') <> 'marked' then raise exception 'no grant'; end if;
+  if (select fulfillment_result from private.commerce_events where external_event_id='evt_recv28') <> 'requires_manual_review' then raise exception 'resultado no concedido'; end if;
+  select order_id into o2b from public.reserve_checkout_order(u1,c1,a1,900);
+  if o2b <> o2 then raise exception 'no grant cambió el sucesor'; end if;
+
+  -- Sí bloquea un evento PROCESADO con resultado de concesión (sin entitlement).
+  update private.commerce_events
+     set processing_state='processed', processed_at=now(), fulfillment_result='fulfilled'
+   where external_event_id='evt_recv28';
+  select count(*) into n from public.orders;
+  begin
+    perform public.reserve_checkout_order(u1,c1,a1,900);
+    raise exception 'pago concedido permitió reserva';
+  exception when raise_exception then
+    if sqlerrm <> 'already owned' then raise; end if;
+  end;
+  if (select count(*) from public.orders) <> n then raise exception 'pago concedido creó orden'; end if;
+  if (select count(*) from public.entitlements where user_id=u1 and course_id=c1) <> 0 then raise exception 'derecho inventado'; end if;
+
+  -- (3) Dos ids de evento distintos, misma sesión y tipo: UN evento lógico.
+  select order_id into o3 from public.reserve_checkout_order(u2,c2,a2,900);
+  r1 := public.record_stripe_event_canonical('evt_sess128','checkout.session.completed',false,repeat('b',64),'cs_test_sess28',o3);
+  r2 := public.record_stripe_event_canonical('evt_sess228','checkout.session.completed',false,repeat('c',64),'cs_test_sess28',o3);
+  if r1->>'status' <> 'created' or r2->>'status' <> 'received_unprocessed' then raise exception 'estado de dedup'; end if;
+  if r1->>'event_id' <> 'evt_sess128' or r2->>'event_id' <> r1->>'event_id' then raise exception 'evento canónico inestable'; end if;
+  if (select count(*) from private.commerce_events where stripe_session_id='cs_test_sess28') <> 1 then raise exception 'evento duplicado'; end if;
+  if public.bind_checkout_session(u2,o3,'cs_test_sess28') <> 'bound' then raise exception 'bind'; end if;
+  if public.fulfill_paid_event(r1->>'event_id',o3,'cs_test_sess28',u2,100,'EUR',null) <> 'fulfilled' then raise exception 'fulfill'; end if;
+  if public.record_stripe_event_canonical('evt_sess228','checkout.session.completed',false,repeat('c',64),'cs_test_sess28',o3) ->> 'status' <> 'processed' then raise exception 'replay no procesado'; end if;
+  if (select count(*) from public.entitlements where user_id=u2 and course_id=c2) <> 1 then raise exception 'derecho duplicado'; end if;
+  -- (2) Un no-grant posterior NUNCA degrada una concesión ya registrada.
+  if public.mark_stripe_event_no_grant('evt_sess228','cs_test_sess28','checkout.session.completed') <> 'kept_grant' then raise exception 'concesión degradada'; end if;
+  if (select fulfillment_result from private.commerce_events where external_event_id='evt_sess128') <> 'fulfilled' then raise exception 'resultado alterado'; end if;
+
+  -- (4) Sesión vinculada recuperable sólo en pedido pendiente, abierto y propio.
+  if public.server_checkout_bound_session(u2,o3) is not null then raise exception 'sesión pagada reutilizable'; end if;
+  select order_id into o4 from public.reserve_checkout_order(u3,c3,a3,900);
+  if public.server_checkout_bound_session(u3,o4) is not null then raise exception 'sin bind'; end if;
+  if public.bind_checkout_session(u3,o4,'cs_test_bound28') <> 'bound' then raise exception 'bind recuperación'; end if;
+  if public.server_checkout_bound_session(u3,o4) <> 'cs_test_bound28' then raise exception 'sesión no recuperable'; end if;
+  if public.server_checkout_bound_session(u1,o4) is not null then raise exception 'sesión ajena recuperable'; end if;
+
+  -- (5) Pago cometido entre el check y la inserción: se revierte TODO (sin huérfana).
+  select count(*) into n from public.orders where user_id=u4;
+  set local tests.late28 = 'on';
+  begin
+    perform public.reserve_checkout_order(u4,c4,a4,900);
+    raise exception 'pago tardío permitió la reserva';
+  exception when raise_exception then
+    if sqlerrm <> 'already owned' then raise; end if;
+  end;
+  set local tests.late28 = 'off';
+  if (select count(*) from public.orders where user_id=u4) <> n then raise exception 'orden huérfana'; end if;
+  if (select count(*) from private.commerce_events where external_event_id='evt_late28') <> 0 then raise exception 'evento huérfano'; end if;
+end $$;
+
+rollback;

@@ -169,6 +169,22 @@ recuperación con marca de sesión. No hay política de reembolso, impago tardí
 precios nuevos; la prueba se hizo con Stripe en modo TEST (verificado en
 DEV/TEST), no en producción.
 
+### Endurecimiento de pagos (auditoría de 2026-11-19)
+
+- La reserva vuelve a comprobar el derecho **después** de cerrar el intento y
+  **después** de insertar el sucesor: un pago que se cometa en esa ventana
+  revierte la orden completa en la misma transacción (migración
+  `20261119100000`, prueba `0028`). Sólo bloquean un `entitlement` activo o un
+  evento `processed` con resultado de concesión; un recibo `received` sin acceso
+  ya no produce el 409 «Curso ya adquirido».
+- Si Stripe poda la clave de idempotencia y devuelve otra sesión para la misma
+  orden, un `binding_conflict` ya no es un 500 irreversible: se recupera la
+  sesión vinculada en BD (RPC de sólo lectura `server_checkout_bound_session`),
+  se verifica con Stripe que sigue `open` y que su metadata coincide, y se
+  devuelve esa URL. Sin recuperación segura hay 409 accionable, sin URL ni id de
+  sesión. No se concede acceso ni se duplica cobro; cobertura en
+  `npm run test:functions`.
+
 ## Verificación
 
 - Pruebas unitarias del controlador con **Node + mocks** (`vitest`), sin llamadas

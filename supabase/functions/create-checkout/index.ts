@@ -68,6 +68,7 @@ function enabledHandler(): (request: Request) => Promise<Response> {
           status: session.status,
           paymentStatus: session.payment_status ?? null,
           metadata,
+          url: session.url ?? null,
         };
       } catch {
         return null;
@@ -84,6 +85,16 @@ function enabledHandler(): (request: Request) => Promise<Response> {
       if (data !== 'bound' && data !== 'already_bound' && data !== 'binding_conflict') {
         throw new Error('Enlace no disponible');
       }
+      return data;
+    },
+    // Recuperación ante binding conflict: la BD devuelve la sesión ya vinculada
+    // sólo si el pedido sigue pendiente, abierto y pertenece al actor. Nunca
+    // concede nada y expone únicamente un id opaco ya conocido por Stripe.
+    async boundSession(user, order) {
+      const { data, error } = await client.rpc('server_checkout_bound_session', {
+        p_actor: user, p_order: order,
+      });
+      if (error || typeof data !== 'string') return null;
       return data;
     },
   }, {

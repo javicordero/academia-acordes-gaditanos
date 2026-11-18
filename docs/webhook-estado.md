@@ -17,6 +17,30 @@ El importe (`amount_total`, entero no negativo y ≤ 2147483647, límite del tip
 
 Cuando la lectura canónica no encuentra pedido con esa sesión, el adaptador consulta `server_checkout_pending_state(order, session, amount, currency)` (migración `20261117280000_pending_checkout_lookup.sql`, `security definer`, `search_path=''`, ejecución sólo de `service_role`). Esa RPC **no concede ni vincula**: deriva el intento del pedido, exige reserva de Stripe abierta, no caducada y con snapshot coherente, y compara los hechos monetarios del evento. No recibe `metadata.user_id` ni actor del cliente. Devuelve `pending` (503 reintentable) o `unresolvable` (ACK); una sesión ya vinculada a otra sesión, un pedido ajeno o un importe distinto son definitivos. Antes del bind no existe sesión en BD que cotejar: un `sessionId` arbitrario en un evento firmado sólo puede reintentarse hasta el bind o el vencimiento de la reserva; se documenta como límite, no se auto-vincula nada. Tras el bind, la lectura canonical exige coincidencia exacta de sesión.
 
+### Endurecimiento de pagos (auditoría de 2026-11-19)
+
+- Se comprueba la consistencia interna del evento firmado:
+  `amount_total = amount_subtotal + amount_tax - coalesce(amount_discount, 0)`
+  cuando esos campos están presentes (`amount_subtotal` se acepta en la raíz o
+  en `total_details`). Un descuento distinto de cero no concede acceso: no hay
+  ofertas implementadas y el snapshot no lo contempla. Formas inválidas siguen
+  siendo 400 sin registro; `amount_total` continúa siendo la evidencia del cobro
+  y jamás se sustituye por el snapshot.
+- Cualquier divergencia, incluida la de importe/moneda contra la BD, se registra
+  con `mark_stripe_event_no_grant` como `requires_manual_review`: ack 200 sin
+  fulfillment, sin bloquear recompra y sin degradar una concesión previa. Un
+  recibo `received` sin derecho nunca es estado terminal.
+- Dedup aditivo por `(provider, event_type, stripe_session_id)` además de
+  `(provider, external_event_id)`: `record_stripe_event_canonical` devuelve el
+  mismo evento lógico y su id canónico, de modo que fulfillment se llama una
+  sola vez aunque Stripe envíe dos ids para la misma sesión. La RPC antigua
+  conserva su firma y salida. Migración `20261119100000`, prueba SQL `0028`.
+  Desplegar juntos migración y functions: con un webhook antiguo, un id dedupado
+  puede devolver 503 hasta que se procese el evento canónico.
+- Sin impuestos activados, sin packs, sin ofertas y sin Stripe live. El impuesto
+  positivo sigue admitiéndose porque `orders.amount_tax_minor` lo contempla; el
+  descuento no, porque no hay snapshot de ofertas.
+
 ## Respuestas
 
 - **200 (recibo aceptado):** `fulfilled`, `already_paid`, `already_entitled`, `already_processed`; también los casos definitivos sin concesión `requires_manual_review`, `missing_order` y `receipt_bound_to_other_user`, que se registran con log estructurado sin PII y quedan para revisión manual. La ausencia de concesión no depende de que Stripe reintente o no: cualquier entrega no-2xx puede volver a intentarse. Igualmente se ack sin fulfillment un evento ya `processed`, un tipo no soportado, un estado de pago distinto, otro `mode`, un pedido no elegible, una reserva `unresolvable` y unos hechos monetarios que no coinciden con la BD (sin marcar procesado).

@@ -5,6 +5,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SESSION = /^cs_(?:test|live)_[A-Za-z0-9]+$/;
 /** Vigencia de la reserva que precedes a la sesión de pago (60..86400 en la RPC). */
 export const RESERVATION_TTL_SECONDS = 900;
+/** Error accionable ante un binding conflict que no se puede recuperar. */
+const RECOVERY_ERROR = 'No se pudo recuperar la sesión de pago. Reintenta desde el curso.';
 export type Offer = { owned: boolean; slug: string; price_id: string; amount_minor: number; currency: string; provider_price_id: string };
 export type Bind = 'bound' | 'already_bound' | 'binding_conflict';
 /** `terms_version` llega desde el snapshot de la reserva, nunca del cliente. */
@@ -14,6 +16,8 @@ export type SessionState = {
   status: string;
   paymentStatus?: string | null;
   metadata?: Record<string, string> | null;
+  /** URL REAL devuelta por Stripe al recuperar una sesión ya vinculada. */
+  url?: string | null;
 };
 export interface Dependencies {
   getUser(token: string): Promise<{ id: string; confirmed: boolean } | null>;
@@ -27,6 +31,8 @@ export interface Dependencies {
   bind?(user: string, order: string, sessionId: string): Promise<Bind>;
   /** Consulta a Stripe por id de sesión. Nunca se fía del reloj ni del navegador. */
   sessionStatus?(sessionId: string): Promise<SessionState | null>;
+  /** Sesión ya vinculada en BD, recuperable sólo en servidor (service_role). */
+  boundSession?(user: string, order: string): Promise<string | null>;
 }
 
 export type HandlerConfig = {
@@ -53,6 +59,16 @@ function appUrl(config: HandlerConfig): URL {
   if (app.protocol === 'https:' || app.origin === 'http://localhost:4200') return app;
   if (config.allowHttpTestOrigin === true && app.protocol === 'http:') return app;
   throw new Error();
+}
+
+/** Sólo HTTPS de Stripe, sin credenciales, ruta adicional ni fragmento. */
+function trustedSessionUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.hostname !== 'checkout.stripe.com') return null;
+    return url.toString();
+  } catch { return null; }
 }
 
 /**
@@ -213,19 +229,47 @@ export function makeHandler(io: Dependencies, config: HandlerConfig) {
         target = new URL(created.url);
         if (target.protocol !== 'https:' || target.hostname !== 'checkout.stripe.com') throw new Error();
       } catch { throw new Error(); }
-      // La URL sólo se devuelve tras vincular esa misma sesión al pedido. Si el
-      // bind falla (o hay conflicto con otra sesión) no hay URL: el reintento del
-      // navegador reconstruye la misma clave canónica y Stripe devuelve la MISMA
-      // sesión, cuyo bind se reintenta. Nunca se crea una clave aleatoria.
-      let bound: Bind;
+      // La URL sólo se devuelve tras vincular esa misma sesión al pedido. Un
+      // error de bind es 500 sin filtrar nada; un binding_conflict (Stripe pudo
+      // podar la clave de idempotencia y crear otra sesión) se recupera reusing
+      // la sesión ya vinculada, sin conceder derechos ni duplicar cobro.
+      let bound: Bind | 'error';
       try { bound = await io.bind(user.id, orderId, created.id); }
-      catch { bound = 'binding_conflict'; }
-      if (bound !== 'bound' && bound !== 'already_bound') throw new Error();
+      catch { bound = 'error'; }
+      if (bound === 'error') throw new Error();
+
+      let finalSession = created.id;
+      let finalUrl = target.toString();
+      if (bound === 'binding_conflict') {
+        if (typeof io.boundSession !== 'function' || typeof io.sessionStatus !== 'function') {
+          return reply(409, RECOVERY_ERROR);
+        }
+        let existing: string | null = null;
+        try { existing = await io.boundSession(user.id, orderId); } catch { existing = null; }
+        if (typeof existing !== 'string' || !SESSION.test(existing)) return reply(409, RECOVERY_ERROR);
+        let seen: SessionState | null = null;
+        try { seen = await io.sessionStatus(existing); } catch { seen = null; }
+        if (!seen || seen.status !== 'open') return reply(409, RECOVERY_ERROR);
+        const meta = seen.metadata ?? {};
+        if (meta.user_id !== user.id || meta.course_id !== body.courseId ||
+            meta.attempt_id !== attemptId || meta.order_id !== orderId) {
+          return reply(409, RECOVERY_ERROR);
+        }
+        const recovered = trustedSessionUrl(seen.url);
+        if (!recovered) return reply(409, RECOVERY_ERROR);
+        let rebound: Bind | 'error';
+        try { rebound = await io.bind(user.id, orderId, existing); } catch { rebound = 'error'; }
+        if (rebound !== 'bound' && rebound !== 'already_bound') return reply(409, RECOVERY_ERROR);
+        finalSession = existing;
+        finalUrl = recovered;
+      } else if (bound !== 'bound' && bound !== 'already_bound') {
+        throw new Error();
+      }
       // El id es opaco y ya viajaba en la URL de Stripe; el cliente guarda el
       // par intento/sesión REAL para reenviarlo tal cual en el siguiente clic.
       // El intento devuelto es siempre el canónico: el sucesor vive en la BD.
       return Response.json({
-        url: target.toString(), sessionId: created.id, attemptId,
+        url: finalUrl, sessionId: finalSession, attemptId,
       }, { headers });
     } catch {
       return reply(500, 'No se pudo completar la operación');

@@ -42,9 +42,10 @@ function setup(o: Options = {}) {
   if (o.failReservation) reservation.mockRejectedValue(new Error('private diagnostic'));
   const fulfill = vi.fn().mockResolvedValue(o.result ?? 'fulfilled');
   if (o.failFulfill) fulfill.mockRejectedValue(new Error('private diagnostic'));
-  const deps = { verify: vi.fn(verify), record, order, reservation, fulfill };
+  const noGrant = vi.fn().mockResolvedValue('marked');
+  const deps = { verify: vi.fn(verify), record, order, reservation, fulfill, noGrant };
   const handler = makeHandler(deps, { enabled: true, secret, expectedLiveMode: false });
-  return { record, order, reservation, fulfill, deps, handler };
+  return { record, order, reservation, fulfill, noGrant, deps, handler };
 }
 function request(event: unknown = base, timestamp = Math.floor(Date.now() / 1000), change?: (s: string) => string) {
   const payload = JSON.stringify(event);
@@ -347,12 +348,77 @@ describe('webhook Stripe (mocks: no es Supabase/Stripe real)', () => {
   it('adapter cablea todas las dependencias que usa el handler', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
     const deps = createDependencies(stripe, cryptoProvider, { rpc });
-    expect(Object.keys(deps).sort()).toEqual(['fulfill', 'order', 'record', 'reservation', 'verify'].sort());
+    expect(Object.keys(deps).sort()).toEqual(['fulfill', 'noGrant', 'order', 'record', 'reservation', 'verify'].sort());
     rpc.mockResolvedValueOnce({ data: [], error: null });
     const { order } = deps;
     expect(await order(ORDER, 'cs_test_123')).toEqual({ known: false, userId: null, amountMinor: null, currency: null });
     expect(rpc).toHaveBeenCalledWith('server_checkout_order_for_event', {
       p_order: ORDER, p_session: 'cs_test_123',
+    });
+  });
+
+  it('importes internos inconsistentes: no concede y marca el recibo como no concedido', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const s = setup();
+      const res = await s.handler(request(withObject({
+        amount_subtotal: 11110, total_details: { amount_tax: 10 },
+      })));
+      expect(res.status).toBe(200);
+      expect(s.noGrant).toHaveBeenCalledWith({
+        eventId: 'evt_123', sessionId: 'cs_test_123', eventType: 'checkout.session.completed',
+      });
+      expect(s.fulfill).not.toHaveBeenCalled();
+      expect(spy.mock.calls.map(c => JSON.stringify(c)).join('')).toContain('amount_mismatch');
+    } finally { spy.mockRestore(); }
+  });
+
+  it('descuento sin ofertas implementadas: no concede ni bloquea recompra', async () => {
+    const s = setup();
+    const res = await s.handler(request(withObject({
+      amount_subtotal: 12445, total_details: { amount_discount: 100, amount_tax: 0 },
+    })));
+    expect(res.status).toBe(200);
+    expect(s.noGrant).toHaveBeenCalledOnce();
+    expect(s.fulfill).not.toHaveBeenCalled();
+  });
+
+  it('descuento cero y subtotal coherentes: concede con el importe firmado', async () => {
+    const s = setup();
+    const res = await s.handler(request(withObject({
+      amount_subtotal: 12345, total_details: { amount_discount: 0, amount_tax: 0 },
+    })));
+    expect(res.status).toBe(200);
+    expect(s.noGrant).not.toHaveBeenCalled();
+    expect(s.fulfill).toHaveBeenCalledWith(expect.objectContaining({ amountMinor: 12345, taxMinor: 0 }));
+  });
+
+  it('dos ids de evento con la misma sesión: fulfillment usa el evento canónico', async () => {
+    const s = setup();
+    vi.mocked(s.record).mockResolvedValueOnce({ status: 'received_unprocessed', eventId: 'evt_canonical123' });
+    const second = { ...base, id: 'evt_second123' };
+    expect((await s.handler(request(second))).status).toBe(200);
+    expect(s.fulfill).toHaveBeenCalledOnce();
+    expect(s.fulfill).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'evt_canonical123' }));
+    expect(s.noGrant).not.toHaveBeenCalled();
+  });
+
+  it('adapter registra el evento canónico y marca los no concedidos', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { status: 'created', event_id: 'evt_logical123' }, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+    const deps = createDependencies(stripe, cryptoProvider, { rpc });
+    await expect(deps.record({
+      eventId: 'evt_second123', eventType: 'checkout.session.completed', liveMode: false,
+      hash: 'a'.repeat(64), sessionId: 'cs_test_123', orderId: ORDER,
+    })).resolves.toEqual({ status: 'created', eventId: 'evt_logical123' });
+    expect(rpc).toHaveBeenCalledWith('record_stripe_event_canonical', {
+      p_event_id: 'evt_second123', p_event_type: 'checkout.session.completed', p_live_mode: false,
+      p_hash: 'a'.repeat(64), p_session_id: 'cs_test_123', p_order_id: ORDER,
+    });
+    await deps.noGrant!({ eventId: 'evt_logical123', sessionId: 'cs_test_123', eventType: 'checkout.session.completed' });
+    expect(rpc).toHaveBeenCalledWith('mark_stripe_event_no_grant', {
+      p_event_id: 'evt_logical123', p_session_id: 'cs_test_123', p_event_type: 'checkout.session.completed',
     });
   });
 });
