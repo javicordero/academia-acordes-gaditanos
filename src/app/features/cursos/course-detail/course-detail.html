@@ -1,4 +1,4 @@
-<p><a routerLink="/cursos">Volver a cursos</a></p>
+<p class="back-nav"><a routerLink="/cursos">Volver a cursos</a></p>
 @if (returnedFromCheckout()) {
   <p class="checkout-return" role="status">Has vuelto de Stripe. Puedes reanudar la compra de prueba o consultar <a routerLink="/mis-cursos">Mis cursos</a>.</p>
 }
@@ -19,103 +19,161 @@
   }
   @case ('ready') {
     @if (detail(); as data) {
-      <h1>{{ data.course.title }}</h1>
-      <p>Nivel: {{ levels[data.course.level] }}</p>
-      @if (data.course.summary) {
-        <p>{{ data.course.summary }}</p>
-      }
-      @if (data.course.description) {
-        <p class="description">{{ data.course.description }}</p>
-      }
-
-      @switch (accessState()) {
-        @case ('session-loading') {
-          <p role="status">Comprobando tu sesión…</p>
-        }
-        @case ('unconfigured') {
-          <p>La conexión aún no está configurada.</p>
-        }
-        @case ('anonymous') {
-          <p class="access">Inicia sesión para consultar si ya tienes acceso a este curso.</p>
-          @if (!checkoutEnabled()) {
-            <p><a routerLink="/auth/login">Iniciar sesión</a></p>
+      <ng-template #courseCta>
+        <div class="cta">
+          @if (checkoutEnabled()) {
+            <app-checkout-button
+              mode="buy"
+              [courseId]="data.course.id"
+              [courseSlug]="data.course.slug"
+              [accessState]="accessState()" />
+          } @else {
+            <p class="cta__fallback">La compra todavía no está disponible. Las lecciones a las que tienes acceso se abren en el aula.</p>
           }
-        }
-        @case ('checking') {
-          <p role="status">Comprobando tu acceso…</p>
-        }
-        @case ('granted') {
-          <section class="access granted" aria-labelledby="access-granted">
-            <h2 id="access-granted">Ya tienes acceso a este curso</h2>
-            @if (destination(); as dest) {
-              <p><a [routerLink]="['/aula', dest.courseSlug, dest.lessonSlug]">Abrir la primera lección</a></p>
-            }
-            <p><a routerLink="/mis-cursos">Ir a mis cursos</a> para ver tus lecciones y tu progreso.</p>
-          </section>
-        }
-        @case ('none') {
-          <section class="access" aria-labelledby="access-none">
-            <h2 id="access-none">Todavía no tienes acceso a este curso</h2>
-            <p>Tu cuenta no figura con acceso activo a este curso. Si crees que es un error, revisa la cuenta con la que has iniciado sesión o escribe al soporte de la academia.</p>
-            <p><a routerLink="/mis-cursos">Ver mis cursos</a></p>
-          </section>
-        }
-        @case ('revoked') {
-          <section class="access" aria-labelledby="access-revoked">
-            <h2 id="access-revoked">Tu acceso a este curso no está activo</h2>
-            <p>El acceso asociado a tu cuenta figura revocado. Si crees que es un error, escribe al soporte de la academia; no es un problema de conexión.</p>
-          </section>
-        }
-        @case ('error') {
-          <div role="alert" class="access">
-            <p>No se pudo comprobar el acceso a este curso.</p>
-            <button type="button" (click)="retryAccess()">Reintentar la comprobación</button>
-          </div>
-        }
-      }
+        </div>
+      </ng-template>
 
-      @if (previewLessons().length) {
-        <section aria-labelledby="preview-title">
-          <h2 id="preview-title">Lección de muestra</h2>
-          <ul>
-            @for (lesson of previewLessons(); track lesson.id) {
-              <li><a [routerLink]="['/aula', data.course.slug, lesson.slug]">{{ lesson.title }}</a> <span>(muestra)</span></li>
-            }
-          </ul>
-        </section>
-      }
-
-      @if (checkoutEnabled()) {
-        <app-checkout-button
-          [courseId]="data.course.id"
-          [courseSlug]="data.course.slug"
-          [accessState]="accessState()" />
-      } @else {
-        <p>La compra todavía no está disponible. Las lecciones a las que tienes acceso se abren en el aula.</p>
-      }
-
-      <h2>Bloques y lecciones del catálogo</h2>
-      <p>Índice de las lecciones publicadas de este curso. El acceso se comprueba al abrir cada lección: según tu sesión y tu derecho activo podrás verla o encontrarás el aviso correspondiente.</p>
-      @for (section of data.sections; track section.id) {
-        <section>
-          <h3>{{ section.title }}</h3>
-          @if (section.summary) {
-            <p>{{ section.summary }}</p>
+      <div class="course-detail">
+        <div class="course-hero">
+          <p class="course-hero__level">Nivel: {{ levels[data.course.level] }}</p>
+          <h1 class="course-hero__title">{{ data.course.title }}</h1>
+          @if (data.course.summary) {
+            <p class="course-hero__summary">{{ data.course.summary }}</p>
           }
-          <ul>
-            @for (lesson of data.lessons; track lesson.id) {
-              @if (lesson.section_id === section.id) {
-                <li>
-                  <a [routerLink]="['/aula', data.course.slug, lesson.slug]">{{ lesson.title }}</a>
-                  @if (lesson.is_free_preview) {
-                    <span>(muestra)</span>
-                  }
-                </li>
+          <ng-container [ngTemplateOutlet]="courseCta" />
+        </div>
+
+        <div class="access-panel">
+          @switch (accessState()) {
+            @case ('session-loading') {
+              <p class="access-status__message" role="status">Comprobando tu sesión…</p>
+            }
+            @case ('unconfigured') {
+              <p class="access-status__message">La conexión aún no está configurada.</p>
+            }
+            @case ('anonymous') {
+              <p class="access-status__message">Inicia sesión para consultar si ya tienes acceso a este curso.</p>
+              @if (!checkoutEnabled()) {
+                <p><a routerLink="/auth/login">Iniciar sesión</a></p>
               }
             }
+            @case ('checking') {
+              <p class="access-status__message" role="status">Comprobando tu acceso…</p>
+            }
+            @case ('granted') {
+              <section class="access-status access-status--granted" aria-labelledby="access-granted">
+                <h2 id="access-granted">Ya tienes acceso a este curso</h2>
+                @if (destination(); as dest) {
+                  <p><a [routerLink]="['/aula', dest.courseSlug, dest.lessonSlug]">Abrir la primera lección</a></p>
+                }
+                <p><a routerLink="/mis-cursos">Ir a mis cursos</a> para ver tus lecciones y tu progreso.</p>
+              </section>
+            }
+            @case ('none') {
+              <section class="access-status access-status--none" aria-labelledby="access-none">
+                <h2 id="access-none">Todavía no tienes acceso a este curso</h2>
+                <p>Tu cuenta no figura con acceso activo a este curso. Si crees que es un error, revisa la cuenta con la que has iniciado sesión o escribe al soporte de la academia.</p>
+                <p><a routerLink="/mis-cursos">Ver mis cursos</a></p>
+              </section>
+            }
+            @case ('revoked') {
+              <section class="access-status access-status--revoked" aria-labelledby="access-revoked">
+                <h2 id="access-revoked">Tu acceso a este curso no está activo</h2>
+                <p>El acceso asociado a tu cuenta figura revocado. Si crees que es un error, escribe al soporte de la academia; no es un problema de conexión.</p>
+              </section>
+            }
+            @case ('error') {
+              <div role="alert" class="access-status access-status--error">
+                <p>No se pudo comprobar el acceso a este curso.</p>
+                <button type="button" (click)="retryAccess()">Reintentar la comprobación</button>
+              </div>
+            }
+          }
+        </div>
+
+        <section class="section section--learning" aria-labelledby="learning-title">
+          <h2 id="learning-title">Qué aprenderás</h2>
+          @if (data.course.description) {
+            <p class="description">{{ data.course.description }}</p>
+          } @else if (data.course.summary) {
+            <p class="description">{{ data.course.summary }}</p>
+          } @else {
+            <p class="placeholder">Todavía no hay una descripción publicada para este curso. Puedes consultar el índice de lecciones para ver su contenido.</p>
+          }
+        </section>
+
+        <section class="section section--facts" aria-labelledby="facts-title">
+          <h2 id="facts-title">Lo que incluye este curso</h2>
+          <ul class="fact-cards">
+            <li class="fact-card"><span class="fact-card__label">Nivel</span><span class="fact-card__value">{{ levels[data.course.level] }}</span></li>
+            <li class="fact-card"><span class="fact-card__label">Bloques</span><span class="fact-card__value">{{ data.sections.length }}</span></li>
+            <li class="fact-card"><span class="fact-card__label">Lecciones publicadas</span><span class="fact-card__value">{{ data.lessons.length }}</span></li>
+            <li class="fact-card"><span class="fact-card__label">Lecciones de muestra</span><span class="fact-card__value">{{ previewLessons().length }}</span></li>
           </ul>
         </section>
-      }
+
+        @if (previewLessons().length) {
+          <section class="section section--preview" aria-labelledby="preview-title">
+            <h2 id="preview-title">Lección de muestra</h2>
+            <p class="section__intro">Una lección gratuita para conocer el curso. Se abre en el aula; aquí no se incrusta vídeo de pago.</p>
+            <div class="preview-grid">
+              @for (lesson of previewLessons(); track lesson.id) {
+                <article class="preview-card">
+                  <div class="preview-card__text">
+                    <h3>{{ lesson.title }}</h3>
+                    <p class="preview-card__tag">Muestra gratuita</p>
+                    <a [routerLink]="['/aula', data.course.slug, lesson.slug]">Abrir la muestra en el aula</a>
+                  </div>
+                  <div class="preview-card__media">
+                    <span>Vista previa disponible en el aula</span>
+                  </div>
+                </article>
+              }
+            </div>
+          </section>
+        }
+
+        <section class="section section--syllabus" aria-labelledby="syllabus-title">
+          <h2 id="syllabus-title">Bloques y lecciones del catálogo</h2>
+          <p class="section__intro">Índice de las lecciones publicadas de este curso. El acceso se comprueba al abrir cada lección: según tu sesión y tu derecho activo podrás verla o encontrarás el aviso correspondiente.</p>
+          @for (section of data.sections; track section.id) {
+            <div class="syllabus__block" role="group" [attr.aria-labelledby]="'syllabus-' + section.id">
+              <h3 [id]="'syllabus-' + section.id">{{ section.title }}</h3>
+              @if (section.summary) {
+                <p>{{ section.summary }}</p>
+              }
+              <ul class="lesson-index">
+                @for (lesson of data.lessons; track lesson.id) {
+                  @if (lesson.section_id === section.id) {
+                    <li>
+                      <a [routerLink]="['/aula', data.course.slug, lesson.slug]">{{ lesson.title }}</a>
+                      @if (lesson.is_free_preview) {
+                        <span>(muestra)</span>
+                      }
+                    </li>
+                  }
+                }
+              </ul>
+            </div>
+          }
+        </section>
+
+        <section class="section section--teacher" aria-labelledby="teacher-title">
+          <h2 id="teacher-title">Tu profesor</h2>
+          <p class="placeholder">Todavía no hay una ficha docente publicada para este curso. Este espacio se completará con la información del equipo docente cuando esté disponible.</p>
+        </section>
+
+        <section class="section section--faq" aria-labelledby="faq-title">
+          <h2 id="faq-title">Preguntas frecuentes</h2>
+          <p class="placeholder">Todavía no hay preguntas frecuentes publicadas para este curso. El índice de lecciones describe el contenido disponible.</p>
+        </section>
+
+        <section class="section section--final-cta" aria-labelledby="final-cta-title">
+          <h2 id="final-cta-title">Continúa con este curso</h2>
+          <p class="section__intro">Consulta tu acceso, abre la lección de muestra o revisa tus cursos.</p>
+          <ng-container [ngTemplateOutlet]="courseCta" />
+        </section>
+      </div>
     }
   }
 }

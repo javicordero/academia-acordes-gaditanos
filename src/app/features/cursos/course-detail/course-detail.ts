@@ -9,6 +9,7 @@ import {
   untracked,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { SUPABASE_CONFIG } from '../../../../environments/supabase-config';
@@ -40,7 +41,7 @@ interface AccessAnswer {
 
 @Component({
   selector: 'app-course-detail',
-  imports: [RouterLink, CheckoutButton],
+  imports: [RouterLink, NgTemplateOutlet, CheckoutButton],
   templateUrl: './course-detail.html',
   styleUrl: './course-detail.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -1,4 +1,219 @@
-.description { white-space: pre-wrap; overflow-wrap: anywhere; }
-section { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); padding: 1rem; margin: 1rem 0; }
-.access.granted { border-color: currentColor; }
-button { font: inherit; padding: .45rem; }
+/* Maquetación de la ficha: ancho completo centrado, secciones apiladas, sin
+   barra lateral ni migas de pan. Los colores y la tipografía siguen siendo los
+   tokens provisionales del proyecto. */
+:host {
+  display: block;
+  width: 100%;
+  max-width: 75rem; /* ~1200px útiles; el shell ya centra el main. */
+  margin-inline: auto;
+  min-width: 0;
+}
+
+.description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.back-nav {
+  margin: 0 0 clamp(1rem, 3vw, 1.75rem);
+}
+
+.course-detail {
+  min-width: 0;
+}
+
+.course-hero {
+  padding-block: clamp(1rem, 4vw, 2.5rem);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+
+  &__level {
+    margin: 0 0 .5rem;
+    opacity: .85;
+  }
+
+  &__title {
+    margin: 0 0 .75rem;
+    font-size: clamp(1.6rem, 4.5vw, 2.75rem);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+
+  &__summary {
+    margin: 0 0 1rem;
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+}
+
+.checkout-return {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: .75rem 1rem;
+  overflow-wrap: anywhere;
+}
+
+.access-panel {
+  padding-block: 1rem;
+  min-width: 0;
+}
+
+.access-status {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1rem;
+  min-width: 0;
+
+  & + & { margin-top: .75rem; }
+
+  &--granted { border-color: currentColor; }
+  &--error { border-style: dashed; }
+  &__message { margin: 0; overflow-wrap: anywhere; }
+  h2 { margin-top: 0; font-size: 1.2rem; }
+}
+
+.section {
+  padding-block: clamp(1.25rem, 4vw, 2.25rem);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+
+  h2 {
+    margin: 0 0 .75rem;
+    font-size: clamp(1.25rem, 3vw, 1.75rem);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  h3 {
+    margin: 0 0 .5rem;
+    font-size: 1.1rem;
+    overflow-wrap: anywhere;
+  }
+
+  &__intro { margin: 0 0 1rem; overflow-wrap: anywhere; }
+}
+
+.placeholder {
+  border-left: 3px solid var(--border);
+  padding: .5rem .85rem;
+  margin: 0;
+  opacity: .85;
+  overflow-wrap: anywhere;
+}
+
+.fact-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: .75rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.fact-card {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: .85rem;
+
+  &__label { font-size: .9rem; opacity: .85; overflow-wrap: anywhere; }
+  &__value { font-size: 1.25rem; font-weight: 700; overflow-wrap: anywhere; }
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem;
+}
+
+.preview-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1rem;
+
+  &__text { min-width: 0; }
+  &__tag { margin: 0 0 .5rem; opacity: .85; }
+  &__media {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-width: 0;
+    min-height: 8rem;
+    padding: .75rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    overflow-wrap: anywhere;
+  }
+}
+
+.syllabus__block {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.lesson-index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem 1.25rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    min-width: 0;
+  }
+}
+
+.cta {
+  margin-block: 1rem;
+
+  &__fallback { margin: 0; overflow-wrap: anywhere; }
+}
+
+.section--final-cta {
+  border-bottom: 0;
+  text-align: center;
+}
+
+/* Objetivos táctiles amplios y foco visible en todos los controles propios. */
+:host :is(a, button, summary) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: .3rem .45rem;
+}
+
+:host :is(a, button, summary):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+button { font: inherit; }
+
+@media (max-width: 40rem) {
+  .preview-card,
+  .lesson-index { grid-template-columns: minmax(0, 1fr); }
+  .preview-card__media { min-height: 6rem; }
+}

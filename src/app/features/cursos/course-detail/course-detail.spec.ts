@@ -293,4 +293,123 @@ describe('Ficha de curso', () => {
     expect(access).not.toHaveBeenCalled();
     expect(checkoutStart).not.toHaveBeenCalled();
   });
+
+  it('estructura apilada: un solo h1 y secciones en el orden previsto', async () => {
+    setup();
+    const { harness } = await open();
+    const root = harness.routeNativeElement!.querySelector('.course-detail')!;
+    expect(root.querySelectorAll('h1')).toHaveLength(1);
+
+    const order = Array.from(root.children)
+      .filter((child) => child.tagName === 'SECTION')
+      .map((child) => Array.from(child.classList).find((name) => name.startsWith('section--')));
+    expect(order).toEqual([
+      'section--learning',
+      'section--facts',
+      'section--preview',
+      'section--syllabus',
+      'section--teacher',
+      'section--faq',
+      'section--final-cta',
+    ]);
+  });
+
+  it('CTA duplicado: arriba y al final, con el mismo botón de compra TEST', async () => {
+    setup({
+      status: 'authenticated', session: { user: { id: 'u1' } },
+      access: async () => 'none', checkoutEnabled: true,
+    });
+    const { harness } = await open();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelectorAll('.cta')).toHaveLength(2);
+    expect(root.querySelectorAll('app-checkout-button')).toHaveLength(2);
+    expect(root.querySelector('.course-hero .cta')).not.toBeNull();
+    expect(root.querySelector('.section--final-cta .cta')).not.toBeNull();
+  });
+
+  it('CTA duplicado también con la compra desactivada, sin botones falsos', async () => {
+    setup();
+    const { harness, text } = await open();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelectorAll('.cta')).toHaveLength(2);
+    expect(root.querySelectorAll('.cta__fallback')).toHaveLength(2);
+    expect(root.querySelectorAll('app-checkout-button')).toHaveLength(0);
+    expect(text()).toContain('La compra todavía no está disponible');
+  });
+
+  it('«Qué aprenderás» usa solo texto real del curso, sin beneficios inventados', async () => {
+    setup();
+    const { harness } = await open();
+    const learning = harness.routeNativeElement!.querySelector('.section--learning')!;
+    expect(learning.querySelector('h2')?.textContent).toBe('Qué aprenderás');
+    expect(learning.querySelector('.description')?.textContent).toContain('\u003cimg src=x\u003e');
+    expect(learning.querySelector('img')).toBeNull();
+  });
+
+  it('profesor y FAQ son huecos honestos, sin nombre, foto, bio ni preguntas inventadas', async () => {
+    setup();
+    const { harness } = await open();
+    const root = harness.routeNativeElement!;
+    const teacher = root.querySelector('.section--teacher')!;
+    const faq = root.querySelector('.section--faq')!;
+    expect(teacher.querySelector('h2')?.textContent).toBe('Tu profesor');
+    expect(teacher.querySelector('.placeholder')?.textContent).toContain('Todavía no hay una ficha docente publicada');
+    expect(teacher.querySelector('img')).toBeNull();
+    expect(teacher.querySelectorAll('h3')).toHaveLength(0);
+    expect(faq.querySelector('h2')?.textContent).toBe('Preguntas frecuentes');
+    expect(faq.querySelector('.placeholder')?.textContent).toContain('Todavía no hay preguntas frecuentes publicadas');
+  });
+
+  it('no muestra precios, testimonios ni datos comerciales inventados', async () => {
+    setup({
+      status: 'authenticated', session: { user: { id: 'u1' } },
+      access: async () => 'none', checkoutEnabled: true,
+    });
+    const { text } = await open();
+    expect(text()).not.toMatch(/\d+\s*(?:€|\$|EUR|USD)\b/i);
+    expect(text().toLowerCase()).not.toContain('precio');
+    expect(text()).not.toContain('Testimonios');
+  });
+
+  it('muestra gratuita con columna texto/vídeo honesta y sin incrustaciones', async () => {
+    setup();
+    const { harness, text } = await open();
+    const root = harness.routeNativeElement!;
+    const card = root.querySelector('.preview-card')!;
+    expect(card.querySelector('h3')?.textContent).toBe('Muestra');
+    expect(card.querySelector('.preview-card__media')?.textContent).toContain('Vista previa disponible en el aula');
+    expect(root.querySelector('iframe')).toBeNull();
+    expect(root.querySelector('video')).toBeNull();
+    expect(text()).toContain('(muestra)');
+  });
+
+  it('accesibilidad: jerarquía h2/h3, estados anunciados y sin main anidado', async () => {
+    setup({
+      status: 'authenticated', session: { user: { id: 'u1' } },
+      access: async () => { throw new Error('failed'); },
+    });
+    const { harness } = await open();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('main')).toBeNull();
+    expect(root.querySelectorAll('h1')).toHaveLength(1);
+    expect(root.querySelector('.access-status--error')?.getAttribute('role')).toBe('alert');
+    const h3s = Array.from(root.querySelectorAll('h3'));
+    expect(h3s.length).toBeGreaterThan(0);
+    for (const h3 of h3s) {
+      expect(h3.closest('section')?.querySelector('h2')).not.toBeNull();
+    }
+  });
+
+  it('responsive por clases: rejillas de una/two columnas preparadas para 320px', async () => {
+    setup();
+    const { harness } = await open();
+    const root = harness.routeNativeElement!;
+    for (const selector of [
+      '.course-hero', '.fact-cards', '.preview-grid', '.preview-card',
+      '.lesson-index', '.section--final-cta',
+    ]) {
+      expect(root.querySelector(selector), selector).not.toBeNull();
+    }
+    expect(root.querySelectorAll('.lesson-index li').length).toBeGreaterThan(0);
+  });
 });
