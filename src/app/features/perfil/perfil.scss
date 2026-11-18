@@ -5,3 +5,4 @@ label { font-weight: 700; }
 input { min-height: 44px; padding: .5rem; font: inherit; max-width: 100%; }
 button { min-height: 44px; padding: .5rem 1rem; font: inherit; justify-self: start; }
 a { display: inline-block; padding-block: .75rem; }
+.password-links { display: flex; flex-wrap: wrap; gap: 1rem; }

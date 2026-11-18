@@ -28,7 +28,10 @@
           <p id="name-message" role="status" aria-live="polite">{{ message() }}</p>
         </form>
       }
-      <a routerLink="/auth/recuperar">Recuperar o cambiar contraseña</a>
+      <div class="password-links">
+        <a routerLink="/auth/actualizar-contrasena">Cambiar contraseña</a>
+        <a routerLink="/auth/recuperar">Recuperar o cambiar contraseña</a>
+      </div>
     </div>
   }
 </section>

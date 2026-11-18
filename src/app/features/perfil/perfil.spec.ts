@@ -78,6 +78,42 @@ describe('Perfil', () => {
     expect(fixture.componentInstance.name()).toBe('Nombre');
   });
 
+  it('ofrece Cambiar contraseña como enlace interno con sesión activa', async () => {
+    session.set(user('u1')); status.set('authenticated');
+    const fixture = await setup();
+    const root = fixture.nativeElement as HTMLElement;
+    const link = root.querySelector<HTMLAnchorElement>('a[href="/auth/actualizar-contrasena"]');
+
+    expect(link).not.toBeNull();
+    expect(link?.tagName).toBe('A');
+    expect(link?.textContent?.trim()).toBe('Cambiar contraseña');
+    expect(link?.getAttribute('href')).toBe('/auth/actualizar-contrasena');
+    expect(link?.getAttribute('target')).toBeNull();
+    expect(link?.tabIndex).toBe(0);
+    expect(link?.hasAttribute('aria-hidden')).toBe(false);
+  });
+
+  it('no muestra el enlace de cambio sin sesión activa', async () => {
+    session.set(null); status.set('anonymous');
+    const fixture = await setup();
+    const root = fixture.nativeElement as HTMLElement;
+
+    expect(root.querySelector('a[href="/auth/actualizar-contrasena"]')).toBeNull();
+    expect(root.textContent).not.toContain('Cambiar contraseña');
+  });
+
+  it('conserva la recuperación por correo y el nombre visible con sus mensajes', async () => {
+    const fixture = await setup();
+    session.set(user('u1')); status.set('authenticated');
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+
+    expect(root.querySelector('a[href="/auth/recuperar"]')?.textContent?.trim())
+      .toBe('Recuperar o cambiar contraseña');
+    expect(root.querySelector('#display-name')).not.toBeNull();
+    expect(root.querySelector('#name-message')).not.toBeNull();
+  });
+
   it('descarta carga y guardado antiguos al cambiar o cerrar sesión', async () => {
     let resolveLoad!: (value: string) => void;
     load.mockReturnValueOnce(new Promise<string>(resolve => { resolveLoad = resolve; }));
