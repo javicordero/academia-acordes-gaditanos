@@ -1,0 +1,21 @@
+:host {
+  display: block;
+}
+
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+.forum-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 0.5rem;
+}
+
+.forum-back:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}

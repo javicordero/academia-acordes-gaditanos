@@ -1,0 +1,393 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID y correos ficticios de example.invalid, sin PII real.
+-- a = alumna con nombre visible; b = alumno sin nombre visible; d = admin.
+insert into auth.users (id, email) values
+ ('a0000000-0000-0000-0000-000000000001', 'alumna.foro@example.invalid'),
+ ('a0000000-0000-0000-0000-000000000002', 'alumno.foro@example.invalid'),
+ ('a0000000-0000-0000-0000-00000000000d', 'admin.foro@example.invalid');
+-- El trigger on_auth_user_created ya creó los perfiles: solo se actualiza el nombre visible.
+update public.profiles set display_name = case id
+ when 'a0000000-0000-0000-0000-000000000001' then 'Alumna Foro'
+ when 'a0000000-0000-0000-0000-000000000002' then null
+ when 'a0000000-0000-0000-0000-00000000000d' then null
+end;
+insert into public.user_roles (user_id, role) values
+ ('a0000000-0000-0000-0000-00000000000d', 'admin');
+
+-- Semilla idempotente de la migración: 3 categorías genéricas, sin duplicados.
+do $$
+declare v_slugs text[];
+begin
+  select array_agg(slug order by position, id) into v_slugs from public.forum_categories;
+  if v_slugs is distinct from array['general', 'dudas', 'presentaciones'] then
+    raise exception 'semilla de categorías: %', v_slugs;
+  end if;
+  begin
+    insert into public.forum_categories (slug, title) values ('general', 'Duplicada');
+    raise exception 'slug duplicado aceptado';
+  exception when unique_violation then null;
+  end;
+  if (select count(*) from public.forum_categories) <> 3 then
+    raise exception 'categorías duplicadas';
+  end if;
+end $$;
+-- Los GUC sirven de helpers para compartir ids entre bloques sin exponer tablas
+-- a `authenticated` (las tablas del foro no tienen grants de cliente).
+select set_config('ff.cat_general', (select id::text from public.forum_categories where slug = 'general'), false);
+select set_config('ff.cat_dudas', (select id::text from public.forum_categories where slug = 'dudas'), false);
+select set_config('ff.cat_presentaciones', (select id::text from public.forum_categories where slug = 'presentaciones'), false);
+
+-- Semilla directa (obra de servidor): 3 hilos y 5 mensajes con marcas de tiempo
+-- explícitas para comprobar ambos sentidos del orden.
+insert into public.forum_threads (id, category_id, author_id, title, created_at) values
+ ('b0000000-0000-0000-0000-000000000001', current_setting('ff.cat_general')::uuid, 'a0000000-0000-0000-0000-000000000001', 'Hilo uno', now() - interval '2 hours'),
+ ('b0000000-0000-0000-0000-000000000002', current_setting('ff.cat_general')::uuid, 'a0000000-0000-0000-0000-00000000000d', 'Hilo dos', now() - interval '1 hour'),
+ ('b0000000-0000-0000-0000-000000000003', current_setting('ff.cat_dudas')::uuid, 'a0000000-0000-0000-0000-000000000002', 'Hilo dudas', now() - interval '3 hours');
+insert into public.forum_posts (id, thread_id, author_id, parent_id, body, created_at) values
+ ('c0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', null, 'Raíz uno', now() - interval '2 hours'),
+ ('c0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-00000000000d', 'c0000000-0000-0000-0000-000000000001', 'Respuesta admin semilla', now() - interval '90 minutes'),
+ ('c0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', 'Anidada semilla', now() - interval '80 minutes'),
+ ('c0000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-00000000000d', null, 'Raíz dos', now() - interval '1 hour'),
+ ('c0000000-0000-0000-0000-000000000005', 'b0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000002', null, 'Raíz dudas', now() - interval '3 hours');
+create temp table ff_baseline as
+select
+ (select count(*) from public.orders) as orders,
+ (select count(*) from public.entitlements) as entitlements,
+ (select count(*) from public.lesson_progress) as progress,
+ (select count(*) from public.user_roles) as roles;
+
+-- Grants: tablas sin privilegios de cliente; RPC solo authenticated.
+do $$
+declare v_table text; v_func text;
+begin
+  foreach v_table in array array[
+    'public.forum_categories', 'public.forum_threads', 'public.forum_posts'
+  ] loop
+    if has_table_privilege('anon', v_table, 'SELECT')
+    or has_table_privilege('authenticated', v_table, 'SELECT')
+    or has_table_privilege('authenticated', v_table, 'INSERT')
+    or has_table_privilege('authenticated', v_table, 'UPDATE')
+    or has_table_privilege('authenticated', v_table, 'DELETE') then
+      raise exception 'grant de tabla inesperado en %', v_table;
+    end if;
+    if not has_table_privilege('service_role', v_table, 'SELECT')
+    or not has_table_privilege('service_role', v_table, 'INSERT') then
+      raise exception 'service_role sin grants de tabla en %', v_table;
+    end if;
+  end loop;
+  foreach v_func in array array[
+    'public.list_forum_categories()',
+    'public.list_forum_threads(uuid)',
+    'public.create_forum_thread(uuid,text,text)',
+    'public.list_thread_posts(uuid)',
+    'public.create_thread_post(uuid,text,uuid)'
+  ] loop
+    if has_function_privilege('anon', v_func, 'EXECUTE')
+    or has_function_privilege('service_role', v_func, 'EXECUTE') then
+      raise exception 'EXECUTE inesperado en %', v_func;
+    end if;
+    if not has_function_privilege('authenticated', v_func, 'EXECUTE') then
+      raise exception 'authenticated sin EXECUTE en %', v_func;
+    end if;
+  end loop;
+end $$;
+set local role anon;
+do $$
+begin
+  begin perform public.list_forum_categories(); raise exception 'anon listó categorías'; exception when insufficient_privilege then null; end;
+  begin perform public.list_forum_threads(current_setting('ff.cat_general')::uuid); raise exception 'anon listó hilos'; exception when insufficient_privilege then null; end;
+  begin perform public.create_forum_thread(current_setting('ff.cat_general')::uuid, 'x', 'y'); raise exception 'anon creó hilo'; exception when insufficient_privilege then null; end;
+  begin perform public.list_thread_posts('b0000000-0000-0000-0000-000000000001'); raise exception 'anon listó posts'; exception when insufficient_privilege then null; end;
+  begin perform public.create_thread_post('b0000000-0000-0000-0000-000000000001', 'x'); raise exception 'anon respondió'; exception when insufficient_privilege then null; end;
+  begin perform 1 from public.forum_categories limit 1; raise exception 'anon leyó tabla'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$
+begin
+  begin perform 1 from public.forum_categories limit 1; raise exception 'authenticated leyó categorías'; exception when insufficient_privilege then null; end;
+  begin perform 1 from public.forum_threads limit 1; raise exception 'authenticated leyó hilos'; exception when insufficient_privilege then null; end;
+  begin perform 1 from public.forum_posts limit 1; raise exception 'authenticated leyó posts'; exception when insufficient_privilege then null; end;
+  begin
+    insert into public.forum_threads (category_id, author_id, title)
+    values (current_setting('ff.cat_general')::uuid, 'a0000000-0000-0000-0000-000000000001', 'x');
+    raise exception 'authenticated insertó en la tabla';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+-- Alumna con derecho inexistente: el foro general no exige compra. Listados y
+-- badges antes de crear nada, con orden y conteo de respuestas reales.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001"}', true);
+do $$
+declare r record; n int := 0; v_slugs text[] := '{}'; v_pos int;
+begin
+  for r in select * from public.list_forum_categories() loop
+    n := n + 1;
+    if n > 1 and r.position < v_pos then raise exception 'orden categorías'; end if;
+    v_pos := r.position;
+    v_slugs := v_slugs || r.slug;
+  end loop;
+  if n <> 3 or v_slugs <> array['general', 'dudas', 'presentaciones'] then
+    raise exception 'list categorías: % / %', n, v_slugs;
+  end if;
+end $$;
+do $$
+declare r record; n int := 0; v_ids uuid[] := '{}';
+begin
+  for r in select * from public.list_forum_threads(current_setting('ff.cat_general')::uuid) loop
+    n := n + 1;
+    v_ids := v_ids || r.id;
+    if r.id = 'b0000000-0000-0000-0000-000000000001'::uuid then
+      if r.reply_count <> 2 or r.author_display_name <> 'Alumna Foro'
+      or r.author_is_admin is not false then raise exception 'hilo uno'; end if;
+    elsif r.id = 'b0000000-0000-0000-0000-000000000002'::uuid then
+      if r.reply_count <> 0 or r.author_display_name <> 'Administrador'
+      or r.author_is_admin is not true then raise exception 'hilo dos'; end if;
+    else
+      raise exception 'hilo inesperado';
+    end if;
+    if position('@' in coalesce(r.author_display_name, '')) > 0 then raise exception 'email filtrado'; end if;
+  end loop;
+  if n <> 2 or v_ids <> array[
+    'b0000000-0000-0000-0000-000000000002'::uuid,
+    'b0000000-0000-0000-0000-000000000001'::uuid
+  ] then raise exception 'orden hilos'; end if;
+end $$;
+do $$
+declare r record; n int := 0; v_ids uuid[] := '{}'; v_prev timestamptz; v_prev_id uuid;
+begin
+  for r in select * from public.list_thread_posts('b0000000-0000-0000-0000-000000000001') loop
+    n := n + 1;
+    v_ids := v_ids || r.id;
+    if v_prev is not null and (r.created_at < v_prev
+       or (r.created_at = v_prev and r.id < v_prev_id)) then raise exception 'orden posts'; end if;
+    if r.id = 'c0000000-0000-0000-0000-000000000002'::uuid then
+      if r.parent_id <> 'c0000000-0000-0000-0000-000000000001'::uuid
+      or r.author_display_name <> 'Administrador' or r.author_is_admin is not true then
+        raise exception 'badge admin semilla';
+      end if;
+    elsif r.author_display_name <> 'Alumna Foro' or r.author_is_admin is not false then
+      raise exception 'badge alumna semilla';
+    end if;
+    if position('@' in coalesce(r.author_display_name, '')) > 0 then raise exception 'email filtrado'; end if;
+    v_prev := r.created_at;
+    v_prev_id := r.id;
+  end loop;
+  if n <> 3 or v_ids <> array[
+    'c0000000-0000-0000-0000-000000000001'::uuid,
+    'c0000000-0000-0000-0000-000000000002'::uuid,
+    'c0000000-0000-0000-0000-000000000003'::uuid
+  ] then raise exception 'list posts semilla'; end if;
+end $$;
+
+-- Escritura: hilo + post raíz, respuestas anidadas, límite de cuerpo y rechazos.
+do $$
+declare
+  r record;
+  v_thread uuid; v_root uuid;
+  v_r1 uuid; v_r2 uuid;
+  v_cat_dudas uuid := current_setting('ff.cat_dudas')::uuid;
+begin
+  select * into r from public.create_forum_thread(v_cat_dudas, '  Hilo nuevo  ', '  Cuerpo raíz  ');
+  if not found or r.title <> 'Hilo nuevo' or r.body <> 'Cuerpo raíz'
+  or r.category_id <> v_cat_dudas or r.author_display_name <> 'Alumna Foro'
+  or r.author_is_admin is not false then raise exception 'crear hilo alumna'; end if;
+  v_thread := r.id;
+  perform set_config('ff.thread_a', v_thread::text, false);
+  select id into v_root from public.list_thread_posts(v_thread) where parent_id is null;
+  perform set_config('ff.post_root_a', v_root::text, false);
+
+  select * into r from public.create_thread_post(v_thread, '  Respuesta uno  ');
+  if not found or r.parent_id is not null or r.body <> 'Respuesta uno'
+  or r.author_is_admin is not false then raise exception 'respuesta uno'; end if;
+  v_r1 := r.id;
+  select * into r from public.create_thread_post(v_thread, 'Respuesta de respuesta', v_r1);
+  if not found or r.parent_id <> v_r1 then raise exception 'respuesta anidada'; end if;
+  v_r2 := r.id;
+  select * into r from public.create_thread_post(v_thread, 'Tercer nivel', v_r2);
+  if not found or r.parent_id <> v_r2 then raise exception 'profundidad 3'; end if;
+  select * into r from public.create_thread_post(v_thread, repeat('y', 2000));
+  if not found or char_length(r.body) <> 2000 then raise exception 'limite 2000'; end if;
+
+  begin
+    perform public.create_forum_thread(v_cat_dudas, '   ', 'cuerpo');
+    raise exception 'título vacío aceptado';
+  exception when check_violation then null; end;
+  begin
+    perform public.create_forum_thread(v_cat_dudas, repeat('t', 121), 'cuerpo');
+    raise exception 'título largo aceptado';
+  exception when check_violation then null; end;
+  begin
+    perform public.create_thread_post(v_thread, '   ');
+    raise exception 'cuerpo vacío aceptado';
+  exception when check_violation then null; end;
+  begin
+    perform public.create_thread_post(v_thread, repeat('z', 2001));
+    raise exception 'cuerpo largo aceptado';
+  exception when check_violation then null; end;
+  -- El id se genera antes de validar: un padre inexistente, incluida la
+  -- autorreferencia con el id recién generado, se rechaza y no se persiste.
+  begin
+    perform public.create_thread_post(v_thread, 'x', 'c0000000-0000-0000-0000-000000000001');
+    raise exception 'padre de otro hilo aceptado';
+  exception when foreign_key_violation then null; end;
+  begin
+    perform public.create_thread_post(v_thread, 'x', 'f0000000-0000-0000-0000-000000000001');
+    raise exception 'padre inexistente autoreferenciado aceptado';
+  exception when foreign_key_violation then null; end;
+  if exists (select 1 from public.create_thread_post('b0000000-0000-0000-0000-000000000099', 'x'))
+  or exists (select 1 from public.create_forum_thread('b0000000-0000-0000-0000-000000000099', 'x', 'y'))
+  or (select count(*) from public.list_thread_posts('b0000000-0000-0000-0000-000000000099')) <> 0
+  or (select count(*) from public.list_forum_threads('b0000000-0000-0000-0000-000000000099')) <> 0 then
+    raise exception 'referencia inexistente reveló datos';
+  end if;
+
+  -- authenticated sin claim: 0 filas en todas las RPC, sin error revelador.
+  perform set_config('request.jwt.claims', '', true);
+  if (select count(*) from public.list_forum_categories()) <> 0
+  or (select count(*) from public.list_forum_threads(v_cat_dudas)) <> 0
+  or (select count(*) from public.list_thread_posts(v_thread)) <> 0
+  or exists (select 1 from public.create_forum_thread(v_cat_dudas, 'x', 'y'))
+  or exists (select 1 from public.create_thread_post(v_thread, 'x')) then
+    raise exception 'sin sesión vio o escribió';
+  end if;
+  perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001"}', true);
+end $$;
+
+-- Alumno sin nombre visible: fallback 'Alumno', sin entitlement ni curso.
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000002"}', true);
+do $$
+declare r record; v_thread uuid;
+begin
+  select * into r from public.create_forum_thread(current_setting('ff.cat_presentaciones')::uuid, 'Hilo de alumno', 'Raíz sin nombre');
+  if not found or r.author_display_name <> 'Alumno' or r.author_is_admin is not false then
+    raise exception 'crear hilo alumno';
+  end if;
+  v_thread := r.id;
+  perform set_config('ff.thread_b', v_thread::text, false);
+  select * into r from public.create_thread_post(v_thread, 'Respuesta de alumno');
+  if not found or r.author_display_name <> 'Alumno' or r.author_is_admin is not false then
+    raise exception 'responder alumno';
+  end if;
+end $$;
+
+-- Admin: crea hilo y responde, siempre con badge de user_roles y sin correo.
+select set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-00000000000d"}', true);
+do $$
+declare r record; v_thread uuid;
+begin
+  select * into r from public.create_forum_thread(current_setting('ff.cat_presentaciones')::uuid, 'Hilo admin', 'Raíz admin');
+  if not found or r.author_display_name <> 'Administrador' or r.author_is_admin is not true
+  or position('@' in r.author_display_name) > 0 then raise exception 'crear hilo admin'; end if;
+  v_thread := r.id;
+  perform set_config('ff.thread_admin', v_thread::text, false);
+  select * into r from public.create_thread_post(v_thread, 'Admin se responde');
+  if not found or r.author_display_name <> 'Administrador' or r.author_is_admin is not true then
+    raise exception 'responder admin';
+  end if;
+  select * into r from public.create_thread_post(
+    current_setting('ff.thread_a')::uuid,
+    'Admin contesta en hilo de alumna',
+    current_setting('ff.post_root_a')::uuid
+  );
+  if not found or r.parent_id <> current_setting('ff.post_root_a')::uuid
+  or r.author_display_name <> 'Administrador' or r.author_is_admin is not true then
+    raise exception 'admin contesta a alumna';
+  end if;
+end $$;
+reset role;
+
+-- Conteos reales, orden final, reply_count y ausencia de efectos de comercio.
+do $$
+declare
+  r record; n int := 0;
+  v_thread_a uuid := current_setting('ff.thread_a')::uuid;
+  v_thread_b uuid := current_setting('ff.thread_b')::uuid;
+  v_thread_admin uuid := current_setting('ff.thread_admin')::uuid;
+  v_root_a uuid := current_setting('ff.post_root_a')::uuid;
+  v_r1 uuid; v_r2 uuid;
+  v_prev timestamptz; v_prev_id uuid;
+begin
+  perform set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001"}', true);
+
+  n := 0;
+  for r in select * from public.list_forum_threads(current_setting('ff.cat_dudas')::uuid) loop
+    n := n + 1;
+    if n = 1 then
+      if r.id <> v_thread_a or r.reply_count <> 5 then raise exception 'dudas hilo nuevo: %', r.reply_count; end if;
+    else
+      if r.id <> 'b0000000-0000-0000-0000-000000000003'::uuid or r.reply_count <> 0 then
+        raise exception 'dudas hilo semilla';
+      end if;
+    end if;
+  end loop;
+  if n <> 2 then raise exception 'dudas n: %', n; end if;
+
+  n := 0;
+  select id into v_r1 from public.forum_posts where thread_id = v_thread_a and body = 'Respuesta uno';
+  select id into v_r2 from public.forum_posts where thread_id = v_thread_a and body = 'Respuesta de respuesta';
+  for r in select * from public.list_thread_posts(v_thread_a) loop
+    n := n + 1;
+    if v_prev is not null and (r.created_at < v_prev
+       or (r.created_at = v_prev and r.id < v_prev_id)) then raise exception 'orden final posts'; end if;
+    if r.body = 'Cuerpo raíz' and r.parent_id is not null then raise exception 'raíz con padre'; end if;
+    if r.body = 'Respuesta uno' and r.parent_id <> v_root_a then raise exception 'cadena r1'; end if;
+    if r.body = 'Respuesta de respuesta' and r.parent_id <> v_r1 then raise exception 'cadena r2'; end if;
+    if r.body = 'Tercer nivel' and r.parent_id <> v_r2 then raise exception 'cadena r3'; end if;
+    if char_length(r.body) = 2000 and r.parent_id is not null then raise exception 'posts límite'; end if;
+    if r.body = 'Admin contesta en hilo de alumna' then
+      if r.parent_id <> v_root_a or r.author_display_name <> 'Administrador'
+      or r.author_is_admin is not true then raise exception 'respuesta admin final'; end if;
+    end if;
+    if position('@' in coalesce(r.author_display_name, '')) > 0 then raise exception 'email filtrado final'; end if;
+    v_prev := r.created_at;
+    v_prev_id := r.id;
+  end loop;
+  if n <> 6 then raise exception 'posts hilo a: %', n; end if;
+
+  n := 0;
+  v_prev := null;
+  for r in select * from public.list_forum_threads(current_setting('ff.cat_presentaciones')::uuid) loop
+    n := n + 1;
+    if v_prev is not null and (r.created_at > v_prev
+       or (r.created_at = v_prev and r.id > v_prev_id)) then raise exception 'orden presentaciones'; end if;
+    if r.id not in (v_thread_b, v_thread_admin) or r.reply_count <> 1 then
+      raise exception 'presentaciones hilo inesperado';
+    end if;
+    v_prev := r.created_at;
+    v_prev_id := r.id;
+  end loop;
+  if n <> 2 then raise exception 'presentaciones n: %', n; end if;
+
+  n := 0;
+  for r in select * from public.list_thread_posts(v_thread_b) loop
+    n := n + 1;
+    if r.author_display_name not in ('Alumno', 'Administrador') or position('@' in r.author_display_name) > 0 then
+      raise exception 'display final';
+    end if;
+    if r.author_display_name = 'Administrador' and r.author_is_admin is not true then
+      raise exception 'badge final admin';
+    end if;
+  end loop;
+  if n <> 2 then raise exception 'posts hilo b: %', n; end if;
+
+  if (select count(*) from public.forum_categories) <> 3
+  or (select count(*) from public.forum_threads) <> 6
+  or (select count(*) from public.forum_posts) <> 15 then
+    raise exception 'conteos de foro inesperados';
+  end if;
+  if exists (select 1 from public.forum_posts
+             where id = 'f0000000-0000-0000-0000-000000000001'::uuid) then
+    raise exception 'post autoreferenciado persistido';
+  end if;
+  if (select count(*) from public.orders) <> (select orders from ff_baseline)
+  or (select count(*) from public.entitlements) <> (select entitlements from ff_baseline)
+  or (select count(*) from public.lesson_progress) <> (select progress from ff_baseline)
+  or (select count(*) from public.user_roles) <> (select roles from ff_baseline) then
+    raise exception 'se crearon objetos de comercio, progreso o rol';
+  end if;
+end $$;
+rollback;

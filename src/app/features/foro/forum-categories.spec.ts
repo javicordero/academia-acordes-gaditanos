@@ -1,0 +1,78 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ForumCategories } from './forum-categories';
+import { ForumThreadRepository } from './forum-thread-repository';
+
+const CATEGORY = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+
+function category(title = 'Pasodoble') {
+  return { id: CATEGORY, slug: 'pasodoble', title, description: 'Ritmo y acompañamiento', position: 1 };
+}
+
+describe('Pantalla de categorías del foro', () => {
+  const listCategories = vi.fn();
+  let harness: RouterTestingHarness;
+  let text: () => string;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    listCategories.mockResolvedValue([category()]);
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: 'comunidad', children: [{ path: '', component: ForumCategories }] }]),
+        { provide: ForumThreadRepository, useValue: { listCategories } },
+      ],
+    });
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/comunidad', ForumCategories);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    text = () => harness.routeNativeElement?.textContent ?? '';
+  });
+
+  it('muestra un único h1, título, descripción y enlace a los hilos', async () => {
+    expect(harness.routeNativeElement?.querySelectorAll('h1')).toHaveLength(1);
+    expect(text()).toContain('Foro');
+    expect(text()).toContain('Ritmo y acompañamiento');
+    const link = harness.routeNativeElement?.querySelector<HTMLAnchorElement>('a[href="/comunidad/' + CATEGORY + '"]');
+    expect(link?.textContent).toContain('Ver hilos de Pasodoble');
+    expect(listCategories).toHaveBeenCalledTimes(1);
+  });
+
+  it('muestra texto, no HTML, cuando el servidor devuelve marcas', async () => {
+    listCategories.mockResolvedValueOnce([category('<img src=x onerror=alert(1)>')]);
+    (harness.routeDebugElement?.componentInstance as ForumCategories).load();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('img')).toBeNull();
+    expect(text()).toContain('<img src=x onerror=alert(1)>');
+  });
+
+  it('estado vacío accesible', async () => {
+    listCategories.mockResolvedValueOnce([]);
+    (harness.routeDebugElement?.componentInstance as ForumCategories).load();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(text()).toContain('Todavía no hay categorías en el foro.');
+    expect(harness.routeNativeElement?.querySelector('[role="status"]')).not.toBeNull();
+  });
+
+  it('error reintentable sin filtrar el fallo crudo', async () => {
+    listCategories.mockRejectedValueOnce(new Error('https://ejemplo.test?token=secreto'));
+    (harness.routeDebugElement?.componentInstance as ForumCategories).load();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(harness.routeNativeElement?.querySelector('[role="alert"]')?.textContent).toContain('No se pudieron cargar');
+    expect(text()).not.toContain('secreto');
+
+    const retry = [...harness.routeNativeElement!.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.trim() === 'Reintentar')!;
+    retry.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(listCategories).toHaveBeenCalledTimes(3);
+    expect(text()).toContain('Pasodoble');
+  });
+});

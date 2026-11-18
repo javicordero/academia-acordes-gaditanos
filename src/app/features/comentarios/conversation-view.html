@@ -1,0 +1,97 @@
+<!-- Un rechazo por permisos oculta por completo la conversación: no se insinúa su existencia. -->
+@if (state() !== 'hidden') {
+  <!-- `lesson-comments` se conserva como clase de compatibilidad con el aula y la vista previa. -->
+  <section class="conversation lesson-comments" [attr.aria-labelledby]="headingId">
+    <h2 [id]="headingId">{{ heading() }}</h2>
+
+    <!-- Única plantilla recursiva: raíces y descendientes comparten la misma fila. -->
+    <ng-template #postNode let-node let-depth="depth">
+      <li class="comment" [class.comment--root]="depth === 0" [class.comment--reply]="depth > 0"
+        [attr.data-comment-id]="node.post.id" [attr.aria-level]="depth + 1" tabindex="-1">
+        <article>
+          <header class="comment-meta">
+            <span class="comment-author">{{ node.post.authorDisplayName }}</span>
+            @if (node.post.authorIsAdmin) {
+              <span class="comment-badge" role="img" aria-label="Distintivo de administrador">
+                <span class="comment-badge__icon" aria-hidden="true">★</span>
+                <span aria-hidden="true">Administrador</span>
+              </span>
+            }
+            <time class="comment-date" [attr.datetime]="node.post.createdAt">{{ formatDate(node.post.createdAt) }}</time>
+          </header>
+          <p class="comment-body">{{ node.post.body }}</p>
+          <button type="button" class="reply-button"
+            [attr.aria-label]="'Responder a ' + node.post.authorDisplayName"
+            (click)="startReply(node.post.id)">Responder</button>
+        </article>
+
+        @if (replyTo() === node.post.id) {
+          <form class="comment-form comment-form--reply" (submit)="publishReply($event)">
+            <label [attr.for]="replyInputId">Responder a {{ node.post.authorDisplayName }}</label>
+            <textarea [id]="replyInputId" name="reply-body" rows="3"
+              [attr.maxlength]="maxLength" [attr.placeholder]="placeholder()"
+              [attr.aria-describedby]="replyHintId"
+              [value]="replyDraft()" (input)="onReplyInput($event)" [disabled]="publishing()"></textarea>
+            <p class="field-hint" [id]="replyHintId">Máximo 2000 caracteres.</p>
+            <div class="comment-actions">
+              <button type="submit" class="comments-button" [disabled]="!canPublishReply() || publishing()">{{ replySubmitText() }}</button>
+              <button type="button" class="comments-button comments-button--quiet" (click)="cancelReply()">Cancelar</button>
+            </div>
+          </form>
+        }
+
+        @if (node.children.length > 0) {
+          <ul class="comment-list comment-list--replies" [ngClass]="indentClass(depth + 1)"
+            [attr.aria-label]="'Respuestas a ' + node.post.authorDisplayName">
+            @for (child of node.children; track child.post.id) {
+              <ng-container [ngTemplateOutlet]="postNode"
+                [ngTemplateOutletContext]="{ $implicit: child, depth: depth + 1 }" />
+            }
+          </ul>
+        }
+      </li>
+    </ng-template>
+
+    @switch (state()) {
+      @case ('loading') {
+        <p class="comments-loading" role="status">{{ loadingText() }}</p>
+      }
+      @case ('error') {
+        <div class="comments-feedback comments-feedback--error">
+          <p role="alert" aria-live="assertive">{{ errorText() }}</p>
+          <button type="button" class="comments-button" (click)="reload()">Reintentar</button>
+        </div>
+      }
+      @case ('ready') {
+        @if (posts().length === 0) {
+          <p class="comments-empty">{{ emptyText() }}</p>
+        } @else {
+          <ul class="comment-list" aria-label="Comentarios publicados">
+            @for (node of tree(); track node.post.id) {
+              <ng-container [ngTemplateOutlet]="postNode"
+                [ngTemplateOutletContext]="{ $implicit: node, depth: 0 }" />
+            }
+          </ul>
+        }
+
+        <form class="comment-form" (submit)="publishRoot($event)">
+          <label [attr.for]="rootInputId">{{ rootLabel() }}</label>
+          <textarea [id]="rootInputId" name="comment-body" rows="3"
+            [attr.maxlength]="maxLength" [attr.placeholder]="placeholder()"
+            [attr.aria-describedby]="rootHintId"
+            [value]="draft()" (input)="onDraftInput($event)" [disabled]="publishing()"></textarea>
+          <p class="field-hint" [id]="rootHintId">Máximo 2000 caracteres.</p>
+          @if (draftError()) { <p class="field-error">{{ draftError() }}</p> }
+          <button type="submit" class="comments-button" [disabled]="!canPublishRoot() || publishing()">{{ submitText() }}</button>
+        </form>
+      }
+    }
+
+    @if (success()) {
+      <p class="comments-feedback comments-feedback--success" role="status" aria-live="polite">{{ success() }}</p>
+    }
+    @if (publishError()) {
+      <p class="comments-feedback comments-feedback--error" role="alert" aria-live="assertive">{{ publishError() }}</p>
+    }
+  </section>
+}

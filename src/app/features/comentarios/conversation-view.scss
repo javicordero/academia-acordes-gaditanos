@@ -1,0 +1,214 @@
+:host {
+  display: block;
+}
+
+.conversation {
+  margin-block: 1.5rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+}
+
+.comments-loading,
+.comments-empty,
+.field-hint,
+.field-error {
+  margin: 0.35rem 0;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.field-error {
+  color: var(--admin-danger-text);
+  font-size: 0.9rem;
+}
+
+.comment-list {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+/* El sangrado es acumulado pero topeado: a partir de depth-cap no se suma más.
+   El árbol de datos no se corta; solo deja de indentarse en pantallas estrechas. */
+.comment-list--replies {
+  margin: 0.75rem 0 0;
+  padding-inline-start: 0;
+  border-inline-start: 2px solid var(--border);
+}
+
+.comment-list--replies.depth-1 { padding-inline-start: 1rem; }
+.comment-list--replies.depth-2 { padding-inline-start: 0.9rem; }
+.comment-list--replies.depth-3 { padding-inline-start: 0.75rem; }
+.comment-list--replies.depth-4 { padding-inline-start: 0.5rem; }
+.comment-list--replies.depth-cap { padding-inline-start: 0; }
+
+.comment {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.comment--reply {
+  background: var(--bg);
+}
+
+/* El foco llega aquí de forma programática tras publicar. */
+.comment:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.comment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.comment-author {
+  font-weight: 650;
+}
+
+/* Texto + forma (borde, estrella y pastilla): no depende solo del color. */
+.comment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 26px;
+  padding: 0.1rem 0.55rem;
+  border: 1px dashed var(--accent);
+  border-radius: 999px;
+  background: var(--admin-warn-surface);
+  color: var(--admin-warn-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.comment-badge__icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.comment-date {
+  color: var(--muted);
+}
+
+.comment-body {
+  margin: 0.4rem 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+.comment-form--reply {
+  margin: 0.75rem 0 0;
+}
+
+label {
+  font-weight: 650;
+}
+
+textarea {
+  width: 100%;
+  max-width: 100%;
+  min-height: 6rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.comments-button,
+.reply-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.reply-button {
+  background: transparent;
+  color: var(--accent);
+}
+
+.comments-button--quiet {
+  background: transparent;
+  color: var(--accent);
+}
+
+.comments-button:disabled {
+  border-color: var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.comments-feedback {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-inline-start-width: 4px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.comments-feedback--error {
+  border-inline-start-color: var(--admin-danger);
+  background: var(--admin-danger-surface);
+  color: var(--admin-danger-text);
+}
+
+.comments-feedback--success {
+  border-inline-start-color: var(--admin-success);
+  background: var(--admin-success-surface);
+  color: var(--admin-success-text);
+}
+
+:is(button, textarea, .comment[tabindex]):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 30rem) {
+  /* 0,75 + 0,6 + 0,4 = 1,75 rem: por debajo del tope de 2 rem, sin scroll horizontal. */
+  .comment-list--replies.depth-1 { padding-inline-start: 0.75rem; }
+  .comment-list--replies.depth-2 { padding-inline-start: 0.6rem; }
+  .comment-list--replies.depth-3 { padding-inline-start: 0.4rem; }
+  .comment-list--replies.depth-4,
+  .comment-list--replies.depth-cap { padding-inline-start: 0; }
+}

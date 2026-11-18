@@ -1,0 +1,80 @@
+:host {
+  display: block;
+}
+
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+.lead {
+  max-width: 46rem;
+}
+
+.forum-list {
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.forum-card {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.forum-card h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+
+.forum-card__description {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.forum-link,
+.forum-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+}
+
+.forum-button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.forum-status {
+  margin-top: 1rem;
+}
+
+.forum-feedback {
+  margin: 1rem 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-inline-start-width: 4px;
+  border-radius: 8px;
+}
+
+.forum-feedback--error {
+  border-inline-start-color: var(--admin-danger);
+  background: var(--admin-danger-surface);
+  color: var(--admin-danger-text);
+}
+
+:is(a, button):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}

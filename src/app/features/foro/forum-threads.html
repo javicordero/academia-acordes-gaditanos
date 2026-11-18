@@ -1,0 +1,66 @@
+<article class="page" aria-labelledby="forum-threads-title">
+  <a class="forum-back" [routerLink]="['/comunidad']">Volver a las categorías</a>
+  <h1 id="forum-threads-title">Hilos del foro</h1>
+
+  @switch (state()) {
+    @case ('loading') {
+      <p class="forum-status" role="status">Cargando hilos…</p>
+    }
+    @case ('error') {
+      <div class="forum-feedback forum-feedback--error">
+        <p role="alert" aria-live="assertive">No se pudieron cargar los hilos. Comprueba tu conexión e inténtalo de nuevo.</p>
+        <button type="button" class="forum-button" (click)="load()">Reintentar</button>
+      </div>
+    }
+    @case ('ready') {
+      @if (threads().length === 0) {
+        <p class="forum-status" role="status">Todavía no hay hilos en esta categoría.</p>
+      } @else {
+        <ul class="forum-list" aria-label="Hilos de la categoría">
+          @for (thread of threads(); track thread.id) {
+            <li>
+              <article class="forum-card">
+                <h2><a [routerLink]="[thread.id]">{{ thread.title }}</a></h2>
+                <p class="forum-card__meta">
+                  <span class="forum-author">{{ thread.authorDisplayName }}</span>
+                  @if (thread.authorIsAdmin) {
+                    <span class="forum-badge" role="img" aria-label="Distintivo de administrador">
+                      <span class="forum-badge__icon" aria-hidden="true">★</span>
+                      <span aria-hidden="true">Administrador</span>
+                    </span>
+                  }
+                  <time [attr.datetime]="thread.createdAt">{{ formatDate(thread.createdAt) }}</time>
+                  <span>{{ thread.replyCount }} respuestas</span>
+                </p>
+              </article>
+            </li>
+          }
+        </ul>
+      }
+
+      <form class="forum-form" (submit)="createThread($event)">
+        <h2>Plantear un tema nuevo</h2>
+        <label [attr.for]="titleInputId">Título</label>
+        <input [id]="titleInputId" name="thread-title" type="text"
+          [attr.maxlength]="maxTitle" [attr.aria-invalid]="titleError() ? 'true' : null"
+          [attr.aria-describedby]="titleError() ? titleErrorId : null"
+          [value]="title()" (input)="onTitleInput($event)" [disabled]="creating()" />
+        <p class="field-hint">Máximo 120 caracteres.</p>
+        @if (titleError()) { <p class="field-error" [id]="titleErrorId" role="alert">{{ titleError() }}</p> }
+
+        <label [attr.for]="bodyInputId">Mensaje</label>
+        <textarea [id]="bodyInputId" name="thread-body" rows="4"
+          [attr.maxlength]="maxBody" [attr.aria-invalid]="bodyError() ? 'true' : null"
+          [attr.aria-describedby]="bodyError() ? bodyErrorId : null"
+          [value]="body()" (input)="onBodyInput($event)" [disabled]="creating()"></textarea>
+        <p class="field-hint">Máximo 2000 caracteres.</p>
+        @if (bodyError()) { <p class="field-error" [id]="bodyErrorId" role="alert">{{ bodyError() }}</p> }
+
+        @if (formError()) {
+          <p class="forum-feedback forum-feedback--error" role="alert" aria-live="assertive">{{ formError() }}</p>
+        }
+        <button type="submit" class="forum-button" [disabled]="!canCreate()">Publicar tema</button>
+      </form>
+    }
+  }
+</article>

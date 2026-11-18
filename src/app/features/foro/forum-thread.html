@@ -1,0 +1,14 @@
+<article class="page" aria-labelledby="forum-thread-title">
+  <a class="forum-back" [routerLink]="['/comunidad', categoryId]">Volver a los hilos de la categoría</a>
+  <h1 id="forum-thread-title">Hilo del foro</h1>
+
+  <app-conversation-view [scopeId]="threadId" [repository]="repository"
+    heading="Respuestas del tema"
+    emptyText="Todavía no hay respuestas en este tema."
+    placeholder="Escribe tu respuesta"
+    rootLabel="Escribe tu respuesta"
+    submitText="Publicar respuesta"
+    replySubmitText="Publicar respuesta"
+    commentSuccessText="Respuesta publicada."
+    errorText="No se pudieron cargar las respuestas. Comprueba tu conexión e inténtalo de nuevo." />
+</article>
