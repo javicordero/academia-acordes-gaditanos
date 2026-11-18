@@ -1,9 +1,12 @@
 ﻿import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../../core/auth/auth.service';
 import { Library, LibraryCourse, LibraryProblem, MisCursosRepository } from './mis-cursos-repository';
+import { CHECKOUT_SCHEDULER, CheckoutVerification } from './mis-cursos-checkout';
+import { MisCursosCheckoutRepository } from './mis-cursos-checkout-repository';
 import { MisCursos } from './mis-cursos';
 
 const card = (id: string, extra: Partial<LibraryCourse> = {}): LibraryCourse => ({
@@ -204,5 +207,272 @@ describe('MisCursos', () => {
     expect(text()).toContain('Nuevo curso');
     expect(text()).not.toContain('Privado anterior');
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('button')).toHaveLength(0);
+  });
+});
+
+const order = '40000000-0000-0000-0000-000000000001';
+const otherOrder = '40000000-0000-0000-0000-000000000002';
+interface Scheduled {
+  task: () => void;
+  ms: number;
+  cancelled: boolean;
+}
+
+/** Escenario con query de retorno, verificación y temporizadores controlados. */
+function setupCheckout(options: {
+  query?: Record<string, string>;
+  verification?: CheckoutVerification;
+  verify?: any;
+  load?: any;
+  status?: any;
+  session?: any;
+} = {}) {
+  const status = options.status ?? signal('authenticated');
+  const session = options.session ?? signal({ user: { id: 'u' } });
+  const load = options.load ?? vi.fn().mockResolvedValue(library([card('c')]));
+  const impl: (id: string, user: string) => Promise<CheckoutVerification> =
+    typeof options.verification === 'function'
+      ? options.verification
+      : async () => options.verification ?? { kind: 'confirmed', courseId: 'c' };
+  const verify = options.verify ?? vi.fn(impl);
+  const params = new BehaviorSubject(convertToParamMap(options.query ?? {}));
+  const route = { queryParamMap: params.asObservable() };
+  const scheduled: Scheduled[] = [];
+  let handle = 0;
+  const scheduler = {
+    schedule: vi.fn((task: () => void, ms: number) => {
+      const id = ++handle;
+      scheduled.push({ task, ms, cancelled: false });
+      return id;
+    }),
+    cancel: vi.fn((id: unknown) => {
+      const entry = scheduled.find((item, index) => index + 1 === id);
+      if (entry) entry.cancelled = true;
+    }),
+  };
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({ providers: [
+    provideRouter([]),
+    { provide: ActivatedRoute, useValue: route },
+    { provide: AuthService, useValue: { status, session } },
+    { provide: MisCursosRepository, useValue: { load } },
+    { provide: MisCursosCheckoutRepository, useValue: { verify } },
+    { provide: CHECKOUT_SCHEDULER, useValue: scheduler },
+  ] });
+  const fixture = TestBed.createComponent(MisCursos);
+  const text = () => fixture.nativeElement.textContent as string;
+  const fire = () => {
+    const pending = scheduled.filter((item) => !item.cancelled);
+    scheduled.length = 0;
+    for (const item of pending) item.task();
+    return pending.length;
+  };
+  const tick = async () => {
+    fire();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  };
+  return { fixture, status, session, load, verify, scheduler, scheduled, params, text, tick, fire };
+}
+
+describe('MisCursos — retorno de Stripe', () => {
+  it('sin query de retorno, sin order_id, con UUID inválido o sin sesión no consulta pedidos', async () => {
+    const none = setupCheckout();
+    await render(none.fixture);
+    expect(none.verify).not.toHaveBeenCalled();
+    expect(none.load).toHaveBeenCalledTimes(1);
+
+    const invalidQueries: Record<string, string>[] = [
+      { checkout: 'success' },
+      { checkout: 'success', order_id: 'no-uuid' },
+    ];
+    for (const query of invalidQueries) {
+      const scenario = setupCheckout({ query });
+      await render(scenario.fixture);
+      expect(scenario.verify).not.toHaveBeenCalled();
+      expect(scenario.text()).toContain('No hay acceso disponible');
+    }
+
+    const anonymous = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      status: signal('anonymous'),
+    });
+    await render(anonymous.fixture);
+    expect(anonymous.verify).not.toHaveBeenCalled();
+    expect(anonymous.text()).toContain('Inicia sesión');
+  });
+
+  it('confirmado por la BD refresca la biblioteca sin duplicar y conserva problemas', async () => {
+    const problems: LibraryProblem[] = [{ courseId: 'hidden', kind: 'unavailable' }];
+    const load = vi.fn()
+      .mockResolvedValueOnce(library([card('c')], problems, 1))
+      .mockResolvedValueOnce(library([card('c'), card('d')], problems, 1));
+    const { fixture, verify, text } = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      verification: { kind: 'confirmed', courseId: 'c' },
+      load,
+    });
+    await render(fixture);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(text()).toContain('Acceso confirmado');
+    expect(verify).toHaveBeenCalledWith(order, 'u');
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(load.mock.calls[1][1]).toMatchObject({
+      courses: [card('c')],
+      problems,
+      includeCourseIds: ['c'],
+    });
+    const titles = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('h2'))
+      .map((node) => node.textContent);
+    expect(titles.filter((title) => title === 'Curso c')).toHaveLength(1);
+    expect(text()).toContain('no están disponibles');
+    expect((fixture.nativeElement as HTMLElement).querySelector('[role="status"]')).not.toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('a[href="/cursos/c"]')).not.toBeNull();
+  });
+
+  it('pendiente hace cuatro intentos acotados con backoff y deja comprobación manual', async () => {
+    const { fixture, verify, scheduler, text, tick } = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      verification: { kind: 'pending' },
+    });
+    await render(fixture);
+    expect(text()).toContain('confirmación del pago está pendiente');
+    expect(verify).toHaveBeenCalledTimes(1);
+
+    await tick();
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(scheduler.schedule.mock.calls[0][1]).toBe(1500);
+    await tick();
+    expect(verify).toHaveBeenCalledTimes(3);
+    expect(scheduler.schedule.mock.calls[1][1]).toBe(3000);
+    await tick();
+    expect(verify).toHaveBeenCalledTimes(4);
+    expect(scheduler.schedule.mock.calls[2][1]).toBe(6000);
+    expect(scheduler.schedule).toHaveBeenCalledTimes(3);
+
+    const button = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'))
+      .find((candidate) => candidate.textContent?.includes('Comprobar de nuevo'))!;
+    button.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(verify).toHaveBeenCalledTimes(5);
+  });
+
+  it('un refresh de token con la misma cuenta no repite la comprobación', async () => {
+    const session = signal({ user: { id: 'u' }, access_token: 'inicial' });
+    const { fixture, verify, text } = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      verification: { kind: 'pending' },
+      session,
+    });
+    await render(fixture);
+    expect(verify).toHaveBeenCalledTimes(1);
+
+    session.set({ user: { id: 'u' }, access_token: 'refrescado' });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(verify).toHaveBeenCalledTimes(1);
+    expect(text()).toContain('pendiente');
+  });
+
+  it('un error de red muestra aviso con reintento y solo la BD puede confirmar', async () => {
+    const verify = vi.fn()
+      .mockRejectedValueOnce(new Error('red'))
+      .mockResolvedValueOnce({ kind: 'confirmed', courseId: 'c' });
+    const { fixture, text } = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      verify,
+    });
+    await render(fixture);
+    expect(text()).toContain('No se ha podido comprobar');
+    expect((fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')).not.toBeNull();
+    expect(text()).not.toContain('Acceso confirmado');
+
+    const button = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'))
+      .find((candidate) => candidate.textContent?.includes('Comprobar de nuevo'))!;
+    button.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(text()).toContain('Acceso confirmado');
+    expect(text()).not.toContain('No se ha podido comprobar');
+  });
+
+  it('paid sin derecho o pedido ajeno no muestran acceso aunque la URL diga success', async () => {
+    for (const verification of [{ kind: 'notavailable' } as CheckoutVerification]) {
+      const { fixture, text } = setupCheckout({
+        query: { checkout: 'success', order_id: order },
+        verification,
+      });
+      await render(fixture);
+      expect(text()).toContain('No hay acceso disponible');
+      expect(text()).not.toContain('Acceso confirmado');
+    }
+  });
+
+  it('cambio de identidad o de query descarta pedido, temporizadores y respuesta tardía', async () => {
+    let resolveOld!: (value: CheckoutVerification) => void;
+    const old = new Promise<CheckoutVerification>((resolve) => { resolveOld = resolve; });
+    const verify = vi.fn()
+      .mockImplementationOnce(() => old)
+      .mockResolvedValueOnce({ kind: 'confirmed', courseId: 'new' })
+      .mockResolvedValue({ kind: 'pending' });
+    const session = signal<{ user: { id: string } }>({ user: { id: 'a' } });
+    const load = vi.fn((id: string) => Promise.resolve(id === 'a'
+      ? library([card('old', { title: 'Privado anterior' })])
+      : library([card('new', { title: 'Nuevo curso' })])));
+    const { fixture, text, scheduler } = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      verify,
+      session,
+      load,
+    });
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    session.set({ user: { id: 'b' } });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(verify.mock.calls[1]).toEqual([order, 'b']);
+
+    resolveOld({ kind: 'confirmed', courseId: 'old' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(text()).not.toContain('Privado anterior');
+    expect(text()).toContain('Acceso confirmado');
+
+    const pending = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      verification: { kind: 'pending' },
+    });
+    await render(pending.fixture);
+    expect(pending.verify.mock.calls[0][0]).toBe(order);
+    pending.params.next(convertToParamMap({ checkout: 'success', order_id: otherOrder }));
+    pending.fixture.detectChanges();
+    await pending.fixture.whenStable();
+    pending.fixture.detectChanges();
+    expect(pending.verify).toHaveBeenCalledTimes(2);
+    expect(pending.verify.mock.calls[1][0]).toBe(otherOrder);
+    expect(pending.scheduler.cancel).toHaveBeenCalled();
+  });
+
+  it('destruir el componente cancela el temporizador y descarta reintentos', async () => {
+    const { fixture, verify, scheduler, fire } = setupCheckout({
+      query: { checkout: 'success', order_id: order },
+      verification: { kind: 'pending' },
+    });
+    await render(fixture);
+    expect(scheduler.schedule).toHaveBeenCalledTimes(1);
+
+    fixture.destroy();
+    expect(scheduler.cancel).toHaveBeenCalledTimes(1);
+    const before = verify.mock.calls.length;
+    fire();
+    await Promise.resolve();
+    expect(verify).toHaveBeenCalledTimes(before);
   });
 });

@@ -244,4 +244,18 @@ describe('MisCursosRepository', () => {
     TestBed.configureTestingModule({ providers: [{ provide: SUPABASE_CLIENT, useValue: null }] });
     await expect(TestBed.inject(MisCursosRepository).load('u')).rejects.toThrow('unconfigured');
   });
+
+  it('incorpora un curso confirmado por el retorno sin duplicar ni reconsultar derechos', async () => {
+    const { repo, calls } = setup();
+    const library = await repo.load('u', {
+      courses: [card('a')],
+      problems: [{ courseId: 'hidden', kind: 'unavailable' }],
+      includeCourseIds: ['b'],
+    });
+    expect(library.courses.map((course) => course.id)).toEqual(['a', 'b']);
+    expect(library.problems).toEqual([{ courseId: 'hidden', kind: 'unavailable' }]);
+    const newCalls = calls.filter((call) => call[0] === 'entitlements');
+    expect(newCalls).toEqual([]);
+    expect(calls).toContainEqual(['courses', 'in', 'id', ['b']]);
+  });
 });

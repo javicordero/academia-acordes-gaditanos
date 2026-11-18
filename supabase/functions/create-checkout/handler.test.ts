@@ -61,9 +61,38 @@ describe('create-checkout', () => {
     await s.call();
     const calls = vi.mocked(s.io.create).mock.calls;
     expect(calls[0][1]).toBe(calls[1][1]);
-    expect(calls[0][0].success).toBe('http://localhost:4200/mis-cursos?checkout=success');
+    const success = new URL(calls[0][0].success);
+    expect(success.origin + success.pathname).toBe('http://localhost:4200/mis-cursos');
+    expect(success.searchParams.get('checkout')).toBe('success');
+    expect(success.searchParams.get('order_id')).toBe(order);
     expect(calls[0][0].cancel).toBe('http://localhost:4200/cursos/curso');
     expect(calls[0][0].metadata).not.toHaveProperty('email');
+  });
+  it('el order_id del retorno sale solo de la reserva, nunca del cliente ni de Stripe', async () => {
+    const s = setup();
+    const canonical = '50000000-0000-0000-0000-000000000005';
+    vi.mocked(s.io.reserve).mockResolvedValue({ order_id: canonical });
+    // Un cliente que intenta colar su propio pedido ni siquiera pasa el filtro de cuerpo.
+    expect((await s.call({ courseId: course, attemptId: attempt, order_id: canonical })).status).toBe(400);
+    expect((await s.call()).status).toBe(200);
+    const input = vi.mocked(s.io.create).mock.calls[0][0];
+    const success = new URL(input.success);
+    expect(success.searchParams.get('order_id')).toBe(canonical);
+    expect(success.searchParams.get('order_id')).not.toBe(order);
+    // Ni identidad, ni importes, ni sesión, ni claves en la URL de retorno.
+    expect([...success.searchParams.keys()].sort()).toEqual(['checkout', 'order_id']);
+    expect(input.success).not.toContain(user);
+    expect(input.success).not.toContain('cs_test_session123');
+    expect(input.success).not.toContain('100');
+  });
+  it('un reintento already_bound conserva el pedido canónico en el retorno', async () => {
+    const s = setup();
+    vi.mocked(s.io.bind).mockResolvedValue('already_bound');
+    expect((await s.call()).status).toBe(200);
+    expect((await s.call()).status).toBe(200);
+    const urls = vi.mocked(s.io.create).mock.calls.map(([input]) => input.success);
+    expect(urls[0]).toBe(urls[1]);
+    expect(new URL(urls[1]).searchParams.get('order_id')).toBe(order);
   });
   it('bloquea el origen ajeno y el servidor deshabilitado', async () => {
     const s = setup();

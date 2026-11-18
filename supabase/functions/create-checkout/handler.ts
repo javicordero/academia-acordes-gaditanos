@@ -81,6 +81,12 @@ export function makeHandler(io: Dependencies, config: { origins: string[]; appOr
       const reservation = await io.reserve(user.id, body.courseId, body.attemptId, RESERVATION_TTL_SECONDS);
       if (!reservation || !UUID.test(reservation.order_id)) return reply(409, 'Compra no disponible');
       const orderId = reservation.order_id;
+      // El retorno solo IDENTIFICA nuestro pedido para que /mis-cursos pueda
+      // contrastarlo con la BD bajo RLS. No es una credencial: no concede nada,
+      // no viaja el usuario, el importe ni el id de sesión de Stripe.
+      const success = new URL('/mis-cursos', app.origin);
+      success.searchParams.set('checkout', 'success');
+      success.searchParams.set('order_id', orderId);
       // Clave de idempotencia canónica: el ámbito del intento, no un valor
       // aleatorio. Un reintento de red por el mismo intento recupera la misma
       // sesión de Stripe; un intento distinto (uuid nuevo) es otra compra.
@@ -90,7 +96,7 @@ export function makeHandler(io: Dependencies, config: { origins: string[]; appOr
       let created: { id: string; url: string | null } | null = null;
       try { created = await io.create({
         price: offer.provider_price_id,
-        success: `${app.origin}/mis-cursos?checkout=success`,
+        success: success.toString(),
         cancel: `${app.origin}/cursos/${offer.slug}`,
         metadata: {
           user_id: user.id,

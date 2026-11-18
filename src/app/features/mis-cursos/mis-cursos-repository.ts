@@ -47,6 +47,8 @@ export interface Library {
 export interface LibraryRetry {
   readonly courses: readonly LibraryCourse[];
   readonly problems: readonly LibraryProblem[];
+  /** Curso confirmado por el retorno del pago: se incorpora sin tocar pedidos. */
+  readonly includeCourseIds?: readonly string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -75,7 +77,9 @@ export class MisCursosRepository {
       ? retry.problems.filter((problem) => problem.kind === 'unavailable' && !keptIds.has(problem.courseId))
       : [];
 
-    const courseIds = retry ? retriedIds : await this.entitledCourseIds(userId);
+    const courseIds = retry
+      ? [...new Set([...retriedIds, ...(retry.includeCourseIds ?? [])])]
+      : await this.entitledCourseIds(userId);
     if (!courseIds.length) {
       return { courses: kept, unavailable: carried.length, problems: carried };
     }

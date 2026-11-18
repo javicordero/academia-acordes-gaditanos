@@ -57,6 +57,19 @@ fabricado ni insertado versión alguna. Las migraciones aplicadas en DEV, según
 informe, son 19/20/21/22/24/25/28, pero el historial de la CLI **no está
 reconciliado**. No se afirma prueba E2E ni cobro real.
 
+### Retorno del pago (sólo marcas locales)
+
+La URL de éxito lleva únicamente `checkout=success` y el `order_id` **reservado
+en servidor**: ni usuario, importe, sesión ni credenciales. En `/mis-cursos` la
+comprobación es **sólo lectura**: contrasta pedidos y derechos propios bajo RLS
+(`orders`, `order_items`, `entitlements`), distingue `pending`, `confirmed`,
+`notavailable` y `error`, y **nunca concede acceso**: la query no grant. Los
+estados `pending` se reintentan como máximo cuatro veces con esperas acotadas de
+1500/3000/6000 ms y, si agotan, solo hay reintento manual. No hay botón de
+compra, prueba E2E real ni flags `enabled`/términos inventados: la decisión
+remota sigue en manos del operador cloud y no se registra aquí ningún cambio de
+estado desplegado.
+
 ## Verificación
 
 - Pruebas unitarias del controlador con **Node + mocks** (`vitest`), sin llamadas

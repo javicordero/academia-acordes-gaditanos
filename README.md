@@ -259,6 +259,12 @@ RLS y servidor siguen decidiendo.
   (muestra, compradas o visibles para admin) con el slug real del curso y de la
   lección. La lección de muestra es accesible sin sesión; guardar progreso
   requiere un derecho activo incluso para admin y para la muestra.
+- Retorno de compra **en local**: la URL de éxito lleva solo el `order_id`
+  reservado y `/mis-cursos` contrasta pedidos y derechos propios por RLS sin
+  conceder acceso; comprueba `pending`/`confirmed`/`error` con cuatro intentos
+  acotados (1500/3000/6000 ms) y reintento manual. Sin botón de compra, sin E2E
+  real y sin flags ni términos inventados; el despliegue remoto lo decide el
+  operador cloud.
 - Modelo SQL inicial de la academia en `supabase/migrations/`: cursos, bloques,
   lecciones, muestra gratuita, precios, pedidos, derechos de acceso y progreso.
 - RLS inicial y pruebas de autorización en `supabase/tests/`. La migración

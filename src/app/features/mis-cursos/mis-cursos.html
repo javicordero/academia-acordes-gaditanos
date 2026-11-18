@@ -13,6 +13,32 @@
       <a routerLink="/auth/login">Iniciar sesión</a>
     }
     @case ('authenticated') {
+      @if (checkout(); as returnState) {
+        <div class="notice checkout">
+          @switch (returnState.kind) {
+            @case ('checking') {
+              <p role="status">Comprobando la confirmación de tu pedido…</p>
+            }
+            @case ('pending') {
+              <p role="status">La confirmación del pago está pendiente. El acceso aparecerá aquí cuando se confirme.</p>
+              <button type="button" (click)="recheckCheckout()">Comprobar de nuevo</button>
+            }
+            @case ('confirmed') {
+              <p role="status">Acceso confirmado. Ya puedes ver tus cursos.</p>
+              @if (confirmedCourse(); as course) {
+                <a [routerLink]="['/cursos', course.slug]">Ver {{ course.title }}</a>
+              }
+            }
+            @case ('notavailable') {
+              <p role="alert">No hay acceso disponible para este pedido. Si crees que es un error, vuelve a intentarlo más tarde.</p>
+            }
+            @case ('error') {
+              <p role="alert">No se ha podido comprobar la confirmación. Inténtalo de nuevo.</p>
+              <button type="button" (click)="recheckCheckout()">Comprobar de nuevo</button>
+            }
+          }
+        </div>
+      }
       @switch (state()) {
         @case ('loading') {
           <p role="status">Cargando tus cursos…</p>
