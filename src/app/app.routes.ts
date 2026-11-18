@@ -92,26 +92,46 @@ export const routes: Routes = [
       import('./features/auth/forbidden/forbidden').then((m) => m.Forbidden),
   },
   {
-    path: 'admin/vista-previa/:courseId/:lessonId',
-    canActivate: [authGuard, adminGuard],
-    loadComponent: () => import('./features/admin/preview/preview').then(m => m.Preview),
-  },
-  {
-    path: 'admin/vista-previa/:courseId',
-    canActivate: [authGuard, adminGuard],
-    loadComponent: () => import('./features/admin/preview/preview').then(m => m.Preview),
-  },
-  {
-    path: 'admin/:courseId/:lessonId/video',
-    title: 'Vídeo de la lección · Academia Acordes Gaditanos',
-    canActivate: [authGuard, adminGuard],
-    loadComponent: () => import('./features/admin/lesson-video/lesson-video').then(m => m.LessonVideo),
-  },
-  {
     path: 'admin',
     title: 'Administración · Academia Acordes Gaditanos',
     canActivate: [adminGuard],
     loadComponent: () => import('./features/admin/admin').then((m) => m.Admin),
+    children: [
+      { path: '', pathMatch: 'full', data: { section: 'cursos' }, children: [] },
+      { path: 'nuevo', data: { section: 'nuevo' }, children: [] },
+      {
+        path: 'curso/:courseId',
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'datos' },
+          { path: 'datos', data: { section: 'datos' }, children: [] },
+          { path: 'estructura', data: { section: 'estructura' }, children: [] },
+          { path: 'leccion/:lessonId', data: { section: 'leccion' }, children: [] },
+          {
+            path: 'vista-previa/:lessonId',
+            data: { section: 'vista-previa' },
+            loadComponent: () => import('./features/admin/preview/preview').then((m) => m.Preview),
+          },
+          {
+            path: 'vista-previa',
+            data: { section: 'vista-previa' },
+            loadComponent: () => import('./features/admin/preview/preview').then((m) => m.Preview),
+          },
+          { path: 'estado', data: { section: 'estado' }, children: [] },
+        ],
+      },
+      // Enlaces profundos históricos: se mantienen y permanecen dentro del workspace.
+      {
+        path: 'vista-previa/:courseId/:lessonId',
+        data: { section: 'vista-previa' },
+        loadComponent: () => import('./features/admin/preview/preview').then((m) => m.Preview),
+      },
+      {
+        path: 'vista-previa/:courseId',
+        data: { section: 'vista-previa' },
+        loadComponent: () => import('./features/admin/preview/preview').then((m) => m.Preview),
+      },
+      { path: ':courseId/:lessonId/video', data: { section: 'leccion' }, children: [] },
+    ],
   },
   {
     path: 'not-found',
