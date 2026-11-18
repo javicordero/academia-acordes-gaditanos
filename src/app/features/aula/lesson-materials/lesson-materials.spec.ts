@@ -52,6 +52,11 @@ describe('Materiales del alumno', () => {
     await fixture.whenStable();
     fixture.detectChanges();
   }
+  /** Reglas del componente ya compiladas: comprueba lo declarado, no píxeles calculados. */
+  function styleRules(): { css: string; download: string[] } {
+    const css = [...document.querySelectorAll('style')].map(node => node.textContent ?? '').join('\n');
+    return { css, download: css.match(/\.download-button[^{]*\{[^}]*\}/g) ?? [] };
+  }
 
   it('no consulta anónimamente y ofrece acceso interno', async () => {
     const { fixture, list } = setup(undefined, undefined, false);
@@ -95,6 +100,61 @@ describe('Materiales del alumno', () => {
     expect(nav).toHaveBeenCalledWith(url);
     expect(download).toHaveBeenCalledTimes(1);
     expect(popup).not.toHaveBeenCalled();
+  });
+
+  it('la descarga lleva la clase de acción, texto exacto y nombre accesible', async () => {
+    const { fixture } = setup();
+    await settle(fixture);
+    const open = buttonWith(fixture.nativeElement, 'Descargar PDF');
+    expect(open.classList.contains('download-button')).toBe(true);
+    expect(open.getAttribute('type')).toBe('button');
+    expect(open.textContent?.trim()).toBe('Descargar PDF');
+    expect(open.getAttribute('aria-label')).toBe('Descargar PDF: <b>Apuntes</b>');
+    expect(open.disabled).toBe(false);
+    expect(fixture.nativeElement.querySelectorAll('a').length).toBe(0);
+  });
+
+  it('la acción mantiene su estilo al preparar y al reintentar', async () => {
+    let resolveDownload!: (value: string) => void;
+    const download = vi.fn(() => new Promise<string>(r => { resolveDownload = r; }));
+    const { fixture } = setup(undefined, download);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const preparing = buttonWith(fixture.nativeElement, 'Descargar PDF');
+    expect(preparing.classList.contains('download-button')).toBe(true);
+    expect(preparing.disabled).toBe(true);
+    expect(preparing.getAttribute('aria-label')).toBe('Descargar PDF: <b>Apuntes</b>');
+    resolveDownload(url);
+    await settle(fixture);
+    expect(buttonWith(fixture.nativeElement, 'Descargar PDF').disabled).toBe(false);
+  });
+
+  it('reintentar comparte la misma acción visual', async () => {
+    const { fixture } = setup(undefined, vi.fn().mockResolvedValue(badUrls[0]));
+    await settle(fixture);
+    const retry = buttonWith(fixture.nativeElement, 'Reintentar');
+    expect(retry.classList.contains('download-button')).toBe(true);
+    expect(retry.getAttribute('aria-label')).toBe('Reintentar descarga de <b>Apuntes</b>');
+  });
+
+  it('declara 44px, tokens del proyecto, foco visible y movimiento reducido', async () => {
+    const { fixture } = setup();
+    await settle(fixture);
+    const { css, download } = styleRules();
+    expect(download.length).toBeGreaterThan(0);
+    expect(download[0]).toMatch(/min-height:\s*44px/);
+    expect(download[0]).toMatch(/var\(--accent\)/);
+    expect(download[0]).toMatch(/var\(--surface\)/);
+    expect(download.join('\n')).toMatch(/var\(--border\)/);
+    expect(download[0]).toMatch(/var\(--radius\)/);
+    expect(download.some(rule => rule.includes(':focus-visible') && rule.includes('var(--focus)'))).toBe(true);
+    expect(download.some(rule => rule.includes(':hover:not(:disabled)'))).toBe(true);
+    expect(download.some(rule => rule.includes(':active:not(:disabled)'))).toBe(true);
+    expect(download.some(rule => rule.includes(':disabled'))).toBe(true);
+    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+    expect(download.some(rule => rule.includes('transition: none'))).toBe(true);
   });
 
   it('presenta vacío sin pedir recursos', async () => {

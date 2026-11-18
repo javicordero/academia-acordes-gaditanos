@@ -26,10 +26,10 @@
                 <span>{{ item.title }}</span>
               </span>
               @if (errors()[item.id]) {
-                <button type="button" [disabled]="pending()[item.id]" (click)="retry(item)"
+                <button type="button" class="download-button" [disabled]="pending()[item.id]" (click)="retry(item)"
                   [attr.aria-label]="'Reintentar descarga de ' + item.title">Reintentar</button>
               } @else {
-                <button type="button" [disabled]="pending()[item.id]" (click)="open(item)"
+                <button type="button" class="download-button" [disabled]="pending()[item.id]" (click)="open(item)"
                   [attr.aria-label]="'Descargar PDF: ' + item.title">Descargar PDF</button>
               }
               <span role="status" aria-live="polite" aria-atomic="true">
