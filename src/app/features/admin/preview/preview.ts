@@ -4,6 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/auth/auth.service';
 import { LessonMaterials } from '../../aula/lesson-materials/lesson-materials';
 import { PlaybackSource, VideoPlaybackService } from '../../aula/video-playback';
+import { LessonComments } from '../../comentarios/lesson-comments';
 import { PreviewRepository } from './preview-repository';
 import { ClassroomNav } from '../../aula/classroom-nav';
 
@@ -17,7 +18,7 @@ type VideoState = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error' | 'expi
 
 @Component({
   selector: 'app-admin-preview',
-  imports: [RouterLink, LessonMaterials, ClassroomNav],
+  imports: [RouterLink, LessonMaterials, ClassroomNav, LessonComments],
   templateUrl: './preview.html',
   styleUrls: ['../../aula/aula/aula.scss', './preview.scss'],
 })

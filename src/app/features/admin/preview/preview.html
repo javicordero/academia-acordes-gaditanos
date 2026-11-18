@@ -59,7 +59,9 @@
               @if (lesson.content_md) { <h3>Contenido</h3><p class="text">{{ lesson.content_md }}</p> }
               @else { <p>Esta lección no tiene contenido escrito.</p> }
               <app-lesson-materials [lessonId]="lesson.id" [courseId]="courseId()" [returnUrl]="'/admin/vista-previa/' + courseId() + '/' + lesson.id" [primary]="lesson.content_type === 'pdf'" />
-              <section><h3>Dudas y comentarios de esta lección</h3><p>Esta función está pendiente de implementación.</p></section>
+              <section class="preview-comentarios" aria-label="Dudas y comentarios de esta lección">
+                <app-lesson-comments [lessonId]="lesson.id" />
+              </section>
               <nav class="lesson-nav" aria-label="Navegación entre lecciones">
                 @if (previous(); as item) { <a class="preview-action" [routerLink]="['/admin/vista-previa', courseId(), item.id]" (click)="prepareLessonChange()">Anterior: {{ item.title }}</a> }
                 @else { <span>Primera lección</span> }

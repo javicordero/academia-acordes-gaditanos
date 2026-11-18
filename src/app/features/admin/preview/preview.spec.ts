@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { DomSanitizer } from '@angular/platform-browser';
+import { By, DomSanitizer } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { vi } from 'vitest';
@@ -9,6 +9,8 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { LessonResources } from '../../../shared/lesson-resources/lesson-resources';
 import { AulaRepository } from '../../aula/aula-repository';
 import { PlaybackSource, VideoPlaybackService } from '../../aula/video-playback';
+import { LessonComments } from '../../comentarios/lesson-comments';
+import { LessonCommentsRepository } from '../../comentarios/lesson-comments-repository';
 import { PreviewRepository } from './preview-repository';
 import { Preview } from './preview';
 
@@ -46,6 +48,7 @@ describe('Vista previa administrativa', () => {
   let authStatus: ReturnType<typeof signal<'loading' | 'authenticated' | 'anonymous' | 'unconfigured'>>;
   let source: ReturnType<typeof vi.fn>;
   let progressSave: ReturnType<typeof vi.fn>;
+  let commentList: ReturnType<typeof vi.fn>;
   const resources = { list: vi.fn(), download: vi.fn() };
 
   beforeEach(async () => {
@@ -56,6 +59,7 @@ describe('Vista previa administrativa', () => {
     authStatus = signal<'loading' | 'authenticated' | 'anonymous' | 'unconfigured'>('authenticated');
     source = vi.fn(() => null);
     progressSave = vi.fn().mockResolvedValue(undefined);
+    commentList = vi.fn().mockResolvedValue([]);
     load.mockImplementation(async (_course: string, id: string | null) =>
       ({ course, sections, lessons, lesson: id ? lessons.find(l => l.id === id) ?? null : first }));
     TestBed.configureTestingModule({ providers: [
@@ -67,6 +71,7 @@ describe('Vista previa administrativa', () => {
       { provide: PreviewRepository, useValue: { load } },
       { provide: VideoPlaybackService, useValue: { sourceForLesson: source } },
       { provide: AulaRepository, useValue: { load: vi.fn(), save: progressSave } },
+      { provide: LessonCommentsRepository, useValue: { list: commentList, create: vi.fn() } },
       { provide: LessonResources, useValue: resources },
       { provide: SUPABASE_CONFIG, useValue: { url: 'https://example.test', publishableKey: 'fake' } },
     ] });
@@ -467,5 +472,29 @@ describe('Vista previa administrativa', () => {
     const downloadActions = [...materials.querySelectorAll('button, a')].filter(el =>
       (el.getAttribute('aria-label') ?? el.textContent ?? '').includes('Descargar PDF'));
     expect(downloadActions).toHaveLength(1);
+  });
+
+  it('reutiliza los comentarios reales en la vista previa con badge y sin progreso de alumno', async () => {
+    commentList.mockResolvedValueOnce([{
+      id: firstId, parentId: null, body: 'Duda del borrador', createdAt: '2026-11-18T10:00:00Z',
+      authorDisplayName: 'Profesor', authorIsAdmin: true,
+    }]);
+    await harness.navigateByUrl(path(firstId), Preview);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const comments = harness.fixture.debugElement.query(By.directive(LessonComments));
+    expect(comments).not.toBeNull();
+    expect(comments.componentInstance.lessonId()).toBe(firstId);
+    expect(commentList).toHaveBeenCalledWith(firstId);
+    expect(root.textContent).toContain('Duda del borrador');
+    expect(root.querySelector('.comment-badge')?.textContent).toContain('Administrador');
+    expect(root.querySelectorAll('h1')).toHaveLength(1);
+
+    const reply = [...root.querySelectorAll('button')].find(b => b.textContent?.trim() === 'Responder')!;
+    expect(reply).toBeTruthy();
+    reply.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(root.querySelector('form.comment-form--reply')).not.toBeNull();
+    expect(progressSave).not.toHaveBeenCalled();
   });
 });

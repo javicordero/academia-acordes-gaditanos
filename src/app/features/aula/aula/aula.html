@@ -1,5 +1,5 @@
 <!-- El main landmark lo aporta el shell de la app; aquí no se anida otro. -->
-<div class="aula-layout">
+<div class="aula-layout" [class.aula-layout--compact]="indexCompact()">
   <!-- El índice vive fuera del switch de estados: al cambiar de lección se conserva
        el MISMO nodo y su estado local (abiertos, bloques plegados, scroll). -->
   @if (navCourse(); as nav) {
@@ -14,7 +14,20 @@
     </aside>
   }
 
-  <article class="aula-content" aria-label="Contenido de la lección">
+  <!-- El foco programático al entrar va al contenedor (tabindex=-1, fuera del orden de tab),
+       no al h1: evita el aro azul sobre el título al cargar el aula. -->
+  <article #aulaHeading tabindex="-1" class="aula-content" aria-label="Contenido de la lección">
+    <!-- Único control de escritorio: vive en el contenido, no en el aside, para poder
+         reabrir el índice incluso cuando está oculto. Sin texto visible; el hamburger
+         móvil de classroom-nav sigue siendo el otro control, de cajón. -->
+    <button #indexCompress type="button" class="index-compress" data-action="compress-index"
+      [attr.aria-label]="indexCompact() ? 'Expandir índice' : 'Comprimir índice'"
+      [attr.title]="indexCompact() ? 'Expandir índice' : 'Comprimir índice'"
+      [attr.aria-pressed]="indexCompact()" (click)="toggleIndexCompact()">
+      <svg class="icon index-compress__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <path d="M3 5.5h14M3 10h14M3 14.5h14" />
+      </svg>
+    </button>
     @switch (state()) {
       @case ('loading') {
         <p class="sr-only" role="status">Preparando el aula.</p>
@@ -49,22 +62,19 @@
                 <span>Duración: {{ durationLabel(aula.lesson.duration_seconds) }}</span>
               </span>
             }
-            <nav aria-label="Navegación entre lecciones" class="lesson-nav">
+            <nav aria-label="Navegación entre lecciones" class="lesson-nav lesson-nav--end">
               <button class="progress-button" type="button" [disabled]="saving() || !aula.canTrack" (click)="toggleProgress()">
                 {{ aula.completed ? 'Marcar como pendiente' : 'Marcar como completada' }}
               </button>
-              <span class="lesson-nav__divider" aria-hidden="true"></span>
-              <span class="lesson-current">{{ currentLabel() }}</span>
-              @if (previous(); as item) {
-                <a [routerLink]="['/aula', courseSlug(), item.slug]"><span class="arrow-glyph" aria-hidden="true">←</span> Anterior: {{ item.title }}</a>
-              }
               @if (next(); as item) {
-                <a [routerLink]="['/aula', courseSlug(), item.slug]">Siguiente: {{ item.title }} <span class="arrow-circle" aria-hidden="true">
-                  <svg viewBox="0 0 20 20" focusable="false">
-                    <circle cx="10" cy="10" r="9" />
-                    <path d="M7 10h6m-2.4-2.4L13 10l-2.4 2.4" />
-                  </svg>
-                </span></a>
+                <a [routerLink]="['/aula', courseSlug(), item.slug]" [attr.aria-label]="'Siguiente: ' + item.title">
+                  <span class="arrow-circle" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" focusable="false">
+                      <circle cx="10" cy="10" r="9" />
+                      <path d="M7 10h6m-2.4-2.4L13 10l-2.4 2.4" />
+                    </svg>
+                  </span>
+                </a>
               }
             </nav>
           </div>
@@ -101,14 +111,13 @@
             }
           </div> }
 
-          <h1 #aulaHeading id="aula-heading" tabindex="-1" class="lesson-title">{{ aula.lesson.title }}</h1>
+          <h1 id="aula-heading" tabindex="-1" class="lesson-title">{{ aula.lesson.title }}</h1>
 
           <hr class="aula-separator" />
           <app-lesson-materials [lessonId]="aula.lesson.id" [courseId]="aula.course.id" [returnUrl]="returnUrl()" [primary]="aula.lesson.content_type === 'pdf'" />
 
-          <section class="aula-dudas" aria-labelledby="dudas-heading">
-            <h2 id="dudas-heading">Dudas y comentarios de esta lección</h2>
-            <p>El foro y las dudas por lección se activarán en una fase posterior. Todavía no se pueden publicar mensajes.</p>
+          <section class="aula-dudas" aria-label="Dudas y comentarios de esta lección">
+            <app-lesson-comments [lessonId]="aula.lesson.id" />
           </section>
 
           @if (aula.canTrack) {

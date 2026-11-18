@@ -6,6 +6,7 @@ import { AulaData, AulaRepository } from '../aula-repository';
 import { PlaybackSource, VideoPlaybackService } from '../video-playback';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
 import { ClassroomNav } from '../classroom-nav';
+import { LessonComments } from '../../comentarios/lesson-comments';
 
 /**
  * Estados de la fuente de vídeo. Se pide automáticamente al cargar una lección
@@ -16,7 +17,7 @@ type VideoState = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error' | 'expi
 
 @Component({
   selector: 'app-aula',
-  imports: [RouterLink, LessonMaterials, ClassroomNav],
+  imports: [RouterLink, LessonMaterials, ClassroomNav, LessonComments],
   templateUrl: './aula.html',
   styleUrl: './aula.scss',
 })
@@ -40,6 +41,9 @@ export class Aula {
   readonly data = signal<AulaData | null>(null);
   /** Cambio de lección dentro del mismo curso: se conservan índice y contenido previos. */
   readonly switching = signal(false);
+  /** Comprimir el índice es solo maquetación de escritorio: sin persistencia, se
+   *  reinicia al cambiar de curso o de identidad para no mezclar estados. */
+  readonly indexCompact = signal(false);
   readonly videoSource = signal<PlaybackSource | null>(null);
   readonly videoState = signal<VideoState>('idle');
   /** Aviso del proveedor; se conserva al caducar para no perder su explicación. */
@@ -83,16 +87,6 @@ export class Aula {
     const index = list.findIndex(l => l.id === this.data()?.lesson.id);
     return index < 0 ? null : list[index + 1] ?? null;
   });
-  /** Orden real de la lección actual dentro del curso (ya ordenado por position). */
-  readonly currentIndex = computed(() => this.orderedLessons().findIndex(l => l.id === this.data()?.lesson.id));
-  /** Etiqueta de la lección actual: «Primera lección» solo en el índice 0; después, título y orden reales. */
-  readonly currentLabel = computed(() => {
-    const list = this.orderedLessons();
-    const index = this.currentIndex();
-    if (index <= 0) return 'Primera lección';
-    const lesson = list[index];
-    return lesson ? `Lección ${index + 1} de ${list.length}: ${lesson.title}` : '';
-  });
   readonly returnUrl = computed(() => `/aula/${encodeURIComponent(this.courseSlug())}/${encodeURIComponent(this.lessonSlug())}`);
   private readonly retryCount = signal(0);
 
@@ -128,6 +122,7 @@ export class Aula {
         this.loadedKey = null;
         this.data.set(null);
         this.switching.set(false);
+        this.indexCompact.set(false);
         this.state.set('loading');
         return;
       }
@@ -136,6 +131,7 @@ export class Aula {
         this.loadedKey = null;
         this.data.set(null);
         this.switching.set(false);
+        this.indexCompact.set(false);
         this.state.set('unconfigured');
         return;
       }
@@ -171,6 +167,7 @@ export class Aula {
       } else {
         this.data.set(null);
         this.switching.set(false);
+        this.indexCompact.set(false);
         this.state.set('loading');
       }
 
@@ -194,6 +191,11 @@ export class Aula {
         }
       });
     });
+  }
+
+  /** El botón vive en el contenido para poder reabrir con el aside oculto. */
+  toggleIndexCompact(): void {
+    this.indexCompact.update(value => !value);
   }
 
   // Enfoca el encabezado solo al cambiar de lección (no al refrescar sesión ni
