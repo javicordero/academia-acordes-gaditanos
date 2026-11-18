@@ -3,9 +3,12 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AulaData, AulaRepository } from '../aula-repository';
-import { VIDEO_DEMO_ENABLED, VideoPlaybackService } from '../video-playback';
+import { PlaybackSource, VideoPlaybackService } from '../video-playback';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
 import { ClassroomNav } from '../classroom-nav';
+
+/** Estados de la firma de vídeo, pedida solo cuando el alumno lo solicita. */
+type VideoState = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error' | 'expired';
 
 @Component({
   selector: 'app-aula',
@@ -18,18 +21,20 @@ export class Aula {
   readonly auth = inject(AuthService);
   private readonly repository = inject(AulaRepository);
   private readonly playback = inject(VideoPlaybackService);
-  readonly videoDemoEnabled = inject(VIDEO_DEMO_ENABLED);
   private readonly injector = inject(Injector);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('aulaHeading');
   private readonly videoFrame = viewChild<ElementRef<HTMLIFrameElement>>('videoFrame');
   private focusedLessonKey: string | null = null;
   private loadedKey: string | null = null;
+  private videoTimer: ReturnType<typeof setTimeout> | null = null;
+  private videoRequest = 0;
   private readonly params = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
   private request = 0;
   private destroyed = false;
   readonly state = signal<'loading' | 'unconfigured' | 'error' | 'denied' | 'ready'>('loading');
   readonly data = signal<AulaData | null>(null);
-  readonly videoSource = signal<import('../video-playback').PlaybackSource | null>(null);
+  readonly videoSource = signal<PlaybackSource | null>(null);
+  readonly videoState = signal<VideoState>('idle');
   readonly videoRequested = signal(false);
   private readonly videoLessonId = computed(() => this.data()?.lesson.content_type === 'video' ? this.data()!.lesson.id : null);
   readonly saving = signal(false);
@@ -68,18 +73,11 @@ export class Aula {
   });
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.request++; });
-    effect((onCleanup) => {
-      const id = this.videoLessonId();
-      let active = true;
-      onCleanup(() => { active = false; });
-      this.videoSource.set(null);
-      if (!id) return;
-      Promise.resolve(this.playback.sourceForLesson(id)).then(source => {
-        if (active) this.videoSource.set(source);
-      }).catch(() => {
-        if (active) this.videoSource.set(null);
-      });
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+      this.request++;
+      this.videoRequest++;
+      this.clearVideoTimer();
     });
     effect(() => {
       const status = this.auth.status();
@@ -89,14 +87,14 @@ export class Aula {
       // Auth aún no inicializada: nunca cachear un id nulo que después no se
       // actualizaría cuando llegue la sesión real.
       if (status === 'loading') {
-        this.videoRequested.set(false);
+        this.resetVideo();
         this.loadedKey = null;
         this.data.set(null);
         this.state.set('loading');
         return;
       }
       if (status === 'unconfigured') {
-        this.videoRequested.set(false);
+        this.resetVideo();
         this.loadedKey = null;
         this.data.set(null);
         this.state.set('unconfigured');
@@ -115,7 +113,7 @@ export class Aula {
       // Ruta o usuario distinto: retirar de inmediato el contenido autorizado
       // al usuario anterior antes de volver a preguntar a RLS.
       this.data.set(null);
-      this.videoRequested.set(false);
+      this.resetVideo();
       this.saving.set(false);
       this.saveError.set(false);
       if (this.auth.error() && !session) { this.state.set('error'); return; }
@@ -142,14 +140,77 @@ export class Aula {
     afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
   }
 
-  // El botón se sustituye por el iframe al cargar el vídeo: mover el foco al
-  // reproductor para que no se pierda en el DOM. Solo lo invoca el clic del
-  // usuario; ni un refresco de sesión ni el guardado de progreso lo llaman,
-  // de modo que no roban el foco. El aviso de terceros se mantiene visible.
+  /** Retira el reproductor y descarta cualquier firma en curso. */
+  private resetVideo(): void {
+    this.videoRequest++;
+    this.clearVideoTimer();
+    this.videoSource.set(null);
+    this.videoState.set('idle');
+    this.videoRequested.set(false);
+  }
+
+  private clearVideoTimer(): void {
+    if (this.videoTimer !== null) {
+      clearTimeout(this.videoTimer);
+      this.videoTimer = null;
+    }
+  }
+
+  /**
+   * Pide la firma solo tras la acción del alumno (también en reintentos). El
+   * generador `videoRequest` descarta respuestas de una lección o usuario
+   * anteriores; ni el guardado de progreso ni un refresco de sesión lo cambian.
+   */
   loadVideo(): void {
-    if (this.videoRequested()) return;
+    const lessonId = this.videoLessonId();
+    if (!lessonId || this.videoState() === 'loading') return;
+    const request = ++this.videoRequest;
+    this.clearVideoTimer();
+    this.videoSource.set(null);
+    this.videoState.set('loading');
     this.videoRequested.set(true);
-    afterNextRender(() => this.videoFrame()?.nativeElement.focus(), { injector: this.injector });
+
+    let pending: PlaybackSource | null | Promise<PlaybackSource | null>;
+    try {
+      pending = this.playback.sourceForLesson(lessonId);
+    } catch {
+      if (!this.destroyed && request === this.videoRequest) this.videoState.set('error');
+      return;
+    }
+    Promise.resolve(pending).then(source => {
+      if (this.destroyed || request !== this.videoRequest) return;
+      this.videoSource.set(source);
+      if (!source) {
+        this.videoState.set('unavailable');
+        return;
+      }
+      this.videoState.set('ready');
+      this.scheduleExpiry(source, request);
+      // El botón desaparece al mostrar el iframe: mover el foco al reproductor.
+      afterNextRender(() => {
+        if (!this.destroyed && request === this.videoRequest) this.videoFrame()?.nativeElement.focus();
+      }, { injector: this.injector });
+    }).catch(() => {
+      if (!this.destroyed && request === this.videoRequest) this.videoState.set('error');
+    });
+  }
+
+  /** `expiresAt` llega en milisegundos Unix desde el adaptador. */
+  private scheduleExpiry(source: PlaybackSource, request: number): void {
+    if (typeof source.expiresAt !== 'number' || !Number.isFinite(source.expiresAt)) return;
+    const delay = source.expiresAt - Date.now();
+    if (delay <= 0) {
+      this.expire(request);
+      return;
+    }
+    this.videoTimer = setTimeout(() => this.expire(request), delay);
+  }
+
+  private expire(request: number): void {
+    if (this.destroyed || request !== this.videoRequest) return;
+    this.clearVideoTimer();
+    this.videoSource.set(null);
+    this.videoState.set('expired');
   }
 
   // El reintento manual fuerza una recarga aunque la clave efectiva no cambie.

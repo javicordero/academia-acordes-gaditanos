@@ -1,11 +1,22 @@
 import { Injectable, InjectionToken, inject, isDevMode } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { videoDemo } from '../../../environments/video-demo.local';
+// El adaptador importa tipos de este módulo (`import type`), así que no hay
+// ciclo de ejecución en runtime al importar aquí su clase.
+import { BunnyStreamPlaybackProvider } from './video-playback-bunny';
 
-// El futuro adaptador deberá obtener la fuente temporal tras autorización en servidor.
+/**
+ * Fuente de reproducción ya autorizada por el proveedor.
+ *
+ * `expiresAt` es opcional y compatible: va en milisegundos Unix (la unidad de
+ * `Date.now()` en el navegador) y solo lo entrega el adaptador Bunny, que lo
+ * convierte desde los segundos que responde la firma del servidor. YouTube y
+ * los mocks existentes no lo traen.
+ */
 export interface PlaybackSource {
   readonly embedUrl: SafeResourceUrl;
   readonly notice: string;
+  readonly expiresAt?: number;
 }
 
 export interface VideoPlaybackProvider {
@@ -42,14 +53,38 @@ export const VIDEO_DEMO_ENABLED = new InjectionToken<boolean>(
   'Vídeo de prueba en desarrollo', { factory: () => isDevMode() },
 );
 
+/*
+ * Selección del proveedor por DI (app.config.ts):
+ *
+ * - El flag público `videoPlaybackBunny` vive en la configuración pública de
+ *   Supabase (por defecto `false`) y puede ponerse a `true` en la copia local
+ *   ignorada o suministrarse como provider de entorno. Solo indica el proveedor
+ *   esperado: los secretos de Bunny viven siempre en servidor.
+ * - El adaptador Bunny (`BunnyStreamPlaybackProvider`) NO pide la firma hasta
+ *   que el alumno pulsa, así que registrarlo como clase no carga el iframe ni
+ *   llama a la Edge Function al entrar en el aula.
+ * - `VIDEO_PLAYBACK_PROVIDER` se resuelve según el modo en `app.config.ts`
+ *   (fábrica de abajo), y un registro de entorno puede sobrescribirlo.
+ * - En producción no existe respaldo YouTube: sin Bunny, el aula informa de
+ *   que la reproducción está pendiente. YouTube solo es maquetación de
+ *   desarrollo (`video-demo.local.ts`, ignorado) y no protege contenido de pago.
+ */
+export const VIDEO_PLAYBACK_FLAG = new InjectionToken<Readonly<{ bunny: boolean }>>(
+  'Reproducción de vídeo configurada', { factory: () => ({ bunny: false }) },
+);
+
 @Injectable({ providedIn: 'root' })
 export class YouTubeDemoProvider implements VideoPlaybackProvider {
   private readonly sanitizer = inject(DomSanitizer);
   private readonly config = inject(VIDEO_DEMO_CONFIG);
-  private readonly enabled = inject(VIDEO_DEMO_ENABLED);
+  private readonly enabled = inject(VIDEO_DEMO_ENABLED, { optional: true });
+  private readonly flag = inject(VIDEO_PLAYBACK_FLAG, { optional: true });
 
   sourceForLesson(lessonId: string): PlaybackSource | null {
-    if (!this.enabled || !Object.hasOwn(this.config, lessonId)) return null;
+    // Defensa en profundidad: demo solo en desarrollo y solo si se habilita.
+    if (!isDevMode() || !(this.enabled ?? isDevMode())) return null;
+    if (this.flag?.bunny) return null;
+    if (!Object.hasOwn(this.config, lessonId)) return null;
     const id = youtubeId(this.config[lessonId]);
     if (!id) return null;
     return {
@@ -59,14 +94,45 @@ export class YouTubeDemoProvider implements VideoPlaybackProvider {
   }
 }
 
+/** Sin proveedor configurado en producción: estado honesto, nada se carga. */
+export const UNAVAILABLE_PLAYBACK: VideoPlaybackProvider = {
+  sourceForLesson: () => null,
+};
+
+/**
+ * Selección por modo. Producción ignora el modo demo: sin Bunny nunca hay
+ * YouTube. Desarrollo permite Bunny o la maquetación YouTube local.
+ */
+export function playbackProviderFactory(bunny: boolean): VideoPlaybackProvider {
+  return selectPlaybackProvider(bunny, isDevMode());
+}
+
+export function selectPlaybackProvider(bunny: boolean, demo: boolean): VideoPlaybackProvider {
+  if (bunny) return inject(BunnyStreamPlaybackProvider);
+  if (demo) return inject(YouTubeDemoProvider);
+  return UNAVAILABLE_PLAYBACK;
+}
+
 export const VIDEO_PLAYBACK_PROVIDER = new InjectionToken<VideoPlaybackProvider>(
-  'Proveedor de reproducción', { factory: () => inject(YouTubeDemoProvider) },
+  'Proveedor de reproducción',
+  // Red de seguridad para TestBeds aislados; la aplicación real lo sobrescribe
+  // en app.config.ts con el flag público (por defecto, sin Bunny).
+  { factory: () => playbackProviderFactory(false) },
 );
 
 @Injectable({ providedIn: 'root' })
 export class VideoPlaybackService {
   private readonly provider = inject(VIDEO_PLAYBACK_PROVIDER);
+
   sourceForLesson(lessonId: string): PlaybackSource | null | Promise<PlaybackSource | null> {
     return this.provider.sourceForLesson(lessonId);
+  }
+
+  /** La firma Bunny caduca; este reloj permite al aula avisar y renovar. */
+  expiresAt(lessonId: string): number | null | Promise<number | null> {
+    if (this.provider instanceof BunnyStreamPlaybackProvider) {
+      return this.provider.expiresAt(lessonId);
+    }
+    return null;
   }
 }

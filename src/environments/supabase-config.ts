@@ -10,11 +10,21 @@ import { environmentLocal } from './environment.local';
 export interface SupabaseConfig {
   readonly url: string;
   readonly publishableKey: string;
+  /**
+   * Solo indica qué proveedor de vídeo se espera en el aula; por defecto
+   * `false`. No es un secreto ni habilita nada en servidor: la firma y la
+   * autorización las emite siempre la Edge Function. Si Bunny responde 503 o
+   * 403, el aula muestra un estado honesto; nunca cae a YouTube en producción.
+   */
+  readonly videoPlaybackBunny?: boolean;
 }
 
 export const supabaseConfig: SupabaseConfig = {
   url: environmentLocal.supabaseUrl.trim(),
   publishableKey: environmentLocal.supabasePublishableKey.trim(),
+  // Lectura tolerante: `environment.local.ts` es ignorado y puede ser anterior
+  // a este campo. La copia versionada de la plantilla trae el valor `false`.
+  videoPlaybackBunny: (environmentLocal as { videoPlaybackBunny?: unknown }).videoPlaybackBunny === true,
 };
 
 export const SUPABASE_CONFIG = new InjectionToken<SupabaseConfig>(

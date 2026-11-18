@@ -21,24 +21,36 @@
             [activeId]="aula.lesson.id" [courseId]="aula.course.id" [courseSlug]="courseSlug()" />
           <article>
             @if (aula.lesson.content_type === 'video') { <div class="video-stage">
-            @if (videoSource(); as video) {
-              <strong>Vídeo de ejemplo</strong>
-              <p>{{ video.notice }}</p>
-              @if (videoRequested()) {
-                <iframe #videoFrame class="video" [src]="video.embedUrl" [title]="'Vídeo de prueba: ' + aula.lesson.title"
-                  tabindex="0" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"
-                  sandbox="allow-scripts allow-same-origin allow-presentation"
-                  allow="fullscreen; encrypted-media" allowfullscreen></iframe>
-              } @else {
-                <button type="button" (click)="loadVideo()">Cargar vídeo de prueba en YouTube</button>
+              <strong>Vídeo de la lección</strong>
+              @if (videoSource(); as video) { <p>{{ video.notice }}</p> }
+              @switch (videoState()) {
+                @case ('idle') {
+                  <button type="button" class="video-button" (click)="loadVideo()">Ver vídeo de la lección</button>
+                }
+                @case ('loading') {
+                  <p role="status">Preparando el vídeo…</p>
+                  <button type="button" class="video-button" disabled aria-busy="true">Preparando el vídeo…</button>
+                }
+                @case ('ready') {
+                  @if (videoSource(); as video) {
+                    <iframe #videoFrame class="video" [src]="video.embedUrl" [title]="'Vídeo de la lección: ' + aula.lesson.title"
+                      tabindex="0" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"
+                      sandbox="allow-scripts allow-same-origin allow-presentation"
+                      allow="fullscreen; encrypted-media" allowfullscreen></iframe>
+                  }
+                }
+                @case ('unavailable') {
+                  <p>La reproducción aún no está configurada. La lección puede tener vídeo, PDF o texto.</p>
+                }
+                @case ('error') {
+                  <p role="alert">No se pudo preparar el vídeo. Vuelve a intentarlo.</p>
+                  <button type="button" class="video-button" (click)="loadVideo()">Reintentar</button>
+                }
+                @case ('expired') {
+                  <p role="status">El enlace del vídeo ha caducado</p>
+                  <button type="button" class="video-button" (click)="loadVideo()">Volver a preparar</button>
+                }
               }
-            } @else {
-              @if (videoDemoEnabled) {
-                <p>No hay vídeo de prueba configurado para esta lección en desarrollo; la reproducción definitiva está pendiente de integrar.</p>
-              } @else {
-                <p>La demo de vídeo no está disponible en producción; la reproducción definitiva está pendiente de integrar.</p>
-              }
-            }
             </div> }
             <h2>{{ aula.lesson.title }}</h2>
             @if (aula.lesson.summary) { <p class="text">{{ aula.lesson.summary }}</p> }

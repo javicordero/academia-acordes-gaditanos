@@ -12,4 +12,7 @@
 export const environmentLocal = {
   supabaseUrl: '',
   supabasePublishableKey: '',
+  // Configuración pública: solo indica el proveedor de vídeo esperado.
+  // `false` por defecto; no contiene claves ni secretos de Bunny.
+  videoPlaybackBunny: false,
 };

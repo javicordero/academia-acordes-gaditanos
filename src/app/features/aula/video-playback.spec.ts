@@ -1,6 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
-import { VIDEO_DEMO_CONFIG, VIDEO_DEMO_ENABLED, YouTubeDemoProvider, youtubeId } from './video-playback';
+import {
+  UNAVAILABLE_PLAYBACK,
+  VIDEO_DEMO_CONFIG,
+  VIDEO_DEMO_ENABLED,
+  YouTubeDemoProvider,
+  selectPlaybackProvider,
+  youtubeId,
+} from './video-playback';
+import { BunnyStreamPlaybackProvider } from './video-playback-bunny';
 
 describe('YouTube de prueba', () => {
   it('acepta únicamente IDs y URLs HTTPS de formatos admitidos', () => {
@@ -34,5 +42,19 @@ describe('YouTube de prueba', () => {
     expect(provider.sourceForLesson('l')).not.toBeNull();
     expect(provider.sourceForLesson('otro')).toBeNull();
     expect(provider.sourceForLesson('bad')).toBeNull();
+  });
+});
+
+describe('selección del proveedor de vídeo', () => {
+  it('sin Bunny ni demo no carga nada: estado honesto en producción', () => {
+    TestBed.resetTestingModule();
+    expect(TestBed.runInInjectionContext(() => selectPlaybackProvider(false, false)))
+      .toBe(UNAVAILABLE_PLAYBACK);
+  });
+
+  it('con el flag de Bunny resuelve el adaptador mediante DI', () => {
+    TestBed.resetTestingModule();
+    expect(TestBed.runInInjectionContext(() => selectPlaybackProvider(true, false)))
+      .toBeInstanceOf(BunnyStreamPlaybackProvider);
   });
 });
