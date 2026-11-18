@@ -1,9 +1,29 @@
 # Estado de la subida de vídeo desde administración (backend)
 
-Registro técnico y honesto de una **fundación local, no desplegada**. No se ha
-creado ningún objeto en Bunny, no se ha subido ningún vídeo, no se ha contratado
-nada y no se han tocado bases de datos remotas. Las decisiones comerciales
-(precio, duración del acceso, política de reembolsos) siguen pendientes.
+Registro técnico y honesto. El **backend** (migración `20261118140000` y Edge
+Function `video-upload`) fue desplegado en **DEV desde el commit `15036ab`** por
+el operador de nube; no se ha aplicado a producción. El estado remoto comprobado
+se detalla más abajo. La **interfaz local** sigue pendiente de demostración por
+el usuario: no se ha subido ningún archivo real ni se ha comprobado una carga de
+extremo a extremo. No se ha creado ningún objeto en Bunny con datos reales, no
+se ha contratado nada y las decisiones comerciales (precio, duración del acceso,
+política de reembolsos) siguen pendientes.
+
+## Estado remoto comprobado (DEV)
+
+Verificado por el operador de nube sobre el despliegue del commit `15036ab`:
+
+- Migración `20261118140000_video_upload.sql` aplicada en DEV; las seis RPC
+  (`video_upload_status`, `video_upload_reserve`, `video_upload_attach`,
+  `video_upload_refresh`, `video_upload_sync`, `video_upload_mark_review`)
+  ejecutables solo por `service_role`, con RLS en `private.video_upload_jobs`
+  sin políticas para `anon`/`authenticated`.
+- CORS: `OPTIONS` desde un origen permitido → 204 con ACAO; origen externo →
+  403; petición sin JWT → 401.
+- No se enviaron archivos reales: no hubo `prepare`, `refresh` ni subida de
+  bytes, y la tabla privada de trabajos quedó vacía (0 filas).
+- No hay prueba E2E con Bunny real: creación de objetos, subida TUS, caducidad
+  del recurso y codificación siguen sin verificarse en remoto.
 
 ## Contrato de la Edge Function `video-upload`
 
@@ -166,10 +186,10 @@ configuración y responde 503; sin secretos no se firma ni se crea nada.
   creación, estados del proveedor y URLs con hostname fijo). `npm run test:sql`:
   transacción con `ROLLBACK`, RLS por defecto, ACL, CAS y sin cambios de
   publicación ni progreso. No son pruebas E2E.
-- Sin Supabase local (Docker + CLI), sin PostgREST real, sin Auth real, sin
-  despliegue y sin ninguna petición real a Bunny. La creación y la subida real,
-  la caducidad del recurso TUS y la codificación efectiva quedan por verificar
-  con autorización y proyecto configurado.
+- Las pruebas locales no usan Supabase local (Docker + CLI), PostgREST real ni
+  peticiones a Bunny. El despliegue DEV existe, pero no se ha ejercitado con
+  archivos reales: la creación y la subida real, la caducidad del recurso TUS y
+  la codificación efectiva quedan por verificar con autorización.
 - La interfaz de administración y su integración con este contrato se coordinan
   por separado; este documento no crea UI ni toca el repositorio del cancionero.
 - No se promete protección absoluta del vídeo ni DRM. Bunny tiene coste variable;

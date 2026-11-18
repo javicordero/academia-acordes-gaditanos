@@ -58,6 +58,8 @@ secretos, el servidor responde 503 y no guarda nada. El estado local y los
 pasos pendientes están en `docs/video-admin-estado.md`.
 En la estructura del curso, cada lección guardada ofrece «Vídeo de la lección» junto a «Materiales PDF»; las lecciones nuevas sin guardar no lo muestran.
 
+- Desde esta misma ruta se puede subir el vídeo a Bunny con `tus-js-client@4.3.1` (MIT): la Edge Function `video-upload` concede una firma TUS temporal, el cliente solo envía bytes tras elegir archivo y pulsar «Subir a Bunny», muestra el aviso de coste y el progreso real, y «Detener» pausa sin borrar el vídeo remoto. Probado con mocks en jsdom: sin Bunny real, sin subidas ni costes. El contrato de servidor y su documentación (`docs/video-upload-estado.md`) corresponden al bloque backend.
+
 > **Documentación privada:** el repositorio será público. `docs/plan-maestro.md`
 > se aporta localmente y **no se publica**; está incluido en `.gitignore` junto
 > con `docs/privado/`, reservado para notas internas. El resto de `docs/` puede

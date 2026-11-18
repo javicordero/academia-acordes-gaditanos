@@ -39,5 +39,77 @@
         <li>Estado: {{ linked.status === 'ready' ? 'listo para reproducir' : 'en procesamiento; todavía no reproducible' }}</li>
       </ul>
     }
+
+    <div class="upload" aria-labelledby="upload-heading">
+      <h4 id="upload-heading">Subir un vídeo desde el panel</h4>
+
+      @if (uploadState() === 'loading') {
+        <p role="status" aria-live="polite">Comprobando el estado del vídeo de esta lección…</p>
+      }
+
+      @if (existingVideo()) {
+        <p role="status" aria-live="polite">Ya hay un vídeo asociado a esta lección. No se sustituye ni se cambia su GUID automáticamente. Si quieres crear otro contenido, hazlo expresamente.</p>
+      }
+
+      @if (limitsText()) {
+        <p id="upload-limits" class="hint">{{ limitsText() }}</p>
+      }
+
+      <label for="video-file">Archivo de vídeo</label>
+      <input id="video-file" type="file" [accept]="acceptTypes()"
+        [attr.aria-describedby]="fileError() ? 'file-error' : 'upload-cost'"
+        [disabled]="isBusy()" (change)="onFileSelected($event)">
+      @if (fileError()) {
+        <p id="file-error" role="alert">{{ fileError() }}</p>
+      }
+
+      <p id="upload-cost" class="warning">Subir a Bunny consume almacenamiento y procesamiento del proveedor. Solo se envía el archivo cuando pulsa «Subir a Bunny»; seleccionarlo no inicia ninguna subida.</p>
+
+      @if (canSubmit()) {
+        <button type="button" (click)="startUpload()">Subir a Bunny</button>
+      }
+
+      @if (existingBlock()) {
+        <button type="button" (click)="requestReplace()">Quiero sustituir el vídeo</button>
+      }
+
+      @if (uploadState() === 'preparing') {
+        <p role="status" aria-live="polite" aria-atomic="true">{{ uploadMessage() }}</p>
+      }
+
+      @if (uploadState() === 'uploading') {
+        <div class="progress" role="progressbar" aria-label="Progreso de la subida"
+          aria-valuemin="0" aria-valuemax="100"
+          [attr.aria-valuenow]="progressPercent()"
+          [attr.aria-valuetext]="progressText()"
+          aria-describedby="upload-progress-text">
+          <span class="progress-fill" [style.width.%]="progressPercent()"></span>
+        </div>
+        <p id="upload-progress-text" class="hint">{{ progressText() }}</p>
+        <button type="button" (click)="cancelUpload()">Detener la subida</button>
+      }
+
+      @if (uploadState() === 'paused') {
+        <p role="status" aria-live="polite" aria-atomic="true">{{ uploadMessage() }}</p>
+        @if (selectedFile() && !existingBlock()) {
+          <button type="button" (click)="resumeUpload()" [disabled]="isBusy()">Reanudar</button>
+        }
+      }
+
+      @if (uploadState() === 'processing' || uploadState() === 'done') {
+        <p role="status" aria-live="polite" aria-atomic="true">{{ uploadMessage() }}</p>
+      }
+
+      @if (uploadState() === 'error') {
+        <p role="alert">{{ uploadMessage() }}</p>
+        @if (needsRenewal()) {
+          <p class="hint">Inicia sesión de nuevo y reanuda la subida para renovar la autorización.</p>
+        }
+      }
+
+      @if (uploadState() !== 'uploading' && uploadState() !== 'preparing' && uploadState() !== 'loading') {
+        <button type="button" (click)="refreshStatus()" [disabled]="isBusy()">Actualizar estado</button>
+      }
+    </div>
   }
 </section>
