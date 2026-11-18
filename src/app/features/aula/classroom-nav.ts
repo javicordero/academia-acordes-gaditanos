@@ -11,23 +11,19 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
   host: { '(document:keydown.escape)': 'onDocumentEscape()' },
   template: `
     <button #menu class="menu" type="button" aria-controls="classroom-index" aria-label="Lecciones del curso"
-      title="Lecciones del curso" [attr.aria-expanded]="open()" (click)="open.set(!open())">
+      title="Lecciones del curso" [attr.aria-expanded]="open()" [class.menu--open]="open()"
+      (click)="open.set(!open())">
       <svg class="icon menu__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
         <path d="M3 5.5h14M3 10h14M3 14.5h14" />
       </svg>
       <span class="menu__label">Lecciones del curso</span>
     </button>
-    @if (open()) { <div class="nav-backdrop" aria-hidden="true" (click)="closeMenu()"></div> }
     <nav #index id="classroom-index" aria-label="Lecciones del curso" [class.open]="open()" (keydown.escape)="closeMenu()">
       <div class="nav-head">
         <a class="nav-back" [routerLink]="admin() ? '/admin' : '/mis-cursos'">
           <svg class="icon nav-back__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3 5 8l5 5" /></svg>
           <span>{{ admin() ? 'Volver a administración' : 'Volver a mis cursos' }}</span>
         </a>
-        <button class="nav-close" type="button" aria-label="Cerrar índice de lecciones" title="Cerrar índice de lecciones"
-          (click)="closeMenu()">
-          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" /></svg>
-        </button>
       </div>
       <h2>{{ title() }}</h2>
       @if (teacher()) { <p class="nav-teacher">{{ teacher() }}</p> }
@@ -35,9 +31,6 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
         <section class="nav-block">
           <button type="button" class="block-toggle" [attr.aria-expanded]="isExpanded(section.id)"
             [attr.aria-controls]="'bloque-' + section.id" (click)="toggleBlock(section.id)">
-            <svg class="icon block-toggle__folder" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path d="M2 4.5h4l1.3 1.6H14v6.4H2z" />
-            </svg>
             <span class="block-toggle__title">{{ section.title }}</span>
             <span class="block-toggle__chevron" aria-hidden="true">{{ isExpanded(section.id) ? '▾' : '▸' }}</span>
           </button>
@@ -46,21 +39,6 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
               @if (lesson.section_id === section.id) {
                 <li><a [routerLink]="admin() ? ['/admin/vista-previa', courseId(), lesson.id] : ['/aula', courseSlug(), lesson.slug]"
                   [attr.aria-current]="lesson.id === activeId() ? 'page' : null" (click)="closeMenu()">
-                  <span class="lesson-icon" aria-hidden="true">
-                    @switch (lesson.content_type) {
-                      @case ('video') {
-                        <svg viewBox="0 0 16 16" focusable="false"><rect x="2" y="3.5" width="12" height="9" rx="1.6" /><path d="M6.6 6.3 10 8l-3.4 1.7z" /></svg>
-                      }
-                      @case ('pdf') {
-                        <svg viewBox="0 0 16 16" focusable="false"><path d="M4 2h5l3 3v9H4z" /><path d="M9 2v3h3M6 9h4M6 11.5h4" /></svg>
-                      }
-                      @default {
-                        <svg viewBox="0 0 16 16" focusable="false"><path d="M3 4h10M3 8h10M3 12h7" /></svg>
-                      }
-                    }
-                  </span>
-                  <span class="sr-only">{{ lesson.content_type === 'video' ? 'Vídeo' : lesson.content_type === 'pdf' ? 'PDF' : 'Texto' }}:</span>
-                  <span class="lesson-title">{{ lesson.title }}</span> @if (lesson.is_free_preview) { <small>Muestra</small> }
                   @if (completedIds(); as doneIds) {
                     <span class="lesson-progress" [class.lesson-progress--done]="doneIds.has(lesson.id)">
                       @if (doneIds.has(lesson.id)) {
@@ -76,6 +54,7 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
                       }
                     </span>
                   }
+                  <span class="lesson-title">{{ lesson.title }}</span> @if (lesson.is_free_preview) { <small>Muestra</small> }
                 </a></li>
               }
             }
@@ -85,93 +64,89 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     </nav>
   `,
   styles: [`
-    :host { display:block; min-width:0; }
+    :host { display:block; min-width:0; height:100%; min-height:0; }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
     :focus-visible { outline:3px solid var(--focus); outline-offset:2px; border-radius:2px; }
     .icon { display:inline-block; width:1em; height:1em; flex:none; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
 
+    /* Índice integrado: superficie continua y separadores, sin tarjeta flotante ni sombra. */
     nav {
       background:var(--surface);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      padding:1rem;
-      max-height:calc(100vh - 2.5rem);
+      border:0;
+      border-inline-end:1px solid var(--border);
+      border-radius:0;
+      padding:0 1rem 1rem;
+      height:100%;
+      min-height:0;
       overflow-y:auto;
       overscroll-behavior:contain;
     }
-    .nav-head { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+    .nav-head { display:flex; align-items:center; gap:.5rem; padding-block:.75rem; border-bottom:1px solid var(--border); }
     .nav-back { display:inline-flex; align-items:center; gap:.4rem; min-height:44px; font-size:.9rem; }
     .nav-back__icon { width:.85rem; height:.85rem; }
-    .nav-close { display:none; }
-    h2 { font-size:1.2rem; overflow-wrap:anywhere; margin:1rem 0 .25rem; }
+    h2 { font-size:1.2rem; overflow-wrap:anywhere; margin:1.25rem 0 .25rem; }
     .nav-teacher { margin:0 0 1rem; color:var(--muted); font-size:.9rem; }
     .nav-block { border-top:1px solid var(--border); padding:.35rem 0; }
     .block-toggle {
       display:flex; align-items:center; gap:.5rem; width:100%;
       min-height:44px; padding:.5rem .35rem;
-      border:0; border-radius:8px; background:none; color:inherit;
+      border:0; border-radius:0; background:none; color:inherit;
       font:inherit; font-weight:700; text-align:left; cursor:pointer;
     }
     .block-toggle:hover { background:#f1e9db; }
-    .block-toggle__folder { width:1rem; height:1rem; }
     .block-toggle__title { flex:1 1 auto; }
     .block-toggle__chevron { flex:none; font-size:.8rem; }
     ul { list-style:none; margin:.25rem 0 .5rem; padding:0; }
     li a {
-      display:flex; align-items:center; gap:.55rem; min-height:44px;
+      display:flex; align-items:center; gap:.5rem; min-height:44px;
       padding:.5rem .6rem; color:inherit; text-decoration:none;
-      border-radius:8px; overflow-wrap:anywhere;
+      border-radius:0; overflow-wrap:anywhere;
     }
-    .lesson-icon { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; flex:none; }
-    .lesson-icon svg { width:100%; height:100%; }
-    .lesson-title { min-width:0; }
-    /* Estado de progreso: forma (check/círculo) y texto oculto, no solo color. */
+    .lesson-title { min-width:0; overflow-wrap:anywhere; }
+    /* Estado de progreso visible al inicio de la fila: solo forma (check/círculo); el texto es sr-only. */
     .lesson-progress {
-      display:inline-flex; align-items:center; justify-content:center;
-      width:18px; height:18px; flex:none; margin-inline-start:auto; color:var(--muted);
+      display:inline-flex; align-items:center; justify-content:center; flex:none;
+      width:18px; height:18px; margin-inline-start:0; color:var(--muted);
     }
     .lesson-progress--done { color:var(--accent); }
     .lesson-progress__icon {
-      width:1rem; height:1rem; fill:none; stroke:currentColor;
+      width:1rem; height:1rem; flex:none; fill:none; stroke:currentColor;
       stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;
     }
     .lesson-progress--done .lesson-progress__icon { stroke-width:2.2; }
-    li a[aria-current=page] { background:#f1e9db; font-weight:700; border-left:3px solid var(--accent); }
+    li a[aria-current=page] { background:#f1e9db; font-weight:700; border-inline-start:3px solid var(--accent); }
     small { font-weight:400; }
 
     .menu { display:none; }
     .menu__label { flex:1 1 auto; }
 
     @media (max-width:47.999rem) {
+      /* Barra fina, sin borde grueso ni fondo beige; el nombre queda para lectores de pantalla. */
       .menu {
         display:flex; align-items:center; gap:.6rem;
-        min-height:44px; padding:.6rem .75rem;
-        border:1px solid var(--accent); border-radius:8px;
-        background:var(--surface); color:var(--accent);
+        min-height:44px; padding:.4rem .5rem;
+        border:0; border-radius:0; background:transparent; color:inherit;
         font:inherit; font-weight:700; cursor:pointer;
       }
-      .menu__icon { width:1.1rem; height:1.1rem; }
-      /* Barra con icono a la izquierda, como el referente; el nombre sigue disponible para lectores de pantalla. */
+      .menu__icon { width:1.1rem; height:1.1rem; stroke-width:1.6; }
       .menu__label { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-      .nav-backdrop { position:fixed; inset:0; z-index:30; background:rgb(0 0 0 / 35%); }
+      /* Sin backdrop ni X: el propio hamburger sigue visible sobre el cajón y lo cierra
+         (aria-expanded y el foco de vuelta mantienen la alternativa accesible). */
+      .menu--open {
+        position:fixed; inset-block-start:.35rem; inset-inline-start:.5rem; z-index:50;
+      }
       nav:not(.open) { display:none; }
       nav.open {
         position:fixed; inset:0 auto 0 0; z-index:40;
         width:85%; max-width:24rem; height:100vh; height:100dvh;
-        max-height:none; border-radius:0;
+        max-height:none; border-radius:0; border-inline-end:1px solid var(--border);
+        padding-top:3.5rem;
         overflow-y:auto; overscroll-behavior:contain;
-        box-shadow:.5rem 0 1.5rem rgb(0 0 0 / 20%);
+        box-shadow:none;
       }
-      .nav-close {
-        display:inline-flex; align-items:center; justify-content:center;
-        min-width:44px; min-height:44px; padding:.6rem;
-        border:1px solid var(--border); border-radius:8px;
-        background:var(--surface); color:inherit; font:inherit; cursor:pointer;
-      }
-      .nav-close .icon { width:1.1rem; height:1.1rem; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .menu, nav, .nav-backdrop, .nav-close { transition:none; }
+      .menu, nav { transition:none; }
     }
   `],
 })
