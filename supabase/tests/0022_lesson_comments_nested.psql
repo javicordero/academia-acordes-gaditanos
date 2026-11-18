@@ -1,0 +1,174 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID y correos ficticios de example.invalid, sin PII.
+-- Hilos anidados: admin → su respuesta → su respuesta, y alumno con derecho
+-- respondiendo a una respuesta del admin (ida y vuelta).
+insert into auth.users (id, email) values
+ ('a1000000-0000-0000-0000-000000000001', 'admin.anidados@example.invalid'),
+ ('a1000000-0000-0000-0000-000000000002', 'alumna.anidados@example.invalid'),
+ ('a1000000-0000-0000-0000-000000000003', 'sin.derecho.anidados@example.invalid');
+update public.profiles set display_name = case id
+ when 'a1000000-0000-0000-0000-000000000001' then null
+ when 'a1000000-0000-0000-0000-000000000002' then 'Alumna Anidada'
+end;
+insert into public.user_roles (user_id, role) values
+ ('a1000000-0000-0000-0000-000000000001', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values
+ ('b1000000-0000-0000-0000-000000000001', 'anidados-uno', 'Uno', 'published', now()),
+ ('b1000000-0000-0000-0000-000000000002', 'anidados-dos', 'Dos', 'published', now());
+insert into public.course_sections (id, course_id, title, position) values
+ ('c1000000-0000-0000-0000-000000000001', 'b1000000-0000-0000-0000-000000000001', 'Sección uno', 0),
+ ('c1000000-0000-0000-0000-000000000002', 'b1000000-0000-0000-0000-000000000002', 'Sección dos', 0);
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview) values
+ ('d1000000-0000-0000-0000-000000000001', 'b1000000-0000-0000-0000-000000000001', 'c1000000-0000-0000-0000-000000000001', 'anidadas', 'Anidadas', 0, true, false),
+ ('d2000000-0000-0000-0000-000000000001', 'b1000000-0000-0000-0000-000000000002', 'c1000000-0000-0000-0000-000000000002', 'otra-leccion', 'Otra lección', 0, true, false);
+insert into public.entitlements (user_id, course_id, revoked_at) values
+ ('a1000000-0000-0000-0000-000000000002', 'b1000000-0000-0000-0000-000000000001', null);
+-- Semilla directa (obra de servidor): raíz en cada lección, con created_at distinto.
+insert into public.lesson_comments (id, lesson_id, author_id, parent_id, body, created_at) values
+ ('e1000000-0000-0000-0000-000000000010', 'd1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000001', null, 'Raíz semilla', now() - interval '5 minutes'),
+ ('e1000000-0000-0000-0000-000000000020', 'd2000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000001', null, 'Raíz de otra lección', now() - interval '5 minutes');
+create temp table lc_baseline as
+select
+ (select count(*) from public.orders) as orders,
+ (select count(*) from public.entitlements) as entitlements,
+ (select count(*) from public.lesson_progress) as progress,
+ (select count(*) from public.user_roles) as roles;
+
+-- Firma y grants intactos; anon sin EXECUTE.
+do $$
+begin
+ if has_function_privilege('anon', 'public.create_lesson_comment(uuid,text,uuid)', 'EXECUTE')
+ or has_function_privilege('service_role', 'public.create_lesson_comment(uuid,text,uuid)', 'EXECUTE') then
+   raise exception 'EXECUTE inesperado';
+ end if;
+ if not has_function_privilege('authenticated', 'public.create_lesson_comment(uuid,text,uuid)', 'EXECUTE') then
+   raise exception 'authenticated sin EXECUTE';
+ end if;
+ if not has_function_privilege('authenticated', 'public.list_lesson_comments(uuid)', 'EXECUTE') then
+   raise exception 'authenticated sin EXECUTE en list';
+ end if;
+end $$;
+set local role anon;
+do $$ begin
+ begin
+   perform public.create_lesson_comment('d1000000-0000-0000-0000-000000000001', 'x');
+   raise exception 'anon ejecutó create';
+ exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+set local role authenticated;
+do $$
+declare
+  v_lesson1 uuid := 'd1000000-0000-0000-0000-000000000001';
+  v_root uuid := 'e1000000-0000-0000-0000-000000000010';
+  v_other_root uuid := 'e1000000-0000-0000-0000-000000000020';
+  v_a1 uuid; v_a2 uuid; v_a3 uuid; v_a4 uuid; v_s1 uuid;
+  v_p uuid; v_body_check text;
+  r record;
+  v_prev_created timestamptz;
+  v_prev_id uuid;
+  n int := 0;
+begin
+  -- Admin responde a la raíz, a su propia respuesta y a la respuesta de su
+  -- respuesta: profundidad ≥ 3 sin límite en BD.
+  perform set_config('request.jwt.claims', '{"sub":"a1000000-0000-0000-0000-000000000001"}', true);
+  select id, parent_id into v_a1, v_p
+    from public.create_lesson_comment(v_lesson1, '  Respuesta admin  ', v_root);
+  if not found or v_a1 is null or v_a1 = v_root or v_p <> v_root then
+    raise exception 'respuesta admin a raíz';
+  end if;
+  select id, parent_id into v_a2, v_p
+    from public.create_lesson_comment(v_lesson1, 'Admin a su propia respuesta', v_a1);
+  if not found or v_a2 is null or v_a2 = v_a1 or v_p <> v_a1 then
+    raise exception 'admin a su propia respuesta';
+  end if;
+  select id, parent_id into v_a3, v_p
+    from public.create_lesson_comment(v_lesson1, 'Admin a respuesta de respuesta', v_a2);
+  if not found or v_a3 is null or v_p <> v_a2 then
+    raise exception 'profundidad 3';
+  end if;
+
+  -- Alumno con derecho responde a una respuesta del admin; el admin le contesta.
+  perform set_config('request.jwt.claims', '{"sub":"a1000000-0000-0000-0000-000000000002"}', true);
+  select id, parent_id into v_s1, v_p
+    from public.create_lesson_comment(v_lesson1, 'Alumna responde al admin', v_a2);
+  if not found or v_s1 is null or v_p <> v_a2 then
+    raise exception 'alumna responde a respuesta del admin';
+  end if;
+  perform set_config('request.jwt.claims', '{"sub":"a1000000-0000-0000-0000-000000000001"}', true);
+  select id, parent_id into v_a4, v_p
+    from public.create_lesson_comment(v_lesson1, 'Admin contesta a la alumna', v_s1);
+  if not found or v_a4 is null or v_p <> v_s1 then
+    raise exception 'admin contesta a la alumna';
+  end if;
+
+  -- Límite de cuerpo: recorte a 2000 y rechazo de vacío / 2001.
+  select body into v_body_check from public.create_lesson_comment(v_lesson1, repeat('y', 2000));
+  if not found or char_length(v_body_check) <> 2000 then
+    raise exception 'limite 2000';
+  end if;
+  begin
+    perform public.create_lesson_comment(v_lesson1, '   ');
+    raise exception 'body vacío aceptado';
+  exception when check_violation then null; end;
+  begin
+    perform public.create_lesson_comment(v_lesson1, repeat('z', 2001));
+    raise exception 'body largo aceptado';
+  exception when check_violation then null; end;
+
+  -- Padre de otra lección y padre inexistente: rechazados.
+  begin
+    perform public.create_lesson_comment(v_lesson1, 'x', v_other_root);
+    raise exception 'padre de otra lección aceptado';
+  exception when foreign_key_violation then null; end;
+  begin
+    perform public.create_lesson_comment(v_lesson1, 'x', 'f1000000-0000-0000-0000-000000000001');
+    raise exception 'padre inexistente aceptado';
+  exception when foreign_key_violation then null; end;
+
+  -- Sin derecho: ni responde a una respuesta ni lista la lección de pago.
+  perform set_config('request.jwt.claims', '{"sub":"a1000000-0000-0000-0000-000000000003"}', true);
+  if exists (select 1 from public.create_lesson_comment(v_lesson1, 'x', v_a2))
+  or exists (select 1 from public.list_lesson_comments(v_lesson1)) then
+    raise exception 'sin derecho escribió o listó';
+  end if;
+
+  -- list_lesson_comments sin cambios: orden created_at ASC, id ASC y encadenado.
+  perform set_config('request.jwt.claims', '{"sub":"a1000000-0000-0000-0000-000000000002"}', true);
+  for r in select * from public.list_lesson_comments(v_lesson1) loop
+    n := n + 1;
+    if v_prev_created is not null
+       and (r.created_at < v_prev_created
+            or (r.created_at = v_prev_created and r.id < v_prev_id)) then
+      raise exception 'orden de list';
+    end if;
+    if r.id = v_root and r.parent_id is not null then raise exception 'raíz con padre'; end if;
+    if r.id = v_a1 and r.parent_id <> v_root then raise exception 'cadena a1'; end if;
+    if r.id = v_a2 and r.parent_id <> v_a1 then raise exception 'cadena a2'; end if;
+    if r.id = v_a3 and r.parent_id <> v_a2 then raise exception 'cadena a3'; end if;
+    if r.id = v_s1 and r.parent_id <> v_a2 then raise exception 'cadena s1'; end if;
+    if r.id = v_a4 and r.parent_id <> v_s1 then raise exception 'cadena a4'; end if;
+    v_prev_created := r.created_at;
+    v_prev_id := r.id;
+  end loop;
+  -- 1 raíz semilla + 6 creadas por RPC = 7 en esta lección.
+  if n <> 7 then raise exception 'list esperaba 7, got %', n; end if;
+end $$;
+reset role;
+
+-- Total: 2 semillas + 6 RPC. Sin efectos en comercio, progreso ni roles.
+do $$
+declare v_total int;
+begin
+  select count(*) into v_total from public.lesson_comments;
+  if v_total <> 8 then raise exception 'conteo de comentarios: %', v_total; end if;
+  if (select count(*) from public.orders) <> (select orders from lc_baseline)
+  or (select count(*) from public.entitlements) <> (select entitlements from lc_baseline)
+  or (select count(*) from public.lesson_progress) <> (select progress from lc_baseline)
+  or (select count(*) from public.user_roles) <> (select roles from lc_baseline) then
+    raise exception 'se crearon objetos de comercio, progreso o rol';
+  end if;
+end $$;
+rollback;

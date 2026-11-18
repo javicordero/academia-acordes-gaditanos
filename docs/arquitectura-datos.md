@@ -144,14 +144,20 @@ cancionero no se modifica.
 
 La migración `20261118160000_lesson_comments.sql` y la prueba
 `supabase/tests/0019_lesson_comments.psql` añaden el backend mínimo de
-comentarios por lección. No es el foro completo ni sustituye al servicio único
-de conversación pendiente; este bloque no incluye interfaz Angular.
+comentarios por lección. La ampliación aditiva
+`20261118170000_lesson_comments_nested_replies.sql` y la prueba
+`supabase/tests/0022_lesson_comments_nested.psql` permiten responder también a
+una respuesta. La migración aplicada en DEV no se editó; 0019 se actualizó al
+nuevo contrato y sigue cubriendo los rechazos reales, mientras 0022 añade
+profundidad ≥ 3 e ida y vuelta admin ↔ alumno.
+No es el foro completo ni sustituye al servicio único de conversación
+pendiente; este bloque no incluye interfaz Angular.
 
 | Objeto | Función |
 | --- | --- |
 | `public.lesson_comments` | `id`, `lesson_id`, `author_id`, `parent_id`, `body` (1..2000 tras `btrim`) y `created_at`. Borrado en cascada con lección, autor y padre. |
 | `public.list_lesson_comments(p_lesson_id uuid)` | Devuelve `id`, `parent_id`, `body`, `created_at`, `author_display_name` y `author_is_admin`, ordenados por `created_at ASC, id ASC`. |
-| `public.create_lesson_comment(p_lesson_id uuid, p_body text, p_parent_id uuid default null)` | Inserta y devuelve la misma forma. Sin acceso devuelve 0 filas. |
+| `public.create_lesson_comment(p_lesson_id uuid, p_body text, p_parent_id uuid default null)` | Inserta y devuelve la misma forma. El padre, si se indica, debe existir en la MISMA lección y no ser el propio comentario; puede ser raíz o una respuesta. Sin acceso devuelve 0 filas. |
 
 La tabla tiene RLS activo **sin políticas** y sin grants para `anon` ni
 `authenticated`; `service_role` conserva todos. Las dos RPC son
@@ -166,13 +172,16 @@ desde `user_roles`; el nombre visible es `nullif(btrim(display_name),'')` con
 fallback `'Alumno'` o `'Administrador'`, nunca el correo.
 
 Decisiones de alcance: se requiere sesión (la muestra gratuita es
-autenticada); un solo nivel de respuestas, pues `parent_id` debe ser raíz de la
-misma lección; cuerpo recortado de 1 a 2000 caracteres. No hay edición, borrado,
-moderación, notificaciones, tiempo real ni contadores. No se publican cursos ni
-lecciones y las RPC no crean derechos, pedidos ni progreso. La migración **no se
-ha aplicado a ningún proyecto remoto**: la verificación fue `npm run test:sql`
+autenticada); **hilos anidados sin límite de profundidad en BD; sangrado visual
+acotado en UI** (decisión de presentación, no implementada en este backend):
+`parent_id` puede apuntar a la raíz o a cualquier respuesta existente de la
+misma lección, nunca a un comentario de otra lección ni a sí mismo; cuerpo
+recortado de 1 a 2000 caracteres. No hay edición, borrado, moderación,
+notificaciones, tiempo real ni contadores. No se publican cursos ni lecciones y
+las RPC no crean derechos, pedidos ni progreso. Las migraciones **no se han
+aplicado a ningún proyecto remoto**: la verificación fue `npm run test:sql`
 (PGlite), que valida lógica SQL/RLS, **no** Auth, PostgREST ni RLS reales de
-Supabase.
+Supabase. Este agente no ha desplegado ni aplicado nada a remoto.
 
 ## Principios
 
@@ -248,7 +257,7 @@ existente. Aplicar la migración en cada entorno antes de desplegar este cliente
 | `public.order_items` | Líneas con título e importe congelados. | Financiero; lectura propia. |
 | `public.entitlements` | Derecho de acceso por usuario y curso, revocable. | Acceso; lectura propia, escritura solo servidor. |
 | `public.lesson_progress` | Progreso manual del alumno. | Solo el propio usuario. |
-| `public.lesson_comments` | Comentarios por lección, con un nivel de respuestas; acceso solo por RPC. | Nombre visible sin correo; RLS sin políticas y sin grants de cliente. |
+| `public.lesson_comments` | Comentarios por lección, con hilos anidados (sin límite de profundidad en BD); acceso solo por RPC. | Nombre visible sin correo; RLS sin políticas y sin grants de cliente. |
 | `private.lesson_videos` | ID de Bunny, duración y estado del vídeo. | Sí, solo servidor. |
 | `private.lesson_resources` | Bucket y ruta de PDFs, tablaturas, audios, etc. | Sí, solo servidor. |
 | `private.commerce_events` | ID externo de webhook y estado de procesamiento. | Sí, solo servidor. |

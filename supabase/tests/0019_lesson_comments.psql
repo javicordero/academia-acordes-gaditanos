@@ -143,7 +143,7 @@ do $$ begin
 end $$;
 reset role;
 
--- Crear: recorte, respuesta de 1 nivel y longitud límite.
+-- Crear: recorte, respuesta anidada de misma lección y longitud límite.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a"}', true);
 do $$
@@ -158,15 +158,16 @@ begin
   if not found or r.parent_id <> '40000000-0000-0000-0000-000000000001' then raise exception 'respuesta raíz'; end if;
   select * into r from public.create_lesson_comment('30000000-0000-0000-0000-000000000001', repeat('y', 2000));
   if not found or char_length(r.body) <> 2000 then raise exception 'limite 2000'; end if;
-  -- Padre de otra lección y respuesta a respuesta: rechazados.
+  -- Padre de otra lección: rechazado. Respuesta anidada permitida: el padre
+  -- de la MISMA lección puede ser a su vez una respuesta, sin límite en BD.
   begin
     perform public.create_lesson_comment('30000000-0000-0000-0000-000000000001', 'x', '40000000-0000-0000-0000-000000000005');
     raise exception 'padre de otra lección aceptado';
   exception when foreign_key_violation then null; end;
-  begin
-    perform public.create_lesson_comment('30000000-0000-0000-0000-000000000001', 'x', '40000000-0000-0000-0000-000000000003');
-    raise exception 'respuesta a respuesta aceptada';
-  exception when foreign_key_violation then null; end;
+  select * into r from public.create_lesson_comment('30000000-0000-0000-0000-000000000001', 'Respuesta anidada permitida', '40000000-0000-0000-0000-000000000003');
+  if not found or r.parent_id <> '40000000-0000-0000-0000-000000000003' then
+    raise exception 'respuesta anidada permitida';
+  end if;
   -- Cuerpo vacío y mayor a 2000: rechazados.
   begin
     perform public.create_lesson_comment('30000000-0000-0000-0000-000000000001', '   ');
@@ -203,8 +204,8 @@ do $$
 declare v_total int;
 begin
   select count(*) into v_total from public.lesson_comments;
-  -- 7 semilla + 3 del alumno con derecho + 1 de muestra + 1 del admin = 12.
-  if v_total <> 12 then raise exception 'conteo de comentarios: %', v_total; end if;
+  -- 7 semilla + 4 del alumno con derecho (uno anidado) + 1 de muestra + 1 del admin = 13.
+  if v_total <> 13 then raise exception 'conteo de comentarios: %', v_total; end if;
   if (select count(*) from public.orders) <> (select orders from lc_baseline)
   or (select count(*) from public.entitlements) <> (select entitlements from lc_baseline)
   or (select count(*) from public.lesson_progress) <> (select progress from lc_baseline)
