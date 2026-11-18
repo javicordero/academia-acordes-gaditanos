@@ -11,3 +11,158 @@ main {
 main:focus {
   outline: none;
 }
+
+/* Cabecera pública: una sola fila en escritorio, con marca a la izquierda y
+   navegación + cuenta a la derecha. Estilos locales para no tocar los tokens
+   globales que comparten otras áreas. */
+.site-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.site-header__inner {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  min-height: 4.5rem;
+  max-width: var(--max-width);
+  margin-inline: auto;
+  padding: 0.5rem 1.25rem;
+}
+
+.brand {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 44px;
+  flex: 0 1 auto;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.site-header__tools {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem 0.85rem;
+}
+
+.nav-list,
+.session-actions {
+  flex-wrap: nowrap;
+}
+
+.session-actions__user {
+  max-width: 11rem;
+}
+
+.site-header :is(a, button):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* Disclosure del shell: botón real con nombre, aria-expanded y aria-controls.
+   El panel es el mismo en escritorio y móvil; solo cambia su presentación. */
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nav-toggle:hover {
+  background: var(--bg);
+}
+
+.nav-toggle__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+@media (max-width: 63.99rem) {
+  .site-header__inner {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .brand {
+    flex: 1 1 auto;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .site-header__tools {
+    display: none;
+    width: 100%;
+    flex: 1 1 100%;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.35rem;
+    padding-block: 0.25rem 0.5rem;
+  }
+
+  .site-header__tools.is-open {
+    display: flex;
+  }
+
+  .site-header__tools nav,
+  .session-actions {
+    width: 100%;
+  }
+
+  .session-actions {
+    flex-wrap: wrap;
+  }
+
+  .nav-list {
+    flex-direction: column;
+  }
+
+  .nav-list a,
+  .session-actions a,
+  .link-button {
+    justify-content: flex-start;
+  }
+
+  .session-actions__user {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 20rem) {
+  .site-header__inner {
+    padding-inline: 0.75rem;
+  }
+
+  .brand__sub {
+    font-size: 1.1rem;
+  }
+
+  .nav-toggle__label {
+    font-size: 0.9rem;
+  }
+}

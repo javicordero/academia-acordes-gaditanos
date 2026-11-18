@@ -14,12 +14,37 @@
 
   <header class="site-header">
     <div class="site-header__inner">
-      <a class="brand" routerLink="/cursos">
+      <a class="brand" routerLink="/" aria-label="Academia Acordes Gaditanos, ir al inicio">
         <span class="brand__name">Academia</span>
         <span class="brand__sub">Acordes Gaditanos</span>
       </a>
 
-      <div class="site-header__tools">
+      <!-- El estado del menú vive en el propio template: app.ts queda intacto.
+           aria-expanded se deriva de la clase del panel, así que nunca se
+           desincronizan el atributo y lo que ve el usuario. -->
+      <button
+        #menuToggle
+        type="button"
+        class="nav-toggle"
+        aria-label="Menú de navegación"
+        aria-controls="site-navigation"
+        [attr.aria-expanded]="siteNav.classList.contains('is-open')"
+        (click)="siteNav.classList.toggle('is-open')"
+        (keydown.escape)="siteNav.classList.remove('is-open'); menuToggle.focus()"
+      >
+        <svg class="nav-toggle__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+          <path d="M3 5.5h14M3 10h14M3 14.5h14" />
+        </svg>
+        <span class="nav-toggle__label" aria-hidden="true">Menú</span>
+      </button>
+
+      <div
+        #siteNav
+        id="site-navigation"
+        class="site-header__tools"
+        (keydown.escape)="siteNav.classList.remove('is-open'); menuToggle.focus()"
+        (click)="siteNav.classList.remove('is-open')"
+      >
         <nav aria-label="Navegación principal">
           <ul class="nav-list">
             <li>

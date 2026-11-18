@@ -98,6 +98,12 @@ describe('App shell', () => {
     expect(
       element.querySelector<HTMLAnchorElement>('.session-actions a[href="/admin"]'),
     ).not.toBeNull();
+    expect(
+      element.querySelector<HTMLAnchorElement>('.session-actions a[href="/perfil"]'),
+    ).not.toBeNull();
+    expect(
+      element.querySelector<HTMLAnchorElement>('.session-actions a[href="/auth/login"]'),
+    ).toBeNull();
     expect(element.querySelector('.session-actions')?.textContent).toContain(
       'Cerrar sesión',
     );
@@ -161,6 +167,204 @@ describe('App shell · cabecera según la ruta', () => {
     expect(element.querySelector('.config-banner')).not.toBeNull();
     expect(main?.classList.contains('main--padded')).toBe(true);
     expect(main?.classList.contains('main--classroom')).toBe(false);
+  });
+
+  it('la marca lleva al índice y «Cursos» sigue llevando a /cursos', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const brand = element.querySelector<HTMLAnchorElement>('.brand')!;
+    const cursos = element.querySelector<HTMLAnchorElement>('nav a[href="/cursos"]')!;
+
+    expect(brand.getAttribute('href')).toBe('/');
+    expect(brand.getAttribute('aria-label')).toContain('Academia Acordes Gaditanos');
+    expect(brand.textContent).toContain('Academia');
+    expect(brand.textContent).toContain('Acordes Gaditanos');
+    expect(cursos.textContent?.trim()).toBe('Cursos');
+
+    brand.click();
+    await fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/');
+
+    cursos.click();
+    await fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/cursos');
+  });
+
+  it('expone la navegación y el salto con nombres accesibles', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const nav = element.querySelector<HTMLElement>(
+      'nav[aria-label="Navegación principal"]',
+    )!;
+    const links = Array.from(nav.querySelectorAll<HTMLAnchorElement>('a'));
+    const skipLink = element.querySelector<HTMLAnchorElement>('.skip-link')!;
+    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
+
+    expect(element.firstElementChild).toBe(skipLink);
+    expect(skipLink.textContent?.trim()).toBe('Saltar al contenido principal');
+    expect(links.map((link) => link.textContent?.trim())).toEqual([
+      'Cursos',
+      'Mis cursos',
+      'Comunidad',
+    ]);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/cursos',
+      '/mis-cursos',
+      '/comunidad',
+    ]);
+    expect(toggle.tagName).toBe('BUTTON');
+    expect(toggle.getAttribute('aria-label')).toBe('Menú de navegación');
+  });
+
+  it('marca solo el enlace activo con aria-current="page"', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const currents = () =>
+      Array.from(element.querySelectorAll<HTMLAnchorElement>('nav a')).map(
+        (link) => link.getAttribute('aria-current'),
+      );
+
+    expect(currents()).toEqual(['page', null, null]);
+
+    await goto(fixture, '/comunidad');
+    expect(currents()).toEqual([null, null, 'page']);
+    expect(
+      element
+        .querySelector<HTMLAnchorElement>('nav a[aria-current="page"]')
+        ?.getAttribute('href'),
+    ).toBe('/comunidad');
+  });
+
+  it('el salto lleva al único main del shell', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const skipLink = element.querySelector<HTMLAnchorElement>('.skip-link')!;
+    const mains = element.querySelectorAll('main');
+
+    expect(mains).toHaveLength(1);
+    expect(skipLink.getAttribute('href')).toBe(`#${mains[0].id}`);
+    expect(mains[0].getAttribute('tabindex')).toBe('-1');
+    skipLink.focus();
+    expect(document.activeElement).toBe(skipLink);
+  });
+
+  it('el hamburger nombra el panel y mantiene aria-expanded sincronizado', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
+    const panel = element.querySelector<HTMLElement>('#site-navigation')!;
+
+    expect(toggle.getAttribute('aria-controls')).toBe(panel.id);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(panel.classList.contains('is-open')).toBe(false);
+
+    toggle.click();
+    await fixture.whenStable();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.classList.contains('is-open')).toBe(true);
+
+    toggle.click();
+    await fixture.whenStable();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(panel.classList.contains('is-open')).toBe(false);
+  });
+
+  it('Escape cierra el menú y devuelve el foco al hamburger', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
+    const panel = element.querySelector<HTMLElement>('#site-navigation')!;
+
+    toggle.focus();
+    expect(document.activeElement).toBe(toggle);
+    toggle.click();
+    await fixture.whenStable();
+
+    const link = panel.querySelector<HTMLAnchorElement>('nav a')!;
+    link.focus();
+    expect(document.activeElement).toBe(link);
+
+    panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(panel.classList.contains('is-open')).toBe(false);
+    expect(document.activeElement).toBe(toggle);
+  });
+
+  it('al elegir un enlace del menú se cierra sin alterar la navegación', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
+    const panel = element.querySelector<HTMLElement>('#site-navigation')!;
+
+    toggle.click();
+    await fixture.whenStable();
+    panel.querySelector<HTMLAnchorElement>('a[href="/comunidad"]')!.click();
+    await fixture.whenStable();
+
+    expect(TestBed.inject(Router).url).toBe('/comunidad');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('muestra solo Iniciar sesión para una visita anónima', async () => {
+    TestBed.overrideProvider(AuthService, {
+      useValue: {
+        configurationPending: signal(false),
+        loading: signal(false),
+        session: signal(null),
+        isAdmin: signal(false),
+        logout: vi.fn().mockResolvedValue({ ok: true }),
+      },
+    });
+
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const sessionActions = element.querySelector<HTMLElement>('.session-actions')!;
+
+    expect(
+      sessionActions.querySelector<HTMLAnchorElement>('a[href="/auth/login"]')
+        ?.textContent?.trim(),
+    ).toBe('Iniciar sesión');
+    expect(sessionActions.querySelector('a[href="/perfil"]')).toBeNull();
+    expect(sessionActions.querySelector('a[href="/admin"]')).toBeNull();
+    expect(sessionActions.textContent).not.toContain('Cerrar sesión');
+  });
+
+  it('muestra perfil y cierre de sesión, pero no Administración, para un alumno', async () => {
+    TestBed.overrideProvider(AuthService, {
+      useValue: {
+        configurationPending: signal(false),
+        loading: signal(false),
+        session: signal({ user: { id: 'user-1' } }),
+        isAdmin: signal(false),
+        logout: vi.fn().mockResolvedValue({ ok: true }),
+      },
+    });
+
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const sessionActions = element.querySelector<HTMLElement>('.session-actions')!;
+
+    expect(
+      sessionActions.querySelector<HTMLAnchorElement>('a[href="/perfil"]')
+        ?.textContent?.trim(),
+    ).toBe('Mi perfil');
+    expect(sessionActions.querySelector('a[href="/admin"]')).toBeNull();
+    expect(sessionActions.querySelector('a[href="/auth/login"]')).toBeNull();
+    expect(sessionActions.textContent).toContain('Cerrar sesión');
+  });
+
+  it('declara estilos locales responsive y objetivos táctiles', async () => {
+    await createShell('/cursos');
+    const css = [...document.querySelectorAll('style')]
+      .map((style) => style.textContent ?? '')
+      .join('\n');
+
+    expect(css).toContain('nav-toggle');
+    expect(css).toContain('is-open');
+    expect(css).toContain('@media');
+    expect(css).toContain('44px');
+    expect(css).toContain('--focus');
   });
 
   it.each([aulaUrl, previewUrl, '/admin/curso/11111111-1111-1111-1111-111111111111/vista-previa/22222222-2222-2222-2222-222222222222'])(
@@ -235,8 +439,10 @@ describe('App shell · cabecera según la ruta', () => {
     expect(skipLink?.getAttribute('href')).toBe('#contenido-principal');
     expect(element.querySelector('#contenido-principal')).toBe(main);
     expect(main?.getAttribute('tabindex')).toBe('-1');
-    // Sin cabecera no quedan controles enfocables invisibles antes del main.
+    // Sin cabecera no quedan controles enfocables invisibles antes del main,
+    // ni un segundo hamburger que compita con el del aula.
     expect(element.querySelector('header a, header button')).toBeNull();
+    expect(element.querySelector('.nav-toggle')).toBeNull();
     expect(getComputedStyle(main!).display).not.toBe('none');
   });
 });
