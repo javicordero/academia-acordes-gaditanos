@@ -1,4 +1,4 @@
-import { afterNextRender, Component, DestroyRef, effect, ElementRef, inject, input, signal, viewChild } from '@angular/core';
+import { afterNextRender, Component, DestroyRef, effect, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 interface Section { id: string; title: string }
@@ -18,12 +18,23 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
       </svg>
       <span class="menu__label">Lecciones del curso</span>
     </button>
-    <nav #index id="classroom-index" aria-label="Lecciones del curso" [class.open]="open()" (keydown.escape)="closeMenu()">
+    <nav #index id="classroom-index" aria-label="Lecciones del curso" [class.open]="open()"
+      [class.classroom-nav--compact]="compact()" (keydown.escape)="closeMenu()">
       <div class="nav-head">
         <a class="nav-back" [routerLink]="admin() ? '/admin' : '/mis-cursos'">
           <svg class="icon nav-back__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3 5 8l5 5" /></svg>
           <span>{{ admin() ? 'Volver a administración' : 'Volver a mis cursos' }}</span>
         </a>
+        <!-- Compresión de escritorio: dentro del raíl, junto al título; el hamburger
+             de cajón (.menu) solo existe en móvil, así que nunca se duplican. -->
+        <button type="button" class="index-compress" data-action="compress-index"
+          [attr.aria-label]="compact() ? 'Expandir índice' : 'Comprimir índice'"
+          [attr.title]="compact() ? 'Expandir índice' : 'Comprimir índice'"
+          [attr.aria-pressed]="compact()" (click)="compressToggle.emit()">
+          <svg class="icon index-compress__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <path d="M3 5.5h14M3 10h14M3 14.5h14" />
+          </svg>
+        </button>
       </div>
       <h2>{{ title() }}</h2>
       @if (teacher()) { <p class="nav-teacher">{{ teacher() }}</p> }
@@ -31,7 +42,7 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
         <section class="nav-block">
           <button type="button" class="block-toggle" [attr.aria-expanded]="isExpanded(section.id)"
             [attr.aria-controls]="'bloque-' + section.id" (click)="toggleBlock(section.id)">
-            <span class="block-toggle__title">{{ section.title }}</span>
+            <span class="block-toggle__title" [attr.title]="section.title">{{ section.title }}</span>
             <span class="block-toggle__chevron" aria-hidden="true">{{ isExpanded(section.id) ? '▾' : '▸' }}</span>
           </button>
           <ul [id]="'bloque-' + section.id" [hidden]="!isExpanded(section.id)">
@@ -54,7 +65,7 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
                       }
                     </span>
                   }
-                  <span class="lesson-title">{{ lesson.title }}</span> @if (lesson.is_free_preview) { <small>Muestra</small> }
+                  <span class="lesson-title" [attr.title]="lesson.title">{{ lesson.title }}</span> @if (lesson.is_free_preview) { <small>Muestra</small> }
                 </a></li>
               }
             }
@@ -82,8 +93,9 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
       overscroll-behavior:contain;
     }
     .nav-head { display:flex; align-items:center; gap:.5rem; padding-block:.75rem; border-bottom:1px solid var(--border); }
-    .nav-back { display:inline-flex; align-items:center; gap:.4rem; min-height:44px; font-size:.9rem; }
-    .nav-back__icon { width:.85rem; height:.85rem; }
+    .nav-back { display:inline-flex; align-items:center; gap:.4rem; flex:1 1 auto; min-width:0; min-height:44px; font-size:.9rem; }
+    .nav-back span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .nav-back__icon { width:.85rem; height:.85rem; flex:none; }
     h2 { font-size:1.2rem; overflow-wrap:anywhere; margin:1.25rem 0 .25rem; }
     .nav-teacher { margin:0 0 1rem; color:var(--muted); font-size:.9rem; }
     .nav-block { border-top:1px solid var(--border); padding:.35rem 0; }
@@ -116,6 +128,30 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     .lesson-progress--done .lesson-progress__icon { stroke-width:2.2; }
     li a[aria-current=page] { background:#f1e9db; font-weight:700; border-inline-start:3px solid var(--accent); }
     small { font-weight:400; }
+
+    /* Raíl estrecho (~200px, solo escritorio porque el control es de escritorio):
+       se reducen paddings y se ocultan profesor y etiquetas secundarias; títulos y
+       progreso siguen visibles. La elipsis es solo visual: el texto completo permanece
+       en title y en el nombre accesible del enlace. */
+    nav.classroom-nav--compact { padding:0 .5rem .5rem; }
+    .classroom-nav--compact .nav-teacher { display:none; }
+    .classroom-nav--compact h2 { font-size:1rem; margin:.75rem 0 .25rem; }
+    .classroom-nav--compact .block-toggle { gap:.3rem; padding:.35rem .15rem; }
+    .classroom-nav--compact li a { gap:.35rem; padding:.35rem .3rem; }
+    .classroom-nav--compact .block-toggle__title,
+    .classroom-nav--compact .lesson-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .classroom-nav--compact .lesson-progress { width:16px; height:16px; }
+    .classroom-nav--compact small { flex:none; }
+
+    /* El control de compresión solo existe en escritorio; en móvil manda .menu (cajón). */
+    .index-compress { display:none; }
+    @media (min-width:48rem) {
+      .index-compress {
+        display:grid; place-items:center; flex:none;
+        width:44px; height:44px; padding:0;
+        border:0; border-radius:2px; background:none; color:inherit;
+      }
+    }
 
     .menu { display:none; }
     .menu__label { flex:1 1 auto; }
@@ -164,6 +200,10 @@ export class ClassroomNav {
   readonly courseId = input.required<string>();
   readonly courseSlug = input('');
   readonly admin = input(false);
+  /** Raíl estrecho de escritorio: recorta paddings y recorta títulos con ellipsis. */
+  readonly compact = input(false);
+  /** Un único aviso al pulsar el control de escritorio; Aula decide el estado. */
+  readonly compressToggle = output<void>();
   readonly open = signal(false);
   private readonly collapsed = signal<ReadonlySet<string>>(new Set());
   private previousBodyOverflow = '';

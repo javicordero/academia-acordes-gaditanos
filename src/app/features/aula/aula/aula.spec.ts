@@ -1016,7 +1016,7 @@ describe('Aula', () => {
     expect(root.querySelector('a[aria-label^="Siguiente:"]')).toBeNull();
   });
 
-  it('el hamburger del contenido oculta por completo el índice en escritorio y lo reabre sin perder foco', async () => {
+  it('el control del índice comprime el raíl visible y lo reabre sin perder foco', async () => {
     setup(vi.fn().mockResolvedValue(twoLessons));
     const harness = await RouterTestingHarness.create();
     const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
@@ -1028,15 +1028,20 @@ describe('Aula', () => {
     const css = authoredCss();
 
     expect(root.querySelectorAll('.index-compress')).toHaveLength(1);
-    expect(root.querySelector('app-classroom-nav .index-compress')).toBeNull();
+    // El único control está dentro del aside, en la cabecera del nav; no flota sobre el vídeo.
+    expect(button.closest('aside.aula-sidebar')).toBe(aside);
+    expect(root.querySelector('app-classroom-nav .nav-head > .index-compress')).toBe(button);
+    expect(root.querySelector('.aula-content .index-compress')).toBeNull();
+    expect(root.querySelector('.video-stage .index-compress')).toBeNull();
     expect(button.textContent?.trim()).toBe('');
     expect(button.querySelector<SVGElement>('svg.index-compress__icon path')?.getAttribute('d'))
       .toBe('M3 5.5h14M3 10h14M3 14.5h14');
     expect(button.getAttribute('aria-label')).toBe('Comprimir índice');
     expect(button.getAttribute('aria-pressed')).toBe('false');
     expect(button.hasAttribute('aria-expanded')).toBe(false);
-    expect(css).toMatch(/\.aula-layout--compact[^{]*\.aula-sidebar[^{]*\{[^}]*display:\s*none/);
-    expect(css).toMatch(/\.aula-layout--compact[^{]*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+    // El estado comprimido es un raíl visible de 200px, nunca display:none.
+    expect(css).toMatch(/\.aula-layout--compact[^{]*\{[^}]*grid-template-columns:\s*200px\s+minmax\(0,\s*1fr\)/);
+    expect(css).not.toMatch(/\.aula-layout--compact[^{]*\.aula-sidebar[^{]*\{[^}]*display:\s*none/);
 
     button.focus();
     expect(document.activeElement).toBe(button);
@@ -1046,8 +1051,9 @@ describe('Aula', () => {
 
     expect(component.indexCompact()).toBe(true);
     expect(layout.classList.contains('aula-layout--compact')).toBe(true);
-    // El nodo permanece (conserva plegados y scroll), pero la regla lo saca del flujo.
+    // El aside sigue en el DOM y el índice recibe el modo raíl estrecho.
     expect(aside.isConnected).toBe(true);
+    expect(root.querySelector('app-classroom-nav nav')?.classList.contains('classroom-nav--compact')).toBe(true);
     expect(button.getAttribute('aria-label')).toBe('Expandir índice');
     expect(button.getAttribute('title')).toBe('Expandir índice');
     expect(button.getAttribute('aria-pressed')).toBe('true');
@@ -1062,11 +1068,12 @@ describe('Aula', () => {
     harness.detectChanges();
     expect(component.indexCompact()).toBe(false);
     expect(layout.classList.contains('aula-layout--compact')).toBe(false);
+    expect(root.querySelector('app-classroom-nav nav')?.classList.contains('classroom-nav--compact')).toBe(false);
     expect(button.getAttribute('aria-label')).toBe('Comprimir índice');
     expect(document.activeElement).toBe(button);
   });
 
-  it('comprimido deja una sola columna a todo el ancho solo en escritorio, sin tocar el vídeo a sangre completa', async () => {
+  it('comprimido mantiene dos columnas de 200px solo en escritorio, sin tocar el vídeo a sangre completa', async () => {
     setup(vi.fn().mockResolvedValue(data));
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/aula/curso/uno', Aula);
@@ -1081,15 +1088,75 @@ describe('Aula', () => {
     const mobile = css.slice(mobileAt, nextStyle === -1 ? css.length : nextStyle);
 
     expect(desktop).toMatch(/\.aula-layout[^{]*\{[^}]*grid-template-columns:\s*330px\s+minmax\(0,\s*1fr\)/);
-    expect(desktop).toMatch(/\.aula-layout--compact[^{]*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
-    expect(desktop).toMatch(/\.aula-layout--compact[^{]*\.aula-sidebar[^{]*\{[^}]*display:\s*none/);
-    expect(desktop).toMatch(/\.index-compress[^{]*\{[^}]*display:\s*grid/);
-    expect(desktop).toMatch(/\.index-compress[^{]*\{[^}]*width:\s*44px/);
+    expect(desktop).toMatch(/\.aula-layout--compact[^{]*\{[^}]*grid-template-columns:\s*200px\s+minmax\(0,\s*1fr\)/);
+    expect(desktop).not.toMatch(/\.aula-layout--compact[^{]*\.aula-sidebar[^{]*\{[^}]*display:\s*none/);
+    // El control vive en classroom-nav: oculto por defecto y visible solo en escritorio.
+    expect(css).toMatch(/@media[^{]*min-width:\s*48rem[^{]*\{[^@]*?\.index-compress[^{]*\{[^}]*display:\s*grid/);
+    expect(css).toMatch(/\.index-compress[^{]*\{[^}]*width:\s*44px/);
     expect(css).toMatch(/\.index-compress[^{]*\{[^}]*display:\s*none/);
     expect(mobile).not.toContain('aula-layout--compact');
     expect(mobile).not.toContain('index-compress');
     expect(cssRule(css, '.video')).toMatch(/width:\s*100%/);
     expect(cssRule(css, '.video-stage')).toMatch(/margin-inline:\s*calc\(-1 \* var\(--aula-indent\)\)/);
+  });
+
+  it('el raíl comprimido conserva índice accesible: títulos con title y ellipsis, progreso icono, aria-current y plegado', async () => {
+    const longTitle = 'Lección con un título muy largo que se recorta en el raíl';
+    const preview = { ...firstLesson, id: 'l1', slug: 'uno', title: longTitle };
+    const other = { ...secondLesson, id: 'l2', slug: 'dos', title: 'Segunda' };
+    const course: AulaData = {
+      ...twoLessons,
+      lesson: preview,
+      lessons: [preview, other],
+      sections: [{ id: 's', title: 'Bloque con un título largo' }],
+      completed: true,
+      completedLessonIds: ['l1'],
+    };
+    setup(vi.fn().mockResolvedValue(course));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const css = authoredCss();
+
+    root.querySelector<HTMLButtonElement>('.index-compress')!.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+
+    const aside = root.querySelector<HTMLElement>('aside.aula-sidebar')!;
+    const navNode = root.querySelector<HTMLElement>('app-classroom-nav nav')!;
+    expect(aside.isConnected).toBe(true);
+    expect(navNode.classList.contains('classroom-nav--compact')).toBe(true);
+
+    const blockTitle = navNode.querySelector<HTMLElement>('.block-toggle__title')!;
+    const lessonTitle = navNode.querySelector<HTMLElement>('.lesson-title')!;
+    expect(blockTitle.getAttribute('title')).toBe('Bloque con un título largo');
+    expect(lessonTitle.getAttribute('title')).toBe(longTitle);
+    // CSS ellipsis no trunca el DOM: el nombre accesible sigue siendo el título completo.
+    expect(lessonTitle.textContent).toBe(longTitle);
+    expect(css).toMatch(/\.classroom-nav--compact\s+\.lesson-title[^{]*\{[^}]*text-overflow:\s*ellipsis/);
+    expect(css).toMatch(/\.classroom-nav--compact\s+\.block-toggle__title[^{]*\{[^}]*text-overflow:\s*ellipsis/);
+    expect(css).toMatch(/nav\.classroom-nav--compact[^{]*\{[^}]*padding:\s*0\s+0?\.5rem\s+0?\.5rem/);
+    expect(css).toMatch(/\.classroom-nav--compact\s+\.nav-teacher[^{]*\{[^}]*display:\s*none/);
+
+    const current = navNode.querySelector<HTMLAnchorElement>('a[aria-current="page"]')!;
+    expect(current.textContent).toContain(longTitle);
+    const progress = current.querySelector<HTMLElement>('.lesson-progress')!;
+    expect(progress.classList.contains('lesson-progress--done')).toBe(true);
+    expect(progress.querySelector('.lesson-progress__icon')).not.toBeNull();
+    expect(progress.querySelector<HTMLElement>('.sr-only')?.textContent).toBe('Completada');
+    expect([...progress.children].filter(el => !el.classList.contains('sr-only'))
+      .map(el => el.textContent ?? '').join('')).toBe('');
+
+    const toggle = navNode.querySelector<HTMLButtonElement>('.block-toggle')!;
+    toggle.click(); harness.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(navNode.querySelector<HTMLElement>('#bloque-s')!.hidden).toBe(true);
+
+    // Reabrir devuelve el ancho expandido de 330px y retira el modo raíl.
+    root.querySelector<HTMLButtonElement>('.index-compress')!.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(authoredCss()).toMatch(/grid-template-columns:\s*330px\s+minmax\(0,\s*1fr\)/);
+    expect(navNode.classList.contains('classroom-nav--compact')).toBe(false);
   });
 
   it('un solo clic alterna una vez y al reabrir vuelven progreso icon-only, aria-current y plegado', async () => {

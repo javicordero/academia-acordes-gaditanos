@@ -193,7 +193,7 @@ export class Aula {
     });
   }
 
-  /** El botón vive en el contenido para poder reabrir con el aside oculto. */
+  /** Botón único en el contenido: alterna el ancho del índice sin ocultarlo. */
   toggleIndexCompact(): void {
     this.indexCompact.update(value => !value);
   }

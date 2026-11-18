@@ -6,7 +6,8 @@
     <aside class="aula-sidebar" aria-label="Índice del curso">
       <app-classroom-nav [title]="nav.title" [teacher]="nav.teacher" [sections]="nav.sections"
         [lessons]="nav.lessons" [activeId]="activeId()" [completedIds]="completedIds()"
-        [courseId]="nav.id" [courseSlug]="courseSlug()" />
+        [courseId]="nav.id" [courseSlug]="courseSlug()" [compact]="indexCompact()"
+        (compressToggle)="toggleIndexCompact()" />
     </aside>
   } @else {
     <aside class="aula-sidebar aula-sidebar--skeleton" aria-label="Índice del curso" aria-hidden="true">
@@ -17,17 +18,8 @@
   <!-- El foco programático al entrar va al contenedor (tabindex=-1, fuera del orden de tab),
        no al h1: evita el aro azul sobre el título al cargar el aula. -->
   <article #aulaHeading tabindex="-1" class="aula-content" aria-label="Contenido de la lección">
-    <!-- Único control de escritorio: vive en el contenido, no en el aside, para poder
-         reabrir el índice incluso cuando está oculto. Sin texto visible; el hamburger
-         móvil de classroom-nav sigue siendo el otro control, de cajón. -->
-    <button #indexCompress type="button" class="index-compress" data-action="compress-index"
-      [attr.aria-label]="indexCompact() ? 'Expandir índice' : 'Comprimir índice'"
-      [attr.title]="indexCompact() ? 'Expandir índice' : 'Comprimir índice'"
-      [attr.aria-pressed]="indexCompact()" (click)="toggleIndexCompact()">
-      <svg class="icon index-compress__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M3 5.5h14M3 10h14M3 14.5h14" />
-      </svg>
-    </button>
+    <!-- El control de compresión vive en la cabecera del índice (classroom-nav),
+         dentro del aside; aquí no queda ningún botón sobre el vídeo. -->
     @switch (state()) {
       @case ('loading') {
         <p class="sr-only" role="status">Preparando el aula.</p>

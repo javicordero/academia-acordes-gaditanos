@@ -359,6 +359,104 @@ describe('Índice del aula', () => {
     expect(states).toEqual(['Completada', 'Pendiente']);
   });
 
+  it('el raíl compacto reduce paddings, oculta al docente y conserva títulos, progreso, plegado y Muestra', async () => {
+    await TestBed.configureTestingModule({ imports: [ClassroomNav], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ClassroomNav);
+    const lessons = [
+      { id: 'l1', section_id: 's', title: 'Primera', slug: 'uno', content_type: 'video' as const, is_free_preview: true },
+      { id: 'l2', section_id: 's', title: 'Segunda', slug: 'dos', content_type: 'video' as const },
+    ];
+    fixture.componentRef.setInput('title', 'Curso');
+    fixture.componentRef.setInput('teacher', 'Docente');
+    fixture.componentRef.setInput('courseId', 'curso');
+    fixture.componentRef.setInput('courseSlug', 'curso');
+    fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
+    fixture.componentRef.setInput('lessons', lessons);
+    fixture.componentRef.setInput('activeId', 'l1');
+    fixture.componentRef.setInput('completedIds', new Set(['l1']));
+    fixture.componentRef.setInput('compact', true);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const navNode = root.querySelector<HTMLElement>('nav')!;
+    const css = componentCss();
+
+    expect(navNode.classList.contains('classroom-nav--compact')).toBe(true);
+    expect(css).toMatch(/nav\.classroom-nav--compact\[[^{]*\{[^}]*padding:\s*0\s+0?\.5rem\s+0?\.5rem/);
+    expect(css).toMatch(/\.classroom-nav--compact\[[^{]*\.nav-teacher\[[^{]*\{[^}]*display:\s*none/);
+    expect(css).toMatch(/\.classroom-nav--compact\[[^{]*\.lesson-title\[[^{]*\{[^}]*text-overflow:\s*ellipsis/);
+    expect(css).toMatch(/\.classroom-nav--compact\[[^{]*\.block-toggle__title\[[^{]*\{[^}]*text-overflow:\s*ellipsis/);
+
+    const links = [...root.querySelectorAll<HTMLAnchorElement>('li a')];
+    expect(links).toHaveLength(2);
+    expect(links[0].querySelector<HTMLElement>('.lesson-title')?.getAttribute('title')).toBe('Primera');
+    expect(root.querySelector<HTMLElement>('.block-toggle__title')?.getAttribute('title')).toBe('Bloque');
+    expect(links[0].getAttribute('aria-current')).toBe('page');
+    expect(links[0].querySelector('.lesson-progress--done .lesson-progress__icon')).not.toBeNull();
+    expect(links[0].querySelector<HTMLElement>('.lesson-progress .sr-only')?.textContent).toBe('Completada');
+    expect(links[1].querySelector<HTMLElement>('.lesson-progress .sr-only')?.textContent).toBe('Pendiente');
+    expect([...links[0].querySelectorAll<HTMLElement>('.lesson-progress > *:not(.sr-only)')]
+      .map(el => el.textContent ?? '').join('')).toBe('');
+    expect(links[0].querySelector('small')?.textContent).toBe('Muestra');
+
+    const toggle = root.querySelector<HTMLButtonElement>('.block-toggle')!;
+    toggle.click(); fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(root.querySelector<HTMLElement>('#bloque-s')!.hidden).toBe(true);
+
+    // El cajón móvil sigue intacto aunque el índice esté en modo raíl.
+    const menu = root.querySelector<HTMLButtonElement>('.menu')!;
+    menu.click(); fixture.detectChanges();
+    expect(menu.getAttribute('aria-expanded')).toBe('true');
+    expect(navNode.classList.contains('open')).toBe(true);
+  });
+
+  it('el control de compresión vive en la cabecera del nav, es único y emite una sola vez sin abrir el cajón', async () => {
+    await TestBed.configureTestingModule({ imports: [ClassroomNav], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ClassroomNav);
+    fixture.componentRef.setInput('title', 'Curso');
+    fixture.componentRef.setInput('courseId', 'curso');
+    fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
+    fixture.componentRef.setInput('lessons', [{ id: 'l', section_id: 's', title: 'Lección', slug: 'leccion', content_type: 'pdf' as const }]);
+    fixture.componentRef.setInput('activeId', 'l');
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const navNode = root.querySelector<HTMLElement>('nav')!;
+    const button = root.querySelector<HTMLButtonElement>('.index-compress')!;
+    const menu = root.querySelector<HTMLButtonElement>('.menu')!;
+    const css = componentCss();
+    const emitted = vi.fn();
+    fixture.componentInstance.compressToggle.subscribe(emitted);
+
+    expect(root.querySelectorAll('.index-compress')).toHaveLength(1);
+    expect(button.closest('nav')).toBe(navNode);
+    expect(button.parentElement?.classList.contains('nav-head')).toBe(true);
+    expect(button).not.toBe(menu);
+    expect(root.querySelectorAll('.menu')).toHaveLength(1);
+    expect(button.textContent?.trim()).toBe('');
+    expect(button.querySelector<SVGElement>('svg.index-compress__icon path')?.getAttribute('d'))
+      .toBe('M3 5.5h14M3 10h14M3 14.5h14');
+    expect(button.getAttribute('aria-label')).toBe('Comprimir índice');
+    expect(button.getAttribute('title')).toBe('Comprimir índice');
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    // Oculto por defecto (móvil) y visible solo en el media query de escritorio.
+    expect(css).toMatch(/\.index-compress\[[^{]*\{[^}]*display:\s*none/);
+    expect(css).toMatch(/@media[^{]*min-width:\s*48rem[^{]*\{[^@]*?\.index-compress\[[^{]*\{[^}]*display:\s*grid/);
+    expect(css).toMatch(/\.index-compress\[[^{]*\{[^}]*width:\s*44px/);
+
+    button.focus();
+    expect(document.activeElement).toBe(button);
+    button.click(); fixture.detectChanges();
+    expect(emitted).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(button);
+    expect(menu.getAttribute('aria-expanded')).toBe('false'); // no abre el cajón móvil
+
+    fixture.componentRef.setInput('compact', true);
+    fixture.detectChanges();
+    expect(button.getAttribute('aria-label')).toBe('Expandir índice');
+    expect(button.getAttribute('title')).toBe('Expandir índice');
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('ocupa toda la altura como índice integrado y el cajón es de 85% sin sombra', async () => {
     const { root } = await setup();
     const css = componentCss();

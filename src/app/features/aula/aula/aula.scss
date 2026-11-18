@@ -38,7 +38,6 @@
 
 /* Iconos genéricos propios: mismo hueco y alineación que el referente, sin assets ajenos. */
 .icon { display: inline-block; width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.index-compress { display: none; }
 
 /* Banda de acciones: duración a la izquierda, progreso y flecha a la derecha. */
 .lesson-actions {
@@ -105,16 +104,9 @@
 
 @media (min-width: 48rem) {
   .aula-layout { grid-template-columns: 330px minmax(0, 1fr); }
-  /* Solo escritorio: el índice se oculta del todo y una sola columna llena el ancho;
-     no es pantalla completa: el título y los apartados siguen bajo el vídeo. */
-  .aula-layout--compact { grid-template-columns: minmax(0, 1fr); }
-  .aula-layout--compact .aula-sidebar { display: none; }
-  /* El hamburger vive en el contenido para poder reabrir con el aside oculto. */
-  .index-compress {
-    display: grid; place-items: center;
-    width: 44px; height: 44px; padding: 0;
-    border: 0; background: none; color: inherit;
-  }
+  /* Raíl estrecho: el índice sigue visible (~200px) y el vídeo gana espacio, sin ser
+     pantalla completa: el título y los apartados siguen bajo el vídeo. */
+  .aula-layout--compact { grid-template-columns: 200px minmax(0, 1fr); }
   /* Índice y contenido llenan la altura disponible y se desplazan por separado. */
   .aula-sidebar {
     height: calc(100vh - var(--aula-shell-offset));
