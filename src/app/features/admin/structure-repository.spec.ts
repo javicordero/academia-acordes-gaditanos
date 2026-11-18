@@ -13,13 +13,17 @@ describe('StructureRepository', () => {
   const remove = vi.fn();
   const query = { select, eq, order, single, insert, update, delete: remove };
   const from = vi.fn(() => query);
+  const rpc = vi.fn();
+  const getUser = vi.fn();
   const values = { title: 'Lección', is_free_preview: false, is_published: false, content_type: 'pdf' as const };
   let repo: StructureRepository;
   beforeEach(() => {
     vi.clearAllMocks();
     select.mockReturnValue(query); eq.mockReturnValue(query); insert.mockReturnValue(query); update.mockReturnValue(query);
     order.mockResolvedValue({ data: [], error: null }); single.mockResolvedValue({ data: { id: 'id' }, error: null });
-    TestBed.configureTestingModule({ providers: [{ provide: SUPABASE_CLIENT, useValue: { from } }] });
+    getUser.mockResolvedValue({ data: { user: { id: 'admin-uid' } }, error: null });
+    rpc.mockResolvedValue({ error: null });
+    TestBed.configureTestingModule({ providers: [{ provide: SUPABASE_CLIENT, useValue: { from, rpc, auth: { getUser } } }] });
     repo = TestBed.inject(StructureRepository);
   });
   it('lista solo el curso ordenado y crea con claves compuestas y posición', async () => {
@@ -48,5 +52,30 @@ describe('StructureRepository', () => {
     await expect(repo.saveLesson('course', 'section', values, 0, undefined, 'leccion')).rejects.toThrow('save_failed');
     single.mockResolvedValue({ data: null, error: { code: '23505' } });
     await expect(repo.saveLesson('course', 'section', values, 0, undefined, 'leccion')).rejects.toThrow('save_conflict');
+  });
+  it('llama a las RPC con el UID verificado por Auth y la lista completa, sin clave de servidor', async () => {
+    await repo.reorderCourseSections('course', ['s3', 's1', 's2']);
+    expect(rpc).toHaveBeenCalledWith('reorder_course_sections', {
+      p_user_id: 'admin-uid', p_course_id: 'course', p_ordered_ids: ['s3', 's1', 's2'],
+    });
+    await repo.reorderSectionLessons('section', ['l3', 'l1']);
+    expect(rpc).toHaveBeenLastCalledWith('reorder_section_lessons', {
+      p_user_id: 'admin-uid', p_section_id: 'section', p_ordered_ids: ['l3', 'l1'],
+    });
+    expect(getUser).toHaveBeenCalledTimes(2);
+  });
+  it('traduce permisos denegados y errores de la RPC sin exponer detalles', async () => {
+    rpc.mockResolvedValueOnce({ error: { code: '42501', message: 'reorder_forbidden' } });
+    await expect(repo.reorderCourseSections('course', ['s1', 's2'])).rejects.toThrow('forbidden');
+    rpc.mockResolvedValueOnce({ error: { code: '22023', message: 'invalid_order' } });
+    await expect(repo.reorderSectionLessons('section', ['l1', 'l2'])).rejects.toThrow('reorder_failed');
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+  it('no reordena sin sesión verificada ni con listas vacías o duplicadas', async () => {
+    getUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'no session' } });
+    await expect(repo.reorderCourseSections('course', ['s1'])).rejects.toThrow('unauthenticated');
+    await expect(repo.reorderCourseSections('course', ['s1', 's1'])).rejects.toThrow('invalid_order');
+    await expect(repo.reorderSectionLessons('section', [])).rejects.toThrow('invalid_order');
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

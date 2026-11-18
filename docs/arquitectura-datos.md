@@ -275,8 +275,16 @@ Notas:
 ## Panel de administración
 
 La ruta lazy protegida permite gestionar cursos, bloques y lecciones mediante
-RLS. Los nuevos elementos se añaden al final; la reordenación está pendiente y
-no se ofrece borrado destructivo. Las lecciones tienen estado de publicación;
+RLS. Los nuevos elementos se añaden al final y no se ofrece borrado destructivo.
+La reordenación usa las RPC atómicas `reorder_course_sections` y
+`reorder_section_lessons` de la migración `20261118150000`: comprueban el rol
+admin en `public.user_roles`, exigen la lista completa del mismo padre y
+reasignan posiciones contiguas 0..n-1 con bloqueo consultivo y desplazamiento
+temporal, respetando los `unique`. La interfaz ofrece arrastrar y soltar
+(HTML5) con botones «Subir»/«Bajar» como alternativa de teclado; la RPC se
+invoca con el UID verificado por Auth y también es invocable por `service_role`.
+La migración y sus pruebas se han verificado con PGlite, no en Supabase real,
+y no se han aplicado a ningún proyecto remoto. Las lecciones tienen estado de publicación;
 los bloques de cursos publicados son visibles. El contenido Markdown se guarda
 como texto. La estructura solo se ha probado con mocks, no en PostgREST real.
 No hay gestión de precios ni subidas.
@@ -284,8 +292,8 @@ No hay gestión de precios ni subidas.
 Alcance previsto:
 
 - Ruta Angular `/admin` con carga diferida (lazy), separada del aula.
-- Reordenación editorial de bloques y lecciones: pendiente; requiere una operación
-  atómica en servidor por las restricciones de unicidad de posición.
+- Reordenación editorial de bloques y lecciones: disponible mediante las RPC
+  atómicas anteriores, con drag & drop y botones de teclado en el panel.
 - Vista previa de borradores antes de publicar. Los borradores no son públicos.
 - Metadatos de vídeo (ID de Bunny, duración, estado) y documentos anexos.
 - Respuestas a preguntas de alumnos, **unificadas con el foro** cuando se

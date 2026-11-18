@@ -46,4 +46,50 @@ export class StructureRepository {
     if (error?.code === '23505') throw new Error('save_conflict');
     if (error || !data) throw new Error('save_failed');
   }
+
+  /**
+   * UID verificado por el servidor de Auth, no un valor del cuerpo ni de los
+   * metadatos del cliente. La RPC vuelve a comprobarlo contra la sesión JWT y
+   * contra public.user_roles; aquí nunca se usa una clave de service_role.
+   */
+  private async currentUserId(): Promise<string> {
+    const client = this.client;
+    if (!client) throw new Error('unavailable');
+    const { data, error } = await client.auth.getUser();
+    if (error || !data.user) throw new Error('unauthenticated');
+    return data.user.id;
+  }
+
+  private validateOrder(orderedIds: string[]): void {
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0 ||
+      orderedIds.some(id => !id) || new Set(orderedIds).size !== orderedIds.length) {
+      throw new Error('invalid_order');
+    }
+  }
+
+  private async invokeReorder(functionName: string, args: Record<string, unknown>): Promise<void> {
+    const client = this.client;
+    if (!client) throw new Error('unavailable');
+    const { error } = await client.rpc(functionName, args);
+    if (error?.code === '42501') throw new Error('forbidden');
+    if (error) throw new Error('reorder_failed');
+  }
+
+  /** Pide la lista completa de bloques del curso en el orden deseado. */
+  async reorderCourseSections(courseId: string, orderedIds: string[]): Promise<void> {
+    const userId = await this.currentUserId();
+    this.validateOrder(orderedIds);
+    await this.invokeReorder('reorder_course_sections', {
+      p_user_id: userId, p_course_id: courseId, p_ordered_ids: orderedIds,
+    });
+  }
+
+  /** Pide la lista completa de lecciones del bloque en el orden deseado. */
+  async reorderSectionLessons(sectionId: string, orderedIds: string[]): Promise<void> {
+    const userId = await this.currentUserId();
+    this.validateOrder(orderedIds);
+    await this.invokeReorder('reorder_section_lessons', {
+      p_user_id: userId, p_section_id: sectionId, p_ordered_ids: orderedIds,
+    });
+  }
 }

@@ -1,8 +1,9 @@
 <h2 #heading tabindex="-1">Estructura: {{ course().title }}</h2>
 <button type="button" [disabled]="saving()" (click)="closed.emit()">Volver a cursos</button>
-<p>Los nuevos bloques y lecciones se añaden al final. La reorganización queda pendiente.</p>
+<p>Los nuevos bloques y lecciones se añaden al final. Arrastra para reordenar bloques y lecciones de un mismo bloque, o usa «Subir» y «Bajar». En móvil usa las flechas: el arrastre táctil no es fiable.</p>
 <p>Los bloques son visibles en cursos publicados. Las lecciones se pueden mantener como borrador; no se eliminan desde este panel.</p>
 @if (error()) { <p class="feedback feedback--error" role="alert">{{ error() }}</p> }
+@if (notice()) { <p role="status">{{ notice() }}</p> }
 @if (loading()) {
   <p role="status">Cargando estructura…</p>
 } @else if (loadFailed()) {
@@ -49,24 +50,51 @@
     <app-lesson-materials [courseId]="course().id" [lessonId]="selected.id" [lessonTitle]="selected.title" (closed)="closeMaterials()" />
   }
   @if (!sections().length) { <p>No hay bloques en este curso.</p> }
-  @for (section of sections(); track section.id) {
-    <section>
+  @for (section of orderedSections(); track section.id; let i = $index) {
+    @let sectionLessons = lessonsFor(section.id);
+    <section class="structure-section" [class.structure-section--dragover]="sameTarget(dropTarget(), { kind: 'section', id: section.id })"
+      [attr.aria-dropeffect]="dropEffect('section', section.id)"
+      (dragenter)="dragSectionEnter($event)" (dragover)="dragSectionOver($event, section)" (dragleave)="dragLeave($event)"
+      (drop)="dropSection($event, section)">
       <h3>{{ section.title }}</h3>
       @if (section.summary) { <p>{{ section.summary }}</p> }
+      <h4 class="visually-hidden">Bloque {{ section.title }}: arrastra para moverlo</h4>
+      <div class="structure-drag" draggable="true" [attr.aria-grabbed]="ariaGrabbed('section', section.id)"
+        (dragstart)="dragSectionStart($event, section)" (dragend)="dragEnd()">
+        <span class="structure-drag__handle" aria-hidden="true">⋮⋮</span> {{ section.title }}
+      </div>
       <button type="button" [disabled]="saving()" (click)="editSection(section)" [attr.aria-label]="'Editar bloque ' + section.title">Editar bloque</button>
       <button type="button" [disabled]="saving()" (click)="editLesson(section)" [attr.aria-label]="'Añadir lección a ' + section.title">Añadir lección</button>
+      <button #reorderButton type="button" [attr.data-reorder-key]="reorderButtonKey('section', section.id, 'up')"
+        [disabled]="saving() || i === 0" (click)="moveSection(section, -1)"
+        [attr.aria-label]="'Subir bloque ' + section.title + ', posición ' + (i + 1) + ' de ' + orderedSections().length">Subir bloque</button>
+      <button #reorderButton type="button" [attr.data-reorder-key]="reorderButtonKey('section', section.id, 'down')"
+        [disabled]="saving() || i === orderedSections().length - 1" (click)="moveSection(section, 1)"
+        [attr.aria-label]="'Bajar bloque ' + section.title + ', posición ' + (i + 1) + ' de ' + orderedSections().length">Bajar bloque</button>
       <ul>
-        @for (lesson of lessons(); track lesson.id) {
-          @if (lesson.section_id === section.id) {
-            <li>{{ lesson.title }} — {{ lesson.is_published ? 'Publicada' : 'Borrador' }}{{ lesson.is_free_preview ? ' · Muestra' : '' }}
-              <a [routerLink]="['/admin/vista-previa', course().id, lesson.id]" [attr.aria-label]="'Ver en el aula ' + lesson.title">Ver en el aula</a>
-              <button type="button" [disabled]="saving()" (click)="editLesson(section, lesson)" [attr.aria-label]="'Editar lección ' + lesson.title">Editar lección</button>
-              @if (canOpenMaterials(lesson)) {
-                <button type="button" [disabled]="saving()" (click)="openMaterials(lesson)" [attr.aria-label]="'Materiales PDF de ' + lesson.title">Materiales PDF</button>
-                <a [routerLink]="['/admin', course().id, lesson.id, 'video']" [attr.aria-label]="'Vídeo de la lección ' + lesson.title">Vídeo de la lección</a>
-              }
-            </li>
-          }
+        @for (lesson of sectionLessons; track lesson.id; let j = $index) {
+          <li class="structure-lesson" [class.structure-lesson--dragover]="sameTarget(dropTarget(), { kind: 'lesson', id: lesson.id, sectionId: section.id })"
+            [attr.aria-dropeffect]="dropEffect('lesson', lesson.id, section.id)"
+            (dragenter)="dragLessonEnter($event, section)" (dragover)="dragLessonOver($event, section, lesson)" (dragleave)="dragLeave($event)"
+            (drop)="dropLesson($event, section, lesson)">
+            <span class="structure-drag" draggable="true" [attr.aria-grabbed]="ariaGrabbed('lesson', lesson.id)"
+              (dragstart)="dragLessonStart($event, lesson)" (dragend)="dragEnd()">
+              <span class="structure-drag__handle" aria-hidden="true">⋮⋮</span> {{ lesson.title }}
+            </span>
+            — {{ lesson.is_published ? 'Publicada' : 'Borrador' }}{{ lesson.is_free_preview ? ' · Muestra' : '' }}
+            <a [routerLink]="['/admin/vista-previa', course().id, lesson.id]" [attr.aria-label]="'Ver en el aula ' + lesson.title">Ver en el aula</a>
+            <button type="button" [disabled]="saving()" (click)="editLesson(section, lesson)" [attr.aria-label]="'Editar lección ' + lesson.title">Editar lección</button>
+            @if (canOpenMaterials(lesson)) {
+              <button type="button" [disabled]="saving()" (click)="openMaterials(lesson)" [attr.aria-label]="'Materiales PDF de ' + lesson.title">Materiales PDF</button>
+              <a [routerLink]="['/admin', course().id, lesson.id, 'video']" [attr.aria-label]="'Vídeo de la lección ' + lesson.title">Vídeo de la lección</a>
+            }
+            <button #reorderButton type="button" [attr.data-reorder-key]="reorderButtonKey('lesson', lesson.id, 'up')"
+              [disabled]="saving() || j === 0" (click)="moveLesson(section, lesson, -1)"
+              [attr.aria-label]="'Subir lección ' + lesson.title + ', posición ' + (j + 1) + ' de ' + sectionLessons.length + ' en ' + section.title">Subir lección</button>
+            <button #reorderButton type="button" [attr.data-reorder-key]="reorderButtonKey('lesson', lesson.id, 'down')"
+              [disabled]="saving() || j === sectionLessons.length - 1" (click)="moveLesson(section, lesson, 1)"
+              [attr.aria-label]="'Bajar lección ' + lesson.title + ', posición ' + (j + 1) + ' de ' + sectionLessons.length + ' en ' + section.title">Bajar lección</button>
+          </li>
         }
       </ul>
     </section>

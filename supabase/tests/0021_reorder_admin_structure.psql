@@ -1,0 +1,345 @@
+-- Pruebas de la reordenación atómica de bloques y lecciones del panel /admin.
+--
+-- Script de psql: transacción única que termina con ROLLBACK. Fixtures con
+-- identificadores y nombres ficticios; sin correos, claves ni datos personales.
+-- La suite portable (PGlite) valida solo lógica SQL/RLS, no Auth/PostgREST.
+
+\set ON_ERROR_STOP on
+
+begin;
+
+create schema tests_reorder;
+grant usage on schema tests_reorder to anon, authenticated, service_role;
+
+create function tests_reorder.expect(p_ok boolean, p_label text)
+returns void
+language plpgsql
+as $$
+begin
+  if p_ok is not true then
+    raise exception 'FALLO: %', p_label;
+  end if;
+  raise notice 'ok: %', p_label;
+end;
+$$;
+
+create function tests_reorder.expect_sqlstate(p_sql text, p_expected text, p_label text)
+returns void
+language plpgsql
+as $$
+declare
+  v_state text;
+begin
+  begin
+    execute p_sql;
+  exception
+    when others then
+      get stacked diagnostics v_state = returned_sqlstate;
+      if v_state = p_expected then
+        raise notice 'ok (restricción %): %', p_expected, p_label;
+        return;
+      end if;
+      raise exception 'FALLO: % devolvió % y se esperaba %', p_label, v_state, p_expected;
+  end;
+  raise exception 'FALLO: no falló %', p_label;
+end;
+$$;
+
+create function tests_reorder.expect_denied(p_sql text, p_label text)
+returns void
+language plpgsql
+as $$
+begin
+  begin
+    execute p_sql;
+  exception
+    when insufficient_privilege then
+      raise notice 'ok (denegado): %', p_label;
+      return;
+  end;
+  raise exception 'FALLO: se permitió %', p_label;
+end;
+$$;
+
+-- Proyección de columnas sensibles: excluye position y updated_at a propósito.
+-- Debe ser idéntica antes y después de cualquier reordenación o intento fallido.
+create function tests_reorder.snapshot()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select md5(coalesce(string_agg(row_data, '|' order by row_data), ''))
+  from (
+    select 'S:' || cs.id::text || ':' || cs.course_id::text || ':' || cs.title || ':'
+      || coalesce(cs.summary, '~') as row_data
+    from public.course_sections cs
+    union all
+    select 'L:' || l.id::text || ':' || l.course_id::text || ':' || l.section_id::text || ':'
+      || l.slug || ':' || l.title || ':' || coalesce(l.summary, '~') || ':'
+      || coalesce(l.content_md, '~') || ':' || coalesce(l.duration_seconds::text, '~') || ':'
+      || l.is_free_preview::text || ':' || l.is_published::text || ':' || l.content_type::text
+    from public.lessons l
+    union all
+    select 'V:' || lv.lesson_id::text || ':' || lv.provider_video_id || ':' || lv.status
+    from private.lesson_videos lv
+    union all
+    select 'P:' || lp.user_id::text || ':' || lp.lesson_id::text || ':'
+      || coalesce(lp.completed_at::text, '~')
+    from public.lesson_progress lp
+    union all
+    select 'E:' || e.id::text || ':' || e.user_id::text || ':' || e.course_id::text || ':'
+      || coalesce(e.revoked_at::text, '~')
+    from public.entitlements e
+  ) projected;
+$$;
+
+create table tests_reorder.state (label text primary key, value text not null);
+
+grant execute on function tests_reorder.expect(boolean, text) to anon, authenticated, service_role;
+grant execute on function tests_reorder.expect_sqlstate(text, text, text) to anon, authenticated, service_role;
+grant execute on function tests_reorder.expect_denied(text, text) to anon, authenticated, service_role;
+grant execute on function tests_reorder.snapshot() to anon, authenticated, service_role;
+grant select on tests_reorder.state to anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- Fixtures ficticios
+-- ---------------------------------------------------------------------------
+
+insert into auth.users (id) values
+  ('01000000-0000-0000-0000-000000000001'),
+  ('01000000-0000-0000-0000-000000000002');
+
+insert into public.user_roles (user_id, role)
+values ('01000000-0000-0000-0000-000000000001', 'admin');
+
+insert into public.courses (id, slug, title, level, status, published_at) values
+  ('11000000-0000-0000-0000-000000000001', 'reorden-curso', 'Curso reordenable', 'basico', 'published', now()),
+  ('11000000-0000-0000-0000-000000000002', 'reorden-otro', 'Otro curso', 'iniciacion', 'draft', null);
+
+insert into public.course_sections (id, course_id, title, position) values
+  ('21000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000001', 'Bloque A', 0),
+  ('21000000-0000-0000-0000-000000000002', '11000000-0000-0000-0000-000000000001', 'Bloque B', 1),
+  ('21000000-0000-0000-0000-000000000003', '11000000-0000-0000-0000-000000000001', 'Bloque C', 2),
+  ('21000000-0000-0000-0000-000000000004', '11000000-0000-0000-0000-000000000002', 'Bloque ajeno', 0);
+
+insert into public.lessons (id, course_id, section_id, slug, title, content_md, position, is_free_preview, is_published, content_type) values
+  ('31000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000001', '21000000-0000-0000-0000-000000000001', 'leccion-a1', 'Lección A1', 'texto A1', 0, false, true, 'video'),
+  ('31000000-0000-0000-0000-000000000002', '11000000-0000-0000-0000-000000000001', '21000000-0000-0000-0000-000000000001', 'leccion-a2', 'Lección A2', 'texto A2', 1, false, false, 'pdf'),
+  ('31000000-0000-0000-0000-000000000003', '11000000-0000-0000-0000-000000000001', '21000000-0000-0000-0000-000000000001', 'leccion-a3', 'Lección A3', null, 2, true, true, 'text'),
+  ('31000000-0000-0000-0000-000000000004', '11000000-0000-0000-0000-000000000001', '21000000-0000-0000-0000-000000000002', 'leccion-b1', 'Lección B1', null, 0, false, true, 'video'),
+  ('31000000-0000-0000-0000-000000000005', '11000000-0000-0000-0000-000000000001', '21000000-0000-0000-0000-000000000002', 'leccion-b2', 'Lección B2', null, 1, false, false, 'video'),
+  ('31000000-0000-0000-0000-000000000006', '11000000-0000-0000-0000-000000000002', '21000000-0000-0000-0000-000000000004', 'leccion-ajena', 'Lección ajena', null, 0, false, true, 'video');
+
+insert into private.lesson_videos (lesson_id, provider_video_id, status)
+values ('31000000-0000-0000-0000-000000000001', 'video-reorden-ficticio', 'ready');
+
+insert into public.entitlements (id, user_id, course_id, granted_at)
+values ('41000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000002', '11000000-0000-0000-0000-000000000001', now());
+
+insert into public.lesson_progress (user_id, lesson_id, completed_at)
+values ('01000000-0000-0000-0000-000000000002', '31000000-0000-0000-0000-000000000001', now() - interval '1 day');
+
+insert into tests_reorder.state (label, value) values ('inicial', tests_reorder.snapshot());
+
+-- ---------------------------------------------------------------------------
+-- Grants: la RPC del navegador es authenticated; el puente privado no
+-- ---------------------------------------------------------------------------
+
+select tests_reorder.expect(
+  not has_function_privilege('anon', 'public.reorder_course_sections(uuid, uuid, uuid[])', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.reorder_section_lessons(uuid, uuid, uuid[])', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.reorder_course_sections(uuid, uuid, uuid[])', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.reorder_section_lessons(uuid, uuid, uuid[])', 'EXECUTE')
+  and has_function_privilege('service_role', 'public.reorder_course_sections(uuid, uuid, uuid[])', 'EXECUTE')
+  and has_function_privilege('service_role', 'public.reorder_section_lessons(uuid, uuid, uuid[])', 'EXECUTE')
+  and not has_function_privilege('anon', 'private.can_reorder_structure(uuid)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'private.can_reorder_structure(uuid)', 'EXECUTE')
+  and has_function_privilege('service_role', 'private.can_reorder_structure(uuid)', 'EXECUTE'),
+  'grants: anon sin RPC, authenticated y service_role con RPC, helper solo servidor'
+);
+
+-- ---------------------------------------------------------------------------
+-- Admin: reordenación de bloques y lecciones
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"01000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+
+select tests_reorder.expect(
+  (public.reorder_course_sections(
+    '01000000-0000-0000-0000-000000000001'::uuid,
+    '11000000-0000-0000-0000-000000000001'::uuid,
+    array['21000000-0000-0000-0000-000000000003'::uuid,
+          '21000000-0000-0000-0000-000000000001'::uuid,
+          '21000000-0000-0000-0000-000000000002'::uuid]
+  )) = jsonb_build_object('success', true, 'updated', 3, 'kind', 'sections',
+    'parent_id', '11000000-0000-0000-0000-000000000001'::uuid),
+  'admin reordena bloques y la RPC informa del número de filas'
+);
+
+select tests_reorder.expect(
+  (select array_agg(cs.id order by cs.position) from public.course_sections cs
+    where cs.course_id = '11000000-0000-0000-0000-000000000001'::uuid)
+    = array['21000000-0000-0000-0000-000000000003'::uuid,
+            '21000000-0000-0000-0000-000000000001'::uuid,
+            '21000000-0000-0000-0000-000000000002'::uuid],
+  'bloques en el orden solicitado'
+);
+
+select tests_reorder.expect(
+  (select array_agg(cs.position order by cs.position) from public.course_sections cs
+    where cs.course_id = '11000000-0000-0000-0000-000000000001'::uuid) = array[0, 1, 2],
+  'posiciones de bloques contiguas 0..n-1 sin huecos'
+);
+
+select tests_reorder.expect(
+  (public.reorder_section_lessons(
+    '01000000-0000-0000-0000-000000000001'::uuid,
+    '21000000-0000-0000-0000-000000000001'::uuid,
+    array['31000000-0000-0000-0000-000000000003'::uuid,
+          '31000000-0000-0000-0000-000000000001'::uuid,
+          '31000000-0000-0000-0000-000000000002'::uuid]
+  ))->>'updated' = '3',
+  'admin reordena lecciones de un bloque'
+);
+
+select tests_reorder.expect(
+  (select array_agg(l.id order by l.position) from public.lessons l
+    where l.section_id = '21000000-0000-0000-0000-000000000001'::uuid)
+    = array['31000000-0000-0000-0000-000000000003'::uuid,
+            '31000000-0000-0000-0000-000000000001'::uuid,
+            '31000000-0000-0000-0000-000000000002'::uuid],
+  'lecciones en el orden solicitado'
+);
+
+select tests_reorder.expect(
+  (select array_agg(l.position order by l.position) from public.lessons l
+    where l.section_id = '21000000-0000-0000-0000-000000000001'::uuid) = array[0, 1, 2]
+  and (select array_agg(l.position order by l.id) from public.lessons l
+    where l.section_id = '21000000-0000-0000-0000-000000000002'::uuid) = array[0, 1],
+  'posiciones de lecciones contiguas y bloque vecino intacto'
+);
+
+reset role;
+
+select tests_reorder.expect(
+  (select value from tests_reorder.state where label = 'inicial') = tests_reorder.snapshot(),
+  'reordenar no cambia borradores, publicación, contenido, vídeo, derechos ni progreso'
+);
+
+-- ---------------------------------------------------------------------------
+-- Rechazo de sesión no admin y de suplantación del p_user_id
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"01000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_course_sections(''01000000-0000-0000-0000-000000000002''::uuid, ''11000000-0000-0000-0000-000000000001''::uuid, array[''21000000-0000-0000-0000-000000000003''::uuid, ''21000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000002''::uuid])',
+  '42501', 'alumno con sesión válida no reordena bloques'
+);
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_section_lessons(''01000000-0000-0000-0000-000000000002''::uuid, ''21000000-0000-0000-0000-000000000001''::uuid, array[''31000000-0000-0000-0000-000000000003''::uuid, ''31000000-0000-0000-0000-000000000001''::uuid, ''31000000-0000-0000-0000-000000000002''::uuid])',
+  '42501', 'alumno con sesión válida no reordena lecciones'
+);
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_course_sections(''01000000-0000-0000-0000-000000000001''::uuid, ''11000000-0000-0000-0000-000000000001''::uuid, array[''21000000-0000-0000-0000-000000000003''::uuid, ''21000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000002''::uuid])',
+  '42501', 'la sesión de alumno no puede suplantar el UID de admin'
+);
+
+select set_config('request.jwt.claims', '{"sub":"01000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_course_sections(''01000000-0000-0000-0000-000000000002''::uuid, ''11000000-0000-0000-0000-000000000001''::uuid, array[''21000000-0000-0000-0000-000000000003''::uuid, ''21000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000002''::uuid])',
+  '42501', 'la sesión de admin no acepta el UID de otro usuario'
+);
+
+reset role;
+
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select tests_reorder.expect_denied(
+  'select public.reorder_course_sections(''01000000-0000-0000-0000-000000000001''::uuid, ''11000000-0000-0000-0000-000000000001''::uuid, array[''21000000-0000-0000-0000-000000000003''::uuid, ''21000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000002''::uuid])',
+  'anon no tiene EXECUTE en la RPC'
+);
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Validación de la lista completa: IDs ajenos, duplicados, incompletos, nulos
+-- ---------------------------------------------------------------------------
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"01000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_course_sections(''01000000-0000-0000-0000-000000000001''::uuid, ''11000000-0000-0000-0000-000000000001''::uuid, array[''21000000-0000-0000-0000-000000000003''::uuid, ''21000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000004''::uuid])',
+  '22023', 'se rechaza un bloque de otro curso'
+);
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_section_lessons(''01000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000001''::uuid, array[''31000000-0000-0000-0000-000000000003''::uuid, ''31000000-0000-0000-0000-000000000001''::uuid, ''31000000-0000-0000-0000-000000000004''::uuid])',
+  '22023', 'se rechaza una lección de otro bloque'
+);
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_course_sections(''01000000-0000-0000-0000-000000000001''::uuid, ''11000000-0000-0000-0000-000000000001''::uuid, array[''21000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000002''::uuid])',
+  '22023', 'se rechazan IDs duplicados'
+);
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_course_sections(''01000000-0000-0000-0000-000000000001''::uuid, ''11000000-0000-0000-0000-000000000001''::uuid, array[''21000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000002''::uuid])',
+  '22023', 'se rechaza una lista incompleta'
+);
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_section_lessons(''01000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000001''::uuid, array[''31000000-0000-0000-0000-000000000003''::uuid, ''31000000-0000-0000-0000-000000000001''::uuid, ''99999999-9999-9999-9999-999999999999''::uuid])',
+  '22023', 'se rechaza un ID desconocido'
+);
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_course_sections(''01000000-0000-0000-0000-000000000001''::uuid, ''11000000-0000-0000-0000-000000000001''::uuid, array[''21000000-0000-0000-0000-000000000001''::uuid, ''21000000-0000-0000-0000-000000000002''::uuid, null::uuid])',
+  '22023', 'se rechaza un elemento nulo'
+);
+select tests_reorder.expect_sqlstate(
+  'select public.reorder_course_sections(''01000000-0000-0000-0000-000000000001''::uuid, ''11000000-0000-0000-0000-000000000001''::uuid, array[]::uuid[])',
+  '22023', 'se rechaza una lista vacía'
+);
+
+reset role;
+
+select tests_reorder.expect(
+  (select value from tests_reorder.state where label = 'inicial') = tests_reorder.snapshot(),
+  'los intentos rechazados no modifican contenido ni metadatos'
+);
+select tests_reorder.expect(
+  (select array_agg(cs.id order by cs.position) from public.course_sections cs
+    where cs.course_id = '11000000-0000-0000-0000-000000000001'::uuid)
+    = array['21000000-0000-0000-0000-000000000003'::uuid,
+            '21000000-0000-0000-0000-000000000001'::uuid,
+            '21000000-0000-0000-0000-000000000002'::uuid],
+  'rollback deja las posiciones previas tras los errores'
+);
+
+-- La unicidad sigue vigente: no se puede colisionar una posición ya ocupada.
+select tests_reorder.expect_sqlstate(
+  'update public.course_sections set position = 0 where id = ''21000000-0000-0000-0000-000000000001''::uuid',
+  '23505', 'unique (course_id, position) sigue aplicando tras reordenar'
+);
+
+-- ---------------------------------------------------------------------------
+-- service_role puede invocar la RPC en nombre de un admin verificado
+-- ---------------------------------------------------------------------------
+
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select tests_reorder.expect(
+  (public.reorder_course_sections(
+    '01000000-0000-0000-0000-000000000001'::uuid,
+    '11000000-0000-0000-0000-000000000001'::uuid,
+    array['21000000-0000-0000-0000-000000000001'::uuid,
+          '21000000-0000-0000-0000-000000000002'::uuid,
+          '21000000-0000-0000-0000-000000000003'::uuid]
+  ))->>'success' = 'true',
+  'service_role reordena en nombre de un admin real'
+);
+reset role;
+
+select tests_reorder.expect(true, 'suite de reordenación completada');
+
+rollback;

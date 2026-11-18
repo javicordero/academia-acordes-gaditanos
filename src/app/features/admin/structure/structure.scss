@@ -6,3 +6,27 @@ form {
 }
 
 textarea { min-height: 6rem; }
+
+.structure-drag {
+  cursor: grab;
+  padding: 0.25rem 0.5rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.structure-drag__handle { color: var(--muted); letter-spacing: -0.2em; }
+
+.structure-section--dragover > .structure-drag,
+.structure-lesson--dragover > .structure-drag {
+  border-color: var(--accent);
+  background-color: var(--surface);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
