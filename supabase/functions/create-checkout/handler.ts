@@ -1,3 +1,5 @@
+import { canonicalAttemptId } from './attempt.ts';
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Stripe entrega el id de sesión; el bind lo valida otra vez en SQL.
 const SESSION = /^cs_(?:test|live)_[A-Za-z0-9]+$/;
@@ -54,24 +56,11 @@ function appUrl(config: HandlerConfig): URL {
 }
 
 /**
- * Intento de recuperación derivado del intento canónico y de la sesión que
- * Stripe ha confirmado como expirada. Es estable para esa sesión (doble clic,
- * doble pestaña o recarga) y distinto para cada sesión expirada sucesiva. No
- * se guarda en BD ni se acepta tal cual del cliente: el servidor lo recalcula.
+ * No hay derives de intento en el cliente ni en el marker de sesión: el
+ * sucesor de un intento cerrado lo deriva la BD de forma determinista dentro de
+ * `reserve_checkout_order`. El marcador `sessionId` sólo añade una verificación
+ * con Stripe; con o sin él, el flujo de reserva es exactamente el mismo.
  */
-export async function recoveryAttemptId(
-  user: string, course: string, attempt: string, sessionId: string,
-): Promise<string> {
-  const input = new TextEncoder().encode(
-    `recovery:${user.toLowerCase()}:${course.toLowerCase()}:${attempt.toLowerCase()}:${sessionId.toLowerCase()}`,
-  );
-  const digest = await crypto.subtle.digest('SHA-256', input);
-  const bytes = Array.from(new Uint8Array(digest).slice(0, 16));
-  bytes[6] = (bytes[6] & 0x0f) | 0x50;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = bytes.map((byte) => byte.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
 
 export function makeHandler(io: Dependencies, config: HandlerConfig) {
   return async (req: Request): Promise<Response> => {
@@ -111,6 +100,9 @@ export function makeHandler(io: Dependencies, config: HandlerConfig) {
       const keys = body && typeof body === 'object' && !Array.isArray(body)
         ? Object.keys(body).sort().join(',') : '';
       const withSession = keys === 'attemptId,courseId,sessionId';
+      // `attemptId` se valida por forma para no romper al cliente actual, pero
+      // NO es autoridad: se ignora salvo como pista al contrastar metadata en
+      // recuperación. El intento real se deriva abajo de Auth + curso.
       if (!body || typeof body !== 'object' || Array.isArray(body) ||
           !(keys === 'attemptId,courseId' || withSession) ||
           typeof body.courseId !== 'string' || !UUID.test(body.courseId) ||
@@ -131,11 +123,13 @@ export function makeHandler(io: Dependencies, config: HandlerConfig) {
           !Number.isSafeInteger(offer.amount_minor) || offer.amount_minor <= 0 ||
           !/^[A-Z]{3}$/.test(offer.currency)) return reply(409, 'Compra no disponible');
 
-      // Recuperación: SOLO si el propio Stripe confirma que la sesión anterior
-      // está expirada. El marcador `sessionId` es un identificador opaco que el
-      // servidor entregó antes; el navegador no decide cuándo ha caducado.
-      let attemptId: string = body.attemptId;
-      let recovering = false;
+      // Intento canónico: SOLO identidad verificada + curso. El body no decide.
+      const attemptId = canonicalAttemptId(user.id, body.courseId);
+      // Recuperación con marcador: el propio Stripe debe confirmar el estado de
+      // la sesión anterior. Es una comprobación ADDITIVA; NO deriva ningún
+      // intento. Sin marcador, un intento cerrado se recupera exactamente igual
+      // (la BD devuelve su sucesor determinista). El navegador nunca decide.
+      let expiredSession: string | null = null;
       if (withSession) {
         if (typeof io.sessionStatus !== 'function') return reply(409, 'Compra no disponible');
         let seen: SessionState | null = null;
@@ -155,16 +149,12 @@ export function makeHandler(io: Dependencies, config: HandlerConfig) {
         if (seen.status !== 'open' && seen.status !== 'expired') {
           return reply(422, 'No se pudo confirmar el estado de la sesión de pago');
         }
-        if (seen.status === 'expired') {
-          attemptId = await recoveryAttemptId(
-            user.id, body.courseId, body.attemptId, body.sessionId as string,
-          );
-          recovering = true;
-        }
+        if (seen.status === 'expired') expiredSession = body.sessionId as string;
       }
       // El pedido se reserva en servidor ANTES de cualquier llamada a Stripe;
       // su id viaja en metadata para que el webhook firme e idempotente
-      // concilie por order_id. La reserva es la fuente de la versión en BD.
+      // concilie por order_id. La reserva es la fuente de la versión en BD y la
+      // que decide si el intento sigue abierto o necesita un sucesor.
       const reservation = await io.reserve(user.id, body.courseId, attemptId, RESERVATION_TTL_SECONDS);
       if (!reservation || !UUID.test(reservation.order_id)) return reply(409, 'Compra no disponible');
       // Coherencia configuración(env)/BD, SIEMPRE antes de consultar Stripe.
@@ -187,10 +177,12 @@ export function makeHandler(io: Dependencies, config: HandlerConfig) {
       const success = new URL('/mis-cursos', app.origin);
       success.searchParams.set('checkout', 'success');
       success.searchParams.set('order_id', orderId);
-      // Clave de idempotencia canónica: el ámbito del intento, no un valor
-      // aleatorio. Un reintento de red por el mismo intento recupera la misma
-      // sesión de Stripe; la recuperación confirmada usa el intento derivado.
-      const input = new TextEncoder().encode(`${user.id.toLowerCase()}:${body.courseId.toLowerCase()}:${attemptId.toLowerCase()}`);
+      // Clave de idempotencia ligada al PEDIDO que la BD devolvió, no al valor
+      // del cuerpo. Mientras la reserva siga abierta, el mismo pedido da la
+      // misma clave y Stripe reanuda la misma sesión. Si la BD cerró el intento
+      // y emitió su sucesor, el order_id cambia y con él la clave: se crea una
+      // sesión nueva sin depender de que el cliente conserve ningún marcador.
+      const input = new TextEncoder().encode(`checkout-order:${orderId.toLowerCase()}`);
       const digest = await crypto.subtle.digest('SHA-256', input);
       const key = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
       let created: { id: string; url: string | null } | null = null;
@@ -215,7 +207,7 @@ export function makeHandler(io: Dependencies, config: HandlerConfig) {
           typeof created.url !== 'string') throw new Error();
       // Defensa ante una respuesta Proveedor mal reconstruida: la recuperación
       // nunca debe devolver la misma sesión que Stripe marcó como expirada.
-      if (recovering && created.id === body.sessionId) throw new Error();
+      if (expiredSession && created.id === expiredSession) throw new Error();
       let target: URL;
       try {
         target = new URL(created.url);
@@ -231,7 +223,7 @@ export function makeHandler(io: Dependencies, config: HandlerConfig) {
       if (bound !== 'bound' && bound !== 'already_bound') throw new Error();
       // El id es opaco y ya viajaba en la URL de Stripe; el cliente guarda el
       // par intento/sesión REAL para reenviarlo tal cual en el siguiente clic.
-      // Tras una recuperación ese intento es el derivado, no el canónico inicial.
+      // El intento devuelto es siempre el canónico: el sucesor vive en la BD.
       return Response.json({
         url: target.toString(), sessionId: created.id, attemptId,
       }, { headers });

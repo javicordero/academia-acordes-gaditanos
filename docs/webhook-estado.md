@@ -42,8 +42,10 @@ activados en este repositorio.
 
 Con la gate cerrada no se construyen SDK, cliente ni verificador: la respuesta
 sigue siendo el 503 de siempre. El webhook **puede activarse en TEST sin checkout
-ni términos** para probar la firma; eso no crea compras ni derechos.
-`expectedLiveMode` es `false` fijo, sin variable de entorno que lo cambie.
+ni términos** para probar la firma de forma aislada; eso no crea compras ni
+derechos. La verificación E2E, en cambio, se hizo con la compra real en TEST
+(verificado en DEV/TEST), no con un evento sintético. `expectedLiveMode` es
+`false` fijo, sin variable de entorno que lo cambie.
 Migraciones aplicadas en DEV según informe: 19/20/21/22/24/25/28; el historial
 de la CLI **no está reconciliado**. La compra E2E en TEST sí se completó y el
 evento quedó procesado (verificado en DEV/TEST); no hay E2E en producción.

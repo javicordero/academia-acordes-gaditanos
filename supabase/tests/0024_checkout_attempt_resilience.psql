@@ -1,0 +1,168 @@
+\set ON_ERROR_STOP on
+-- Resiliencia del intento canónico cerrado: la BD debe devolver un SUCESOR
+-- determinista y reutilizable (sin marca de sesión), sin duplicar pedidos ni
+-- derechos. Sólo lógica SQL/RLS sobre PGlite: no prueba Supabase/Auth/Stripe.
+begin;
+
+do $$ begin
+  if has_function_privilege('anon','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute')
+  or has_function_privilege('authenticated','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute')
+  or has_function_privilege('public','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute')
+  or not has_function_privilege('service_role','public.reserve_checkout_order(uuid,uuid,uuid,integer)','execute')
+  then raise exception 'privileges reserve'; end if;
+  if has_function_privilege('anon','public.bind_checkout_session(uuid,uuid,text)','execute')
+  or has_function_privilege('authenticated','public.bind_checkout_session(uuid,uuid,text)','execute')
+  or not has_function_privilege('service_role','public.bind_checkout_session(uuid,uuid,text)','execute')
+  then raise exception 'privileges bind'; end if;
+  if not exists(select 1 from information_schema.columns
+      where table_schema='private' and table_name='checkout_attempts' and column_name='successor_of')
+  then raise exception 'missing successor_of'; end if;
+end $$;
+
+set local role anon;
+do $$ begin
+  begin perform public.reserve_checkout_order(null,null,null,null);
+    raise exception 'access anon';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+  begin perform public.reserve_checkout_order(null,null,null,null);
+    raise exception 'access authenticated';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+insert into auth.users(id) values
+  ('00000000-0000-0000-0000-000000000031'),
+  ('00000000-0000-0000-0000-000000000032'),
+  ('00000000-0000-0000-0000-000000000033');
+insert into public.courses(id,slug,title,status,published_at) values
+  ('10000000-0000-0000-0000-000000000031','res24a','Resiliencia 24 A','published',now()),
+  ('10000000-0000-0000-0000-000000000032','res24b','Resiliencia 24 B','published',now()),
+  ('10000000-0000-0000-0000-000000000033','res24c','Resiliencia 24 C','published',now());
+insert into public.course_prices(id,course_id,amount_minor,currency) values
+  ('20000000-0000-0000-0000-000000000031','10000000-0000-0000-0000-000000000031',100,'EUR'),
+  ('20000000-0000-0000-0000-000000000032','10000000-0000-0000-0000-000000000032',100,'EUR'),
+  ('20000000-0000-0000-0000-000000000033','10000000-0000-0000-0000-000000000033',100,'EUR');
+insert into private.course_price_refs(course_price_id,provider,provider_price_id) values
+  ('20000000-0000-0000-0000-000000000031','stripe','price_res24a'),
+  ('20000000-0000-0000-0000-000000000032','stripe','price_res24b'),
+  ('20000000-0000-0000-0000-000000000033','stripe','price_res24c');
+insert into private.checkout_order_config values (true,'fixture24');
+
+do $$
+declare
+  u1 uuid := '00000000-0000-0000-0000-000000000031';
+  u2 uuid := '00000000-0000-0000-0000-000000000032';
+  u3 uuid := '00000000-0000-0000-0000-000000000033';
+  c1 uuid := '10000000-0000-0000-0000-000000000031';
+  c2 uuid := '10000000-0000-0000-0000-000000000032';
+  c3 uuid := '10000000-0000-0000-0000-000000000033';
+  a1 uuid := '30000000-0000-0000-0000-000000000031';
+  a2 uuid;
+  a3 uuid := '30000000-0000-0000-0000-000000000032';
+  a4 uuid;
+  a5 uuid := '30000000-0000-0000-0000-000000000033';
+  a6 uuid;
+  o1 uuid;
+  o2 uuid;
+  o2b uuid;
+  o3 uuid;
+  o4 uuid;
+  n integer;
+begin
+  -- Abierta y vigente: se mantiene la idempotencia de la RPC original.
+  select order_id into o1 from public.reserve_checkout_order(u1,c1,a1,900);
+  select order_id into o2b from public.reserve_checkout_order(u1,c1,a1,900);
+  if o1 <> o2b then raise exception 'open attempt changed order'; end if;
+  if (select count(*) from public.orders where user_id=u1) <> 1 then raise exception 'open created order'; end if;
+
+  -- Cerrada SIN pago ni derecho (el cliente perdió la marca de sesión):
+  -- nueva orden reutilizable con intento sucesor determinista.
+  update private.checkout_attempts set closed_at=now() where attempt_id=a1;
+  select order_id,canonical_attempt_id into o2,a2 from public.reserve_checkout_order(u1,c1,a1,900);
+  if o2 = o1 then raise exception 'closed attempt reused order'; end if;
+  if a2 = a1 or a2 is null then raise exception 'successor not derived'; end if;
+  if (select successor_of from private.checkout_attempts where attempt_id=a2) <> a1 then raise exception 'successor_of missing'; end if;
+  if (select count(*) from public.orders where user_id=u1) <> 2 then raise exception 'successor created wrong order count'; end if;
+  if public.bind_checkout_session(u1,o2,'cs_test_succ24') <> 'bound' then raise exception 'successor bind'; end if;
+  begin
+    perform public.bind_checkout_session(u1,o1,'cs_test_closed24');
+    raise exception 'closed attempt bound';
+  exception when raise_exception then
+    if sqlerrm <> 'invalid binding' then raise; end if;
+  end;
+
+  -- Segunda llamada con el mismo estado: MISMA orden sucesora, sin tercera orden.
+  select order_id,canonical_attempt_id into o2b,a2 from public.reserve_checkout_order(u1,c1,a1,900);
+  if o2b <> o2 then raise exception 'successor unstable'; end if;
+  if (select count(*) from public.orders where user_id=u1) <> 2 then raise exception 'successor duplicated orders'; end if;
+  if (select count(*) from public.entitlements where user_id=u1 and course_id=c1) <> 0 then raise exception 'successor granted entitlement'; end if;
+
+  -- Derecho activo: estado terminal genérico, sin abrir otra orden.
+  insert into public.entitlements(user_id,course_id,order_id) values(u1,c1,o2);
+  update private.checkout_attempts set closed_at=now() where attempt_id=a2;
+  select count(*) into n from public.orders;
+  begin
+    perform public.reserve_checkout_order(u1,c1,a1,900);
+    raise exception 'owned allowed';
+  exception when raise_exception then
+    if sqlerrm <> 'already owned' then raise; end if;
+  end;
+  if (select count(*) from public.orders) <> n then raise exception 'owned created order'; end if;
+
+  -- Evento de pago SIN entitlement: también estado terminal, sin sucesor.
+  select order_id into o3 from public.reserve_checkout_order(u2,c2,a3,900);
+  update private.checkout_attempts set closed_at=now() where attempt_id=a3;
+  insert into private.commerce_events(provider,external_event_id,event_type,processing_state,processed_at,stripe_session_id,order_reference,fulfillment_result)
+    values('stripe','evt_res24','checkout.session.completed','processed',now(),'cs_test_paid24',o3,'fulfilled');
+  select count(*) into n from public.orders;
+  begin
+    perform public.reserve_checkout_order(u2,c2,a3,900);
+    raise exception 'paid allowed';
+  exception when raise_exception then
+    if sqlerrm <> 'already owned' then raise; end if;
+  end;
+  if (select count(*) from public.orders) <> n then raise exception 'paid event created order'; end if;
+  if (select count(*) from public.entitlements where user_id=u2 and course_id=c2) <> 0 then raise exception 'paid granted entitlement'; end if;
+
+  -- Vencida por TTL con closed_at aún nulo (snapshot inmutable: se construye
+  -- ya vencida, no se muta): ancla fija = expires_at, sucesor estable.
+  insert into public.orders(user_id,currency,amount_total_minor,terms_version,provider)
+    values(u3,'EUR',100,'fixture24','stripe') returning id into o4;
+  insert into public.order_items(order_id,course_id,course_title_snapshot,unit_amount_minor,currency)
+    values(o4,c3,'Vencida24',100,'EUR');
+  insert into private.checkout_attempts(attempt_id,actor_id,course_id,order_id,expires_at,snapshot)
+    values(a5,u3,c3,o4,now()-interval '1 second',jsonb_build_object('course_id',c3,'terms_version','fixture24'));
+  select order_id,canonical_attempt_id into o3,a6 from public.reserve_checkout_order(u3,c3,a5,900);
+  if o3 = o4 then raise exception 'expired reused order'; end if;
+  -- Mismo estado: MISMA orden sucesora (no se abre otra en cada reintento).
+  select order_id into o4 from public.reserve_checkout_order(u3,c3,a5,900);
+  if o4 <> o3 then raise exception 'expired successor unstable'; end if;
+  if (select count(*) from public.orders where user_id=u3) <> 2 then raise exception 'expired duplicated orders'; end if;
+  -- Expiración sucesiva real: avanza la cadena una sola vez y sin duplicar.
+  update private.checkout_attempts set closed_at=now() where attempt_id=a6;
+  select order_id into o4 from public.reserve_checkout_order(u3,c3,a5,900);
+  if o4 = o3 then raise exception 'chain not advanced'; end if;
+  if (select count(*) from public.orders where user_id=u3) <> 3 then raise exception 'chain duplicated orders'; end if;
+
+  -- Sin actor o actor inexistente: denegado antes de cualquier escritura.
+  select count(*) into n from public.orders;
+  begin
+    perform public.reserve_checkout_order(null,c1,a1,900);
+    raise exception 'null actor allowed';
+  exception when raise_exception then
+    if sqlerrm <> 'invalid reservation' then raise; end if;
+  end;
+  begin
+    perform public.reserve_checkout_order('00000000-0000-0000-0000-000000000099',c1,a1,900);
+    raise exception 'missing actor allowed';
+  exception when raise_exception then
+    if sqlerrm <> 'actor missing' then raise; end if;
+  end;
+  if (select count(*) from public.orders) <> n then raise exception 'invalid actor created order'; end if;
+end $$;
+
+rollback;

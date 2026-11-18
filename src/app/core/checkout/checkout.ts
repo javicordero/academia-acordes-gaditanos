@@ -128,13 +128,15 @@ export function isSafeCheckoutUrl(value: unknown): value is string {
 /**
  * Intento canónico y determinista por curso + identidad. No se guarda en
  * almacenamiento (evita PII innecesaria): la misma acción produce siempre el
- * mismo UUID, incluso tras recargar o tras un fallo de red. El servidor deriva
- * su clave de idempotencia de este valor, así que un reintento no duplica la
- * sesión de pago; cambiar de cuenta o de curso produce otro intento.
+ * mismo UUID, incluso tras recargar o tras un fallo de red. El servidor NO
+ * deriva su clave de idempotencia de este valor: la clave es
+ * `SHA256(checkout-order:order_id)`, calculada en servidor a partir del pedido
+ * devuelto por la reserva. Si el intento se cierra, la BD deriva un sucesor.
  */
 export function canonicalAttemptId(userId: string, courseId: string): string {
   // Misma entrada y mismo primitivo que antes de extraer `checkoutFingerprint`:
-  // los intentos ya emitidos conservan su UUID y, por tanto, su clave de pago.
+  // los intentos ya emitidos conservan su UUID. La clave de pago depende del
+  // pedido en servidor, no de este valor.
   return checkoutFingerprint(`${userId.trim().toLowerCase()}:${courseId.trim().toLowerCase()}`);
 }
 

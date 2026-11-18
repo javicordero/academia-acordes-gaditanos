@@ -91,8 +91,8 @@ describe('intento canónico', () => {
     const u = '11111111-1111-4111-8111-111111111111';
     const c = '22222222-2222-4222-8222-222222222222';
     const first = canonicalAttemptId(u, c);
-    // Vector conocido ANTES y DESPUÉS de extraer el helper puro: la clave de
-    // idempotencia de los intentos ya emitidos no puede cambiar.
+    // Vector conocido ANTES y DESPUÉS de extraer el helper puro: el UUID del
+    // intento emitido no cambia; la clave de pago depende del pedido en servidor.
     expect(first).toBe('9467a46f-a670-5c98-987a-82225fcff2c8');
     expect(canonicalAttemptId(OTHER, COURSE)).toBe('979f4947-88ab-5e08-988d-fc91c5caefb4');
     expect(isCheckoutUuid(first)).toBe(true);

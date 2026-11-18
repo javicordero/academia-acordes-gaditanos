@@ -1,9 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { RESERVATION_TTL_SECONDS, makeHandler, recoveryAttemptId, type Dependencies } from './handler';
+import { RESERVATION_TTL_SECONDS, makeHandler, type Dependencies } from './handler';
+import { canonicalAttemptId } from './attempt';
 
 const user = '00000000-0000-0000-0000-000000000001';
 const course = '10000000-0000-0000-0000-000000000001';
 const attempt = '20000000-0000-0000-0000-000000000001';
+// El servidor IGNORA `attempt` y deriva éste de Auth + curso (mismo vector que
+// el cliente: canonicalAttemptId(user, course)).
+const canonical = canonicalAttemptId(user, course);
 const order = '40000000-0000-0000-0000-000000000001';
 const recoveryOrder = '40000000-0000-0000-0000-000000000002';
 const session = 'cs_test_session123';
@@ -74,7 +78,7 @@ describe('create-checkout', () => {
   it('idempotencia y retorno fijado en servidor', async () => {
     const s = setup();
     expect(await (await s.call()).json()).toEqual({
-      url: 'https://checkout.stripe.com/c/pay/test', sessionId: session, attemptId: attempt,
+      url: 'https://checkout.stripe.com/c/pay/test', sessionId: session, attemptId: canonical,
     });
     await s.call();
     const calls = vi.mocked(s.io.create).mock.calls;
@@ -141,25 +145,33 @@ describe('create-checkout', () => {
     expect((await raw(base + ' '.repeat(3000))).status).toBe(400);
     expect(s.io.create).toHaveBeenCalledTimes(1);
   });
-  it('clave de idempotencia: distinta por usuario y curso, estable para el mismo ámbito', async () => {
+  it('clave de idempotencia: ligada al pedido, estable ante intentos aleatorios del cuerpo', async () => {
     const s = setup();
     const user2 = '00000000-0000-0000-0000-000000000002';
     const course2 = '10000000-0000-0000-0000-000000000002';
+    const order2 = '40000000-0000-0000-0000-000000000002';
+    const order3 = '40000000-0000-0000-0000-000000000003';
     const attempt2 = '20000000-0000-0000-0000-000000000002';
     vi.mocked(s.io.getUser).mockImplementation(async token => ({
       id: token === 'u2' ? user2 : user, confirmed: true,
     }));
-    const keyOf = async (courseId: string, attemptId: string, token = 'Bearer valid') => {
-      const res = await s.call({ courseId, attemptId }, token);
+    vi.mocked(s.io.reserve).mockImplementation(async (u, c) => ({
+      order_id: u === user2 ? order2 : (c === course2 ? order3 : order),
+    }));
+    const keyOf = async (courseId: string, bodyAttempt = attempt, token = 'Bearer valid') => {
+      const res = await s.call({ courseId, attemptId: bodyAttempt }, token);
       expect(res.status).toBe(200);
       const calls = vi.mocked(s.io.create).mock.calls;
       return calls[calls.length - 1][1];
     };
-    const base = await keyOf(course, attempt);
-    expect(await keyOf(course, attempt)).toBe(base);
-    expect(await keyOf(course, attempt2)).not.toBe(base);
-    expect(await keyOf(course2, attempt)).not.toBe(base);
+    const base = await keyOf(course);
+    expect(await keyOf(course)).toBe(base);
+    // El cuerpo NO es autoridad: otro attempt con el mismo pedido da la misma clave.
+    expect(await keyOf(course, attempt2)).toBe(base);
+    expect(await keyOf(course2)).not.toBe(base);
     expect(await keyOf(course, attempt, 'Bearer u2')).not.toBe(base);
+    const reserves = vi.mocked(s.io.reserve).mock.calls;
+    expect(reserves.every(call => call[2] === canonicalAttemptId(call[0], call[1]))).toBe(true);
     const calls = vi.mocked(s.io.create).mock.calls;
     expect(calls[0][0].metadata.user_id).toBe(user);
     expect(calls[3][0].metadata.course_id).toBe(course2);
@@ -168,7 +180,7 @@ describe('create-checkout', () => {
   it('reserva el pedido antes de Stripe y envía order_id en metadata', async () => {
     const s = setup();
     expect((await s.call()).status).toBe(200);
-    expect(s.io.reserve).toHaveBeenCalledWith(user, course, attempt, RESERVATION_TTL_SECONDS);
+    expect(s.io.reserve).toHaveBeenCalledWith(user, course, canonical, RESERVATION_TTL_SECONDS);
     const [reserveAt] = vi.mocked(s.io.reserve).mock.invocationCallOrder;
     const [priceAt] = vi.mocked(s.io.price).mock.invocationCallOrder;
     const [createAt] = vi.mocked(s.io.create).mock.invocationCallOrder;
@@ -177,7 +189,7 @@ describe('create-checkout', () => {
     const metadata = vi.mocked(s.io.create).mock.calls[0][0].metadata;
     expect(metadata).toEqual({
       user_id: user, course_id: course, price_id: offer.price_id,
-      attempt_id: attempt, terms_version: 'test', order_id: order,
+      attempt_id: canonical, terms_version: 'test', order_id: order,
     });
   });
   it('sin reserva configurada o sin pedido devuelve 409 y nunca llama a Stripe', async () => {
@@ -245,7 +257,7 @@ describe('create-checkout', () => {
     const ok = await s.call();
     expect(ok.status).toBe(200);
     await expect(ok.json()).resolves.toEqual({
-      url: 'https://checkout.stripe.com/c/pay/test', sessionId: session, attemptId: attempt,
+      url: 'https://checkout.stripe.com/c/pay/test', sessionId: session, attemptId: canonical,
     });
     vi.mocked(s.io.bind).mockResolvedValueOnce('binding_conflict');
     const res = await s.call();
@@ -265,7 +277,7 @@ describe('create-checkout', () => {
     expect(calls[0][0]).toEqual(calls[1][0]);
     expect(calls[0][0].metadata.order_id).toBe(order);
     expect(calls[0][0].cancel).toBe('http://localhost:4200/cursos/curso?checkout=cancelled');
-    expect(calls[0][0].metadata.attempt_id).toBe(attempt);
+    expect(calls[0][0].metadata.attempt_id).toBe(canonical);
   });
   it('sesión o URL no confiables del proveedor no se propagan', async () => {
     const badIds = ['pi_algo', 'ch_test_1', 'cs_test_ ok', 'cs_live_'];
@@ -420,19 +432,19 @@ describe('create-checkout', () => {
     expect(s.io.sessionStatus).toHaveBeenCalledTimes(2);
     expect(s.io.sessionStatus).toHaveBeenCalledWith(session);
     expect(s.io.reserve).toHaveBeenCalledTimes(2);
-    expect(s.io.reserve).toHaveBeenNthCalledWith(1, user, course, attempt, RESERVATION_TTL_SECONDS);
-    expect(s.io.reserve).toHaveBeenNthCalledWith(2, user, course, attempt, RESERVATION_TTL_SECONDS);
+    expect(s.io.reserve).toHaveBeenNthCalledWith(1, user, course, canonical, RESERVATION_TTL_SECONDS);
+    expect(s.io.reserve).toHaveBeenNthCalledWith(2, user, course, canonical, RESERVATION_TTL_SECONDS);
     const calls = vi.mocked(s.io.create).mock.calls;
     expect(calls[0][1]).toBe(calls[1][1]);
     expect(calls[0][0].metadata.order_id).toBe(order);
     expect(calls[1][0].metadata.order_id).toBe(order);
   });
 
-  it('expired confirmado por Stripe: intento de recuperación estable, pedido y sesión nuevos', async () => {
+  it('expired confirmado por Stripe: verificación, sucesor de BD y sesión nueva; canónico intacto', async () => {
     const s = setup();
     const freshSession = 'cs_test_recovery456';
     const body = { courseId: course, attemptId: attempt, sessionId: session };
-    // Primero la sesión abierta: misma reserva y clave canónica del intento A.
+    // Primero la sesión abierta: misma reserva y clave del pedido inicial.
     expect((await s.call(body)).status).toBe(200);
     const keyA = vi.mocked(s.io.create).mock.calls[0][1];
 
@@ -440,9 +452,9 @@ describe('create-checkout', () => {
       status: 'expired', paymentStatus: 'unpaid',
       metadata: { user_id: user, course_id: course, attempt_id: attempt, order_id: order },
     });
-    vi.mocked(s.io.reserve).mockImplementation(async (_u, _c, attemptId) => ({
-      order_id: attemptId === attempt ? order : recoveryOrder,
-    }));
+    // La BD cierra el intento y devuelve SU sucesor (otro order_id). El handler
+    // no deriva nada del marker: sigue enviando el canónico a la reserva.
+    vi.mocked(s.io.reserve).mockResolvedValue({ order_id: recoveryOrder });
     vi.mocked(s.io.create).mockResolvedValue({
       id: freshSession, url: 'https://checkout.stripe.com/c/pay/recovery',
     });
@@ -451,19 +463,17 @@ describe('create-checkout', () => {
     const firstBody = await first.json() as { url: string; sessionId: string; attemptId: string };
     expect(firstBody.url).toBe('https://checkout.stripe.com/c/pay/recovery');
     expect(firstBody.sessionId).toBe(freshSession);
+    expect(firstBody.attemptId).toBe(canonical);
     expect((await s.call(body)).status).toBe(200);
 
     const reserves = vi.mocked(s.io.reserve).mock.calls;
-    const attempts = reserves.map((call) => call[2]);
-    expect(firstBody.attemptId).toBe(attempts[1]);
-    expect(attempts[0]).toBe(attempt);
-    expect(attempts[1]).not.toBe(attempt);
-    expect(attempts[2]).toBe(attempts[1]);
+    expect(reserves).toHaveLength(3);
+    expect(reserves.every(call => call[2] === canonical)).toBe(true);
     const calls = vi.mocked(s.io.create).mock.calls;
     expect(calls[0][1]).toBe(keyA);
-    expect(calls[1][1]).not.toBe(keyA); // clave distinta de la del intento caducado
+    expect(calls[1][1]).not.toBe(keyA); // el pedido cambió: sesión nueva
     expect(calls[1][1]).toBe(calls[2][1]); // estable ante doble tab/reintento
-    expect(calls[1][0].metadata.attempt_id).toBe(attempts[1]);
+    expect(calls[1][0].metadata.attempt_id).toBe(canonical);
     expect(calls[1][0].metadata.order_id).toBe(recoveryOrder);
     expect(new URL(calls[1][0].success).searchParams.get('order_id')).toBe(recoveryOrder);
     expect(calls[1][0].cancel).toBe('http://localhost:4200/cursos/curso?checkout=cancelled');
@@ -471,27 +481,25 @@ describe('create-checkout', () => {
     expect(s.io.bind).toHaveBeenCalledWith(user, recoveryOrder, freshSession);
   });
 
-  it('el par intento/sesión guardado permite encadenar otra expiración', async () => {
+  it('otra expiración encadena el sucesor siguiente sin cambiar el intento canónico', async () => {
     const s = setup();
-    const attemptB = await recoveryAttemptId(user, course, attempt, session);
     const sessionB = 'cs_test_second';
+    const nextOrder = '40000000-0000-0000-0000-000000000003';
     vi.mocked(s.io.sessionStatus).mockResolvedValue({
       status: 'expired', paymentStatus: 'unpaid',
-      metadata: { user_id: user, course_id: course, attempt_id: attemptB, order_id: recoveryOrder },
+      metadata: { user_id: user, course_id: course, attempt_id: canonical, order_id: recoveryOrder },
     });
-    vi.mocked(s.io.reserve).mockImplementation(async (_u, _c, attemptId) => ({
-      order_id: attemptId === attemptB ? recoveryOrder : '40000000-0000-0000-0000-000000000003',
-    }));
+    vi.mocked(s.io.reserve).mockResolvedValue({ order_id: nextOrder });
     vi.mocked(s.io.create).mockResolvedValue({
       id: 'cs_test_third', url: 'https://checkout.stripe.com/c/pay/third',
     });
 
-    const res = await s.call({ courseId: course, attemptId: attemptB, sessionId: sessionB });
+    const res = await s.call({ courseId: course, attemptId: canonical, sessionId: sessionB });
     expect(res.status).toBe(200);
-    const attemptC = await recoveryAttemptId(user, course, attemptB, sessionB);
-    expect((await res.json() as { attemptId: string }).attemptId).toBe(attemptC);
-    expect(s.io.reserve).toHaveBeenCalledWith(user, course, attemptC, RESERVATION_TTL_SECONDS);
-    expect(vi.mocked(s.io.create).mock.calls[0][0].metadata.attempt_id).toBe(attemptC);
+    expect((await res.json() as { attemptId: string }).attemptId).toBe(canonical);
+    expect(s.io.reserve).toHaveBeenCalledWith(user, course, canonical, RESERVATION_TTL_SECONDS);
+    expect(vi.mocked(s.io.create).mock.calls[0][0].metadata.attempt_id).toBe(canonical);
+    expect(vi.mocked(s.io.create).mock.calls[0][0].metadata.order_id).toBe(nextOrder);
   });
 
   it('estado no verificable, red caída o sesión completada: nunca abre otro intento', async () => {
@@ -543,7 +551,7 @@ describe('create-checkout', () => {
     expect(res.status).toBe(500);
     expect(await res.text()).not.toContain('checkout.stripe.com');
     expect(s.io.reserve).toHaveBeenCalledOnce();
-    expect(s.io.reserve).toHaveBeenCalledWith(user, course, attempt, RESERVATION_TTL_SECONDS);
+    expect(s.io.reserve).toHaveBeenCalledWith(user, course, canonical, RESERVATION_TTL_SECONDS);
   });
 
   it('curso ya adquirido: ni siquiera se consulta el estado para recuperar', async () => {
@@ -564,5 +572,48 @@ describe('create-checkout', () => {
     expect(res.status).toBe(409);
     expect(s.io.reserve).not.toHaveBeenCalled();
     expect(s.io.create).not.toHaveBeenCalled();
+  });
+
+  it('el attemptId del cuerpo jamás manda: canónico en reserva, metadata y retorno', async () => {
+    const s = setup();
+    const forged = '20000000-0000-0000-0000-000000000099';
+    const res = await s.call({ courseId: course, attemptId: forged });
+    expect(res.status).toBe(200);
+    expect(s.io.reserve).toHaveBeenCalledWith(user, course, canonical, RESERVATION_TTL_SECONDS);
+    expect(vi.mocked(s.io.create).mock.calls[0][0].metadata.attempt_id).toBe(canonical);
+    expect((await res.json() as { attemptId: string }).attemptId).toBe(canonical);
+    // Con marcador, el intento del cuerpo sí se coteja con la metadata de Stripe
+    // como PISTA: uno ajeno se rechaza sin reservar ni crear sesión.
+    expect((await s.call({ courseId: course, attemptId: forged, sessionId: session })).status).toBe(409);
+    expect(s.io.reserve).toHaveBeenCalledOnce();
+    expect(s.io.create).toHaveBeenCalledOnce();
+  });
+
+  it('intento cerrado SIN marca: el sucesor de la BD reanuda sin duplicar sesión ni derecho', async () => {
+    const s = setup();
+    vi.mocked(s.io.reserve)
+      .mockResolvedValueOnce({ order_id: order })
+      .mockResolvedValue({ order_id: recoveryOrder });
+    vi.mocked(s.io.create)
+      .mockResolvedValueOnce({ id: session, url: 'https://checkout.stripe.com/c/pay/test' })
+      .mockResolvedValue({ id: 'cs_test_reopened', url: 'https://checkout.stripe.com/c/pay/reopened' });
+    const first = await s.call();
+    expect((await first.json() as { attemptId: string }).attemptId).toBe(canonical);
+    const second = await s.call();
+    expect(second.status).toBe(200);
+    const resumed = await second.json() as { url: string; sessionId: string; attemptId: string };
+    expect(resumed.url).toBe('https://checkout.stripe.com/c/pay/reopened');
+    expect(resumed.attemptId).toBe(canonical);
+    expect(s.io.sessionStatus).not.toHaveBeenCalled();
+    expect(s.io.reserve).toHaveBeenCalledTimes(2);
+    expect(s.io.reserve).toHaveBeenCalledWith(user, course, canonical, RESERVATION_TTL_SECONDS);
+    const calls = vi.mocked(s.io.create).mock.calls;
+    expect(calls[0][1]).not.toBe(calls[1][1]);
+    expect(calls[1][0].metadata.order_id).toBe(recoveryOrder);
+    expect(s.io.bind).toHaveBeenCalledWith(user, recoveryOrder, 'cs_test_reopened');
+    // Tercer reintento con el mismo estado: MISMA clave, sin pedido nuevo.
+    expect((await s.call()).status).toBe(200);
+    expect(vi.mocked(s.io.create).mock.calls[2][1]).toBe(calls[1][1]);
+    expect(new Set(vi.mocked(s.io.create).mock.calls.map(([, key]) => key)).size).toBe(2);
   });
 });

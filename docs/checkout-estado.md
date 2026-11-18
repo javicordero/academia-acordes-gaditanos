@@ -21,14 +21,18 @@ procesado); no hay E2E en producción ni consentimiento legal aprobado.
   controlador responde 409; si el bind falla, hay conflicto o la sesión/URL no
   son confiables, responde 500 sin URL ni id. La URL no concede acceso.
 - Código versionado: `supabase/functions/create-checkout/` (controlador, entrada
-  y pruebas) y las migraciones `20261117190000`, `20261117200000` y
-  `20261117220000`; pruebas `supabase/tests/0008`, `0009`, `0011` y `0017`.
+  y pruebas) y las migraciones `20261117190000`, `20261117200000`,
+  `20261117220000` y `20261118190100`; pruebas `supabase/tests/0008`, `0009`,
+  `0011`, `0017` y `0024`.
 - La oferta se calcula en base de datos (función `security definer`, servicio
   únicamente `service_role`) y los importes se verifican en servidor. El
   controlador valida origen, JWT, confirmación de correo, tamaño de cuerpo y
-  forma del cuerpo, y deriva la clave de idempotencia desde el ámbito canónico
-  usuario/curso/intento: un reintento recupera la misma sesión y la misma
-  snapshot. Los metadatos enviados al proveedor contienen solo identificadores y
+  forma del cuerpo. La clave de idempotencia **no se deriva del intento**: es
+  `SHA256(checkout-order:order_id)`, calculada en servidor a partir del pedido
+  devuelto por la reserva; mientras la reserva siga abierta, el mismo pedido
+  reanuda la misma sesión. Si la BD cierra el intento, la RPC deriva un sucesor
+  determinista (migración `20261118190100`, prueba `0024`) y cambia el pedido.
+  Los metadatos enviados al proveedor contienen solo identificadores y
   la versión de condiciones; **no incluyen correos ni otros datos personales**.
 - La versión desplegada en DEV se habilitó solo para TEST (reversible); la
   configuración del proveedor se lee en servidor desde variables de entorno; no
@@ -145,10 +149,11 @@ guarda ese **par intento/sesión** por curso en `localStorage` —sin correos,
 importes ni identificadores de cuenta— y lo reenvía **sólo en un reintento
 iniciado por clic**. El servidor consulta Stripe por ese
 id: únicamente si Stripe confirma `status: 'expired'` **y** la metadata de esa
-sesión coincide con el usuario, curso e intento canónico actuales, deriva un
-intento de recuperación determinista, reserva un pedido nuevo con la RPC ya
-existente (que cierra la reserva vencida tras el TTL de 900 s), crea una sesión
-con clave de idempotencia distinta y la vincula a ese pedido. El intento
+sesión coincide con el usuario, curso e intento canónico actuales, reserva un
+pedido nuevo con la RPC (que cierra la reserva vencida tras el TTL de 900 s y
+deriva en BD el intento sucesor determinista; migración `20261118190100`, prueba
+`0024`), crea una sesión con clave de idempotencia distinta —también aquí
+`SHA256(checkout-order:order_id)`— y la vincula a ese pedido. El intento
 derivado es estable ante doble clic, doble pestaña o recarga; el cambio de
 cuenta o de curso descarta la marca antes de navegar.
 
@@ -157,10 +162,12 @@ estado verificable (422), estados desconocidos, `complete` —incluidos pagos
 asíncronos en curso— y sesiones ajenas (409). Un `url: null` no se interpreta
 como «expirada». El reintento ante 422 vuelve a preguntar a Stripe; no crea
 reserva ni sesión nueva. No se modifica ninguna orden pagada, derecho, snapshot
-ni binding, y no se toca el webhook. No hay migración nueva para checkout: la prueba SQL
-`0018` cubre el contrato ya desplegado de intento conocido/conflicto/TTL/derecho
-activo. No hay política de reembolso, impago tardío ni precios nuevos; la prueba
-se hizo con Stripe en modo TEST (verificado en DEV/TEST), no en producción.
+ni binding, y no se toca el webhook. La migración `20261118190100` y su prueba
+SQL `0024` cubren el sucesor determinista del intento cerrado
+(conflicto/TTL/derecho activo); la prueba `0018` sigue cubriendo el contrato de
+recuperación con marca de sesión. No hay política de reembolso, impago tardío ni
+precios nuevos; la prueba se hizo con Stripe en modo TEST (verificado en
+DEV/TEST), no en producción.
 
 ## Verificación
 
