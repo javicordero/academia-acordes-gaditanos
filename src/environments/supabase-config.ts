@@ -24,11 +24,38 @@ export interface SupabaseConfig {
    * `false`, incluso si la copia local ignorada es anterior a este campo.
    */
   readonly checkoutTestEnabled?: boolean;
+  /**
+   * ID público de medición de la propiedad GA4 de la academia. No es un secreto,
+   * pero se deja vacío en la plantilla: sin él no se carga ningún script de
+   * analítica. Nunca GTM ni AdSense.
+   */
+  readonly analyticsMeasurementId?: string;
+  /**
+   * Dominio compartido de la cookie de consentimiento y de GA4, p. ej.
+   * `.acordesgaditanos.com` cuando se cierre el subdominio. Público y opcional:
+   * vacío = solo `localStorage` y sin `cookie_domain` en la configuración de GA.
+   * Nunca una clave secreta.
+   */
+  readonly analyticsCookieDomain?: string;
 }
 
 /** Lectura tolerante del flag de compra TEST: solo `true` literal lo activa. */
 export function readCheckoutTestFlag(source: object): boolean {
   return (source as { checkoutTestEnabled?: unknown }).checkoutTestEnabled === true;
+}
+
+/** Lectura tolerante del ID público: vacío o ausente desactiva la analítica. */
+export function readAnalyticsMeasurementId(source: object): string {
+  const value = (source as { analyticsMeasurementId?: unknown })
+    .analyticsMeasurementId;
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/** Lectura tolerante del dominio compartido: vacío conserva el comportamiento automático. */
+export function readAnalyticsCookieDomain(source: object): string {
+  const value = (source as { analyticsCookieDomain?: unknown })
+    .analyticsCookieDomain;
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 export const supabaseConfig: SupabaseConfig = {
@@ -38,6 +65,8 @@ export const supabaseConfig: SupabaseConfig = {
   // a este campo. La copia versionada de la plantilla trae el valor `false`.
   videoPlaybackBunny: (environmentLocal as { videoPlaybackBunny?: unknown }).videoPlaybackBunny === true,
   checkoutTestEnabled: readCheckoutTestFlag(environmentLocal),
+  analyticsMeasurementId: readAnalyticsMeasurementId(environmentLocal),
+  analyticsCookieDomain: readAnalyticsCookieDomain(environmentLocal),
 };
 
 export const SUPABASE_CONFIG = new InjectionToken<SupabaseConfig>(

@@ -445,4 +445,28 @@ describe('App shell · cabecera según la ruta', () => {
     expect(element.querySelector('.nav-toggle')).toBeNull();
     expect(getComputedStyle(main!).display).not.toBe('none');
   });
+
+  it('mantiene el aviso de cookies fuera del @if de la cabecera, también en el aula', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+
+    const publicBanner = element.querySelector<HTMLElement>('app-cookie-banner');
+    expect(publicBanner).not.toBeNull();
+    expect(
+      publicBanner?.querySelector<HTMLElement>('section[aria-label="Preferencias de cookies"]'),
+    ).not.toBeNull();
+    expect(publicBanner?.classList.contains('cookie-banner--in-classroom')).toBe(false);
+    expect(element.querySelector('header.site-header')).not.toBeNull();
+
+    await goto(fixture, aulaUrl);
+
+    const classroomBanner = element.querySelector<HTMLElement>('app-cookie-banner');
+    expect(classroomBanner).not.toBeNull();
+    expect(
+      classroomBanner?.querySelector<HTMLElement>('section[aria-label="Preferencias de cookies"]'),
+    ).not.toBeNull();
+    expect(classroomBanner?.classList.contains('cookie-banner--in-classroom')).toBe(true);
+    expect(element.querySelector('header.site-header')).toBeNull();
+    expect(element.querySelector('main')?.classList.contains('main--classroom')).toBe(true);
+  });
 });

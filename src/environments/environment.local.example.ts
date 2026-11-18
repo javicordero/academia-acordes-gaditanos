@@ -20,4 +20,15 @@ export const environmentLocal = {
   // Solo muestra la UI de la compra TEST: no habilita cobros ni accesos, que
   // siguen dependiendo del gate del servidor. `false` por defecto.
   checkoutTestEnabled: false,
+  // ID público de GA4. Puede ser la misma propiedad del dominio principal y del
+  // subdominio. Vacío = analítica desactivada: no se carga ningún script. No es
+  // un secreto, pero se rellena solo en la copia local/entorno de producción
+  // cuando se decida la propiedad. Sin GTM ni AdSense.
+  analyticsMeasurementId: '',
+  // Dominio compartido para la cookie de consentimiento y para GA4. Vacío =
+  // solo localStorage y sin `cookie_domain` (comportamiento automático). Si la
+  // academia vive en un subdominio, se rellena con el dominio raíz con punto
+  // delante, p. ej. '.acordesgaditanos.com' cuando se cierre el dominio D9.
+  // Solo se escribe aquí en la copia ignorada; no es un secreto.
+  analyticsCookieDomain: '',
 };

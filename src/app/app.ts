@@ -15,12 +15,14 @@ import {
 } from '@angular/router';
 import { filter, map } from 'rxjs';
 
+import { AnalyticsService } from './core/analytics/analytics.service';
 import { AuthService } from './core/auth/auth.service';
+import { CookieBanner } from './shared/cookie-banner/cookie-banner';
 import { SiteFooter } from './shared/site-footer/site-footer';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, SiteFooter],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, CookieBanner, SiteFooter],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './app.scss',
@@ -28,6 +30,8 @@ import { SiteFooter } from './shared/site-footer/site-footer';
 export class App {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  /** Se instancia al arrancar para escuchar NavigationEnd tras el consentimiento. */
+  private readonly analytics = inject(AnalyticsService);
   readonly logoutError = signal<string | null>(null);
 
   private readonly currentUrl = toSignal(

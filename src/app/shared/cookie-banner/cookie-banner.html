@@ -1,0 +1,72 @@
+<section class="cookie-banner" role="region" aria-label="Preferencias de cookies">
+  @if (consent.bannerVisible()) {
+    <div class="cookie-banner__body">
+      <h2 class="cookie-banner__title">Preferencias de cookies</h2>
+      <p class="cookie-banner__text">
+        Guardamos en este navegador solo tu elección. Si lo permites, cargamos una
+        propiedad propia de analítica (GA4) con la IP anonimizada. No hay GTM ni
+        publicidad. Puedes cambiar o retirar tu consentimiento cuando quieras.
+      </p>
+
+      @if (consent.preferencesOpen()) {
+        <fieldset class="cookie-banner__options">
+          <legend>Categorías</legend>
+          <p class="cookie-banner__hint">
+            Necesarias: siempre activas; recuerdan esta elección.
+          </p>
+          <label class="cookie-banner__option">
+            <input
+              type="checkbox"
+              [checked]="consent.draftAnalytics()"
+              (change)="onAnalyticsToggle($event)"
+            />
+            <span>Analítica (opcional): mide el uso de la academia.</span>
+          </label>
+          <p class="cookie-banner__hint">
+            Retirarla deja de enviar datos, pero no borra cookies de otros sitios.
+          </p>
+        </fieldset>
+      }
+    </div>
+
+    <div class="cookie-banner__actions">
+      @if (consent.preferencesOpen()) {
+        <button
+          type="button"
+          class="cookie-banner__button cookie-banner__button--primary"
+          (click)="consent.savePreferences()"
+        >
+          Guardar preferencias
+        </button>
+        <button type="button" class="cookie-banner__button" (click)="consent.closePreferences()">
+          Cancelar
+        </button>
+      } @else {
+        <button
+          type="button"
+          class="cookie-banner__button cookie-banner__button--primary"
+          (click)="consent.acceptAll()"
+        >
+          Aceptar todo
+        </button>
+        <button type="button" class="cookie-banner__button" (click)="consent.rejectOptional()">
+          Rechazar opcional
+        </button>
+        <button
+          type="button"
+          class="cookie-banner__button cookie-banner__button--quiet"
+          (click)="consent.openPreferences()"
+        >
+          Personalizar
+        </button>
+      }
+    </div>
+  } @else {
+    <div class="cookie-banner__compact">
+      <span>Preferencias de cookies guardadas.</span>
+      <button type="button" class="cookie-banner__button" (click)="consent.openPreferences()">
+        Cambiar preferencias
+      </button>
+    </div>
+  }
+</section>
