@@ -168,8 +168,9 @@ curso publicado con muestra gratuita o derecho activo (`revoked_at is null`).
 El admin también ve y escribe en borradores. `anon` queda denegado por GRANT;
 una sesión sin derecho, sin claim o con derecho revocado obtiene 0 filas sin
 revelar el motivo ni si la lección existe. `author_is_admin` se calcula en BD
-desde `user_roles`; el nombre visible es `nullif(btrim(display_name),'')` con
-fallback `'Alumno'` o `'Administrador'`, nunca el correo.
+desde `user_roles`; el nombre visible se normaliza en servidor con
+`public.safe_display_name`: admin real desde `user_roles` ⇒ `'Administrador'`;
+otros nombres con `'@'` o equivalentes a admin ⇒ `'Alumno'`; nunca el correo.
 
 Decisiones de alcance: se requiere sesión (la muestra gratuita es
 autenticada); **hilos anidados sin límite de profundidad en BD; sangrado visual
@@ -182,6 +183,43 @@ las RPC no crean derechos, pedidos ni progreso. Las migraciones **no se han
 aplicado a ningún proyecto remoto**: la verificación fue `npm run test:sql`
 (PGlite), que valida lógica SQL/RLS, **no** Auth, PostgREST ni RLS reales de
 Supabase. Este agente no ha desplegado ni aplicado nada a remoto.
+
+## Foro general (backend de conversación)
+
+La migración `20261118180000_forum_conversation.sql` y la prueba
+`supabase/tests/0023_forum_conversation.psql` añaden el backend del foro general
+con tablas propias: no editan ni regresan el backend mínimo de comentarios por
+lección descrito arriba. Es una sola capa de conversación para la futura UI;
+este bloque no incluye interfaz Angular, subidas ni moderación.
+
+| Objeto | Función |
+| --- | --- |
+| `public.forum_categories` | `id`, `slug` único, `title`, `description`, `position` y `created_at`. Semilla idempotente por slug: `general`, `dudas` y `presentaciones`. |
+| `public.forum_threads` | `id`, `category_id`, `author_id`, `title` (1..120 tras `btrim`) y `created_at`; borrado en cascada. |
+| `public.forum_posts` | `id`, `thread_id`, `author_id`, `parent_id`, `body` (1..2000 tras `btrim`) y `created_at`; borrado en cascada. Respuestas anidadas del mismo hilo, sin límite de profundidad en BD. |
+| `public.list_forum_categories()` | Devuelve `id`, `slug`, `title`, `description` y `position`, ordenados por `position`, `id`. |
+| `public.list_forum_threads(p_category_id uuid)` | Devuelve hilos ordenados por `created_at DESC, id DESC`, con `author_display_name`, `author_is_admin` y `reply_count` = posts del hilo − 1 (raíz), nunca negativo. |
+| `public.create_forum_thread(p_category_id uuid, p_title text, p_body text)` | Inserta hilo y post raíz en una transacción; devuelve el cuerpo y el autor del post raíz unido por `thread_id`. |
+| `public.list_thread_posts(p_thread_id uuid)` | Misma forma que `list_lesson_comments`, ordenada por `created_at ASC, id ASC`. |
+| `public.create_thread_post(p_thread_id uuid, p_body text, p_parent_id uuid default null)` | Inserta y devuelve la misma forma; el padre, si se indica, debe existir en el MISMO hilo y no ser el id generado. |
+
+Las tres tablas tienen RLS activo **sin políticas** y sin grants para `anon` ni
+`authenticated`; `service_role` conserva todos. Las cinco RPC son
+`security definer`, con `set search_path = ''` y nombre totalmente cualificado;
+solo `authenticated` recibe `EXECUTE` y `anon` queda denegado por GRANT.
+Comprueban `auth.uid()` en servidor: cualquier `authenticated` con sesión lee y
+escribe en el foro general, sin exigir `entitlement` ni asociar curso. Sin sesión
+o con hilo/categoría inexistente devuelven 0 filas sin revelar el motivo; título
+y cuerpo se validan con `btrim` antes de insertar. Nombre visible normalizado
+en servidor; admin se identifica desde `user_roles`, no desde `display_name`.
+Un admin real se muestra como `Administrador`; los demás nombres con `'@'` o
+equivalentes a admin se muestran como `Alumno`, nunca el correo. No hay edición, borrado, moderación, notificaciones, realtime ni
+contadores persistentes, y las RPC no crean pedidos, derechos, progreso ni roles.
+
+La verificación fue `npm run test:sql` (PGlite), que valida solo lógica SQL/RLS,
+**no** Auth, PostgREST ni RLS reales de Supabase. La migración **no se ha
+aplicado a ningún proyecto remoto** ni desplegado; este agente no ha tocado
+migraciones ya aplicadas en DEV.
 
 ## Principios
 
@@ -457,8 +495,12 @@ se deben usar credenciales reales en pruebas locales.
   lecciones. Qué ocurre con derechos ya comprados, progreso y comunicaciones al
   alumno sigue pendiente de decisión; no se promete disponibilidad perpetua.
 - Panel `/admin`: cursos, bloques, lecciones, vista previa local y flujo de
-  subida de PDF implementados; orden, precios, subida de vídeo y verificación
-  E2E de compra real siguen pendientes.
+  subida de PDF implementados; el enlace de vídeo está en «Estructura» y la
+  subida TUS está integrada en el inspector de la lección (backend desplegado en
+  DEV). Token auth de Bunny activo; modo sin firma desactivado por defecto y
+  restringido a entorno `development`/`dev`. Siguen pendientes orden, precios y
+  la verificación E2E real de compra y reproducción: no se afirma una prueba de
+  extremo a extremo con Bunny más allá de lo comprobado en DEV.
 - Portada y presentación del profesor: la portada debe presentarlo, pero
   estructura, textos, nombre, foto, credenciales y testimonios quedan para la
   fase de diseño definitivo. No se inventan datos ni se construye la landing
