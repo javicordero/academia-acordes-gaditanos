@@ -157,3 +157,15 @@ No implementar ahora. Requisitos registrados en `AGENTS.md` y
   caducar y no impide la grabación de pantalla.
 - No se copia contenido ni branding de terceros; las fuentes de autoría son las
   aprobadas por el promotor.
+
+## Riesgos técnicos detectados en auditoría (2026-11-19)
+
+Segunda pasada de auditoría: hallazgos técnicos, no decisiones de producto.
+
+- **Stripe:** webhook firmado e idempotente, OK; reembolsos y contracargos **no implementados** (D4). La IP allowlist no aplica a la verificación de firma en Edge Functions. No activar Stripe live sin revisión.
+- **Supabase:** `service_role` solo en servidor, OK; las claves `anon`/`service_role` quedan deprecadas a finales de 2026, así que planificar la migración a `sb_publishable_`/`sb_secret_` o al patrón servidor. Historial de migraciones CLI no reconciliado (sin CLI, configuración ni token locales): no ejecutar `db push` hasta `migration list`/`repair`.
+- **Bunny:** token de embed con SHA256 y expiración; el token auth protege solo el embed, **no** HLS, miniaturas ni MP4 directos; no es DRM. TUS con firma en servidor. No contratar extras sin permiso.
+- **GA4:** si la academia se sirve desde un subdominio, compartir propiedad y flujo con consentimiento; hoy hay `ga-disable` y cookie de preferencias, **sin Consent Mode**, sin ID real ni E2E; vigilar self-referrals si se configura mal.
+- **Angular/WCAG:** rutas lazy y ARIA revisados; foco en `NavigationEnd` pendiente de verificación puntual.
+
+Estos hallazgos no abren ni cierran decisiones humanas: D4, D7, D9, D13, D16 y Stripe live siguen abiertas. No se fijan plazos ni costes nuevos.
