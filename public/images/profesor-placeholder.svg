@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 560" fill="none" role="img" aria-labelledby="profesor-titulo profesor-desc">
+  <title id="profesor-titulo">Retrato de muestra del profesor</title>
+  <desc id="profesor-desc">Monograma AG sobre una guitarra estilizada. Ilustración provisional sin fotografía real.</desc>
+
+  <!-- Fondo y marco (colores alineados con el tema Línea precisa). -->
+  <rect width="480" height="560" fill="#eef0f5"/>
+  <rect x="14" y="14" width="452" height="532" rx="10" fill="#ffffff" stroke="#d3d9e6" stroke-width="2"/>
+
+  <!-- Ventana arqueada que sugiere un retrato, sin persona real. -->
+  <path d="M96 292 V150 a144 144 0 0 1 288 0 V292 Z" fill="#f5f7fd" stroke="#d3d9e6" stroke-width="2"/>
+
+  <!-- Cuerdas muy tenues como textura de fondo. -->
+  <g stroke="#d3d9e6" stroke-width="1">
+    <path d="M150 80V292"/>
+    <path d="M186 62V292"/>
+    <path d="M222 54V292"/>
+    <path d="M258 54V292"/>
+    <path d="M294 62V292"/>
+    <path d="M330 80V292"/>
+  </g>
+
+  <!-- Monograma AG de la academia. -->
+  <text x="240" y="242" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="128" font-weight="700" letter-spacing="6" fill="#1a2030">AG</text>
+
+  <!-- Regla de acento. -->
+  <path d="M96 316H384" stroke="#3a5bd9" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Guitarra estilizada en trazo abstracto. -->
+  <g fill="#ffffff" stroke="#3a5bd9" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="231" y="338" width="18" height="72" rx="4"/>
+    <ellipse cx="240" cy="408" rx="44" ry="32"/>
+    <ellipse cx="240" cy="470" rx="62" ry="44"/>
+    <circle cx="240" cy="456" r="15" fill="#eef0f5"/>
+  </g>
+  <g stroke="#3a5bd9" stroke-width="1.5" stroke-linecap="round">
+    <path d="M234 340V456"/>
+    <path d="M238 340V456"/>
+    <path d="M242 340V456"/>
+    <path d="M246 340V456"/>
+  </g>
+
+  <!-- Base decorativa. -->
+  <path d="M168 526H312" stroke="#d3d9e6" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -1,32 +1,115 @@
 <div class="home">
-  <p class="home-banner" data-section="banner" role="note">
-    Academia en construcción · Consulta los cursos publicados y las lecciones de
-    muestra disponibles.
-  </p>
-
   <section class="home-hero" data-section="hero" aria-labelledby="home-title">
+    <div class="home-inner home-hero__grid">
     <div class="home-hero__text">
-      <p class="home-eyebrow">Academia de Guitarra</p>
-      <h1 id="home-title">Aprende guitarra para el Carnaval de Cádiz</h1>
+      <h1 id="home-title">Academia de Guitarra</h1>
+      <p class="home-subtitle">De Acordes Gaditanos</p>
       <p class="home-lead">
-        Una academia de guitarra centrada en el repertorio y los ritmos del
-        Carnaval de Cádiz. Los cursos se publican por tema y puedes ver una
-        lección de muestra antes de decidir.
+        Academia online para aprender guitarra y acercarse al repertorio del
+        Carnaval de Cádiz. Cursos, lecciones y progreso en un mismo sitio.
       </p>
       <p class="home-actions">
         <a class="home-button home-button--primary" routerLink="/cursos">Ver cursos</a>
-        <a class="home-button home-button--secondary" routerLink="/mis-cursos">Mi biblioteca</a>
       </p>
     </div>
     <div class="home-hero__visual" aria-hidden="true">
       <div class="home-visual">
-        <span class="home-visual__strings"></span>
-        <span class="home-visual__label">Guitarra · Carnaval · Cádiz</span>
+        <svg class="home-visual__art" viewBox="0 0 640 420" preserveAspectRatio="xMidYMid slice" focusable="false">
+          <g class="home-visual__waves" fill="none">
+            <path d="M-40 270 C 80 210 200 330 320 270 S 560 210 680 270" />
+            <path d="M-40 305 C 80 245 200 365 320 305 S 560 245 680 305" />
+            <path d="M-40 340 C 80 280 200 400 320 340 S 560 280 680 340" />
+          </g>
+          <g class="home-visual__strings">
+            <path d="M150 30V390" />
+            <path d="M210 30V390" />
+            <path d="M270 30V390" />
+            <path d="M330 30V390" />
+            <path d="M390 30V390" />
+            <path d="M450 30V390" />
+          </g>
+          <circle class="home-visual__medallion" cx="320" cy="172" r="84" />
+          <text class="home-visual__monogram" x="320" y="172" text-anchor="middle" dominant-baseline="central">AG</text>
+        </svg>
       </div>
+    </div>
     </div>
   </section>
 
-  <section class="home-section" data-section="aprenderas" aria-labelledby="home-aprenderas">
+  <section class="home-section" data-section="cursos" aria-labelledby="home-cursos"
+    [attr.aria-busy]="state() === 'loading' ? 'true' : null">
+    <div class="home-inner">
+    @switch (state()) {
+      @case ('loading') {
+        <div id="home-cursos"><app-skeleton variant="card" ariaLabel="Cargando cursos…" /></div>
+      }
+      @case ('unavailable') {
+        <p id="home-cursos">El catálogo necesita configurar la conexión con Supabase.</p>
+      }
+      @case ('error') {
+        <p id="home-cursos" role="alert">No se han podido cargar los cursos.</p>
+      }
+      @case ('ready') {
+        @if (featured().length === 0) {
+          <p id="home-cursos" class="home-note">
+            Todavía no hay cursos publicados. Puedes consultar el catálogo para
+            ver novedades.
+          </p>
+        } @else {
+          <div class="home-courses">
+            <h2 id="home-cursos" class="home-courses__title">
+              Aprende guitarra desde 0
+              <span class="home-courses__accent">orientado al Carnaval</span>
+            </h2>
+            <ul class="home-cards">
+              @for (course of [featured()[0], featured()[1] ?? featured()[0], featured()[2] ?? featured()[0]]; track $index; let i = $index) {
+                <li class="home-card home-surface">
+                  <div class="home-card__cover" aria-hidden="true">
+                    <img class="home-card__image" src="images/curso-cover.png"
+                      alt="" width="480" height="300" loading="lazy" />
+                    <span class="home-card__badge">{{ i + 1 }}</span>
+                  </div>
+                  <h3 class="home-card__course">{{ course.title }}</h3>
+                  <a class="home-button home-button--secondary" [routerLink]="['/cursos', course.slug]">Ver curso</a>
+                </li>
+              }
+            </ul>
+          </div>
+          <hr class="home-divider" aria-hidden="true" />
+          <div class="home-courses">
+            <h2 class="home-courses__title">
+              Aprende guitarra
+              <span class="home-courses__accent">intermedia · contenido de muestra</span>
+            </h2>
+            <ul class="home-cards">
+              @for (titulo of ['Curso de muestra · Intermedio 1', 'Curso de muestra · Intermedio 2', 'Curso de muestra · Intermedio 3']; track $index; let i = $index) {
+                <li class="home-card home-surface">
+                  <div class="home-card__cover" aria-hidden="true">
+                    <img class="home-card__image" src="images/curso-cover.png"
+                      alt="" width="480" height="300" loading="lazy" />
+                    <span class="home-card__badge">{{ i + 1 }}</span>
+                  </div>
+                  <h3 class="home-card__course">{{ titulo }}</h3>
+                  <a class="home-button home-button--secondary" routerLink="/cursos">Ver catálogo</a>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      }
+    }
+    <p class="home-note home-courses__support">
+      Cursos para aprender guitarra y acercarse al
+      <strong>repertorio del Carnaval de Cádiz</strong>.
+    </p>
+    <p class="home-actions home-courses__actions">
+      <a class="home-button home-button--secondary home-cursos__all" routerLink="/cursos">Ver todos los cursos</a>
+    </p>
+    </div>
+  </section>
+
+  <section class="home-section home-section--tint-b" data-section="aprenderas" aria-labelledby="home-aprenderas">
+    <div class="home-inner">
     <h2 id="home-aprenderas">Qué aprenderás</h2>
     <p class="home-note">
       Áreas que se trabajan en los cursos de la academia. La disponibilidad
@@ -38,48 +121,11 @@
       <li>Punteos y digitación</li>
       <li>Acordes y bordoneos</li>
     </ul>
+    </div>
   </section>
 
-  <section class="home-section" data-section="cursos" aria-labelledby="home-cursos"
-    [attr.aria-busy]="state() === 'loading' ? 'true' : null">
-    <h2 id="home-cursos">Cursos</h2>
-    @switch (state()) {
-      @case ('loading') {
-        <app-skeleton variant="card" ariaLabel="Cargando cursos…" />
-      }
-      @case ('unavailable') {
-        <p>El catálogo necesita configurar la conexión con Supabase.</p>
-      }
-      @case ('error') {
-        <p role="alert">No se han podido cargar los cursos.</p>
-      }
-      @case ('ready') {
-        @if (featured().length === 0) {
-          <p class="home-note">
-            Todavía no hay cursos publicados. Puedes consultar el catálogo para
-            ver novedades.
-          </p>
-          <p><a class="home-button home-button--secondary" routerLink="/cursos">Ver cursos</a></p>
-        } @else {
-          <ul class="home-cards">
-            @for (course of featured(); track course.id) {
-              <li class="home-card">
-                <h3 class="home-card__title">{{ course.title }}</h3>
-                <p class="home-card__meta">Publicado · Nivel {{ levels[course.level] }}</p>
-                <p class="home-card__slug">{{ course.slug }}</p>
-                @if (course.summary) {
-                  <p class="home-card__summary">{{ course.summary }}</p>
-                }
-                <a class="home-button home-button--secondary" [routerLink]="['/cursos', course.slug]">Ver curso</a>
-              </li>
-            }
-          </ul>
-        }
-      }
-    }
-  </section>
-
-  <section class="home-section" data-section="preview" aria-labelledby="home-preview">
+  <section class="home-section home-section--tint-a" data-section="preview" aria-labelledby="home-preview">
+    <div class="home-inner">
     <h2 id="home-preview">Cómo funciona</h2>
     <ol class="home-steps">
       <li>Explora el catálogo y elige un curso publicado.</li>
@@ -97,26 +143,51 @@
         <a routerLink="/mis-cursos">Mi biblioteca</a>.
       </li>
     </ol>
+    </div>
   </section>
 
-  <section class="home-section" data-section="profesor" aria-labelledby="home-profesor">
+  <!-- El párrafo de presentación es texto de ejemplo para revisar la maquetación
+       y la imagen es un placeholder hasta la foto definitiva. El nombre y el
+       subtítulo son definitivos. -->
+  <section class="home-section home-section--tint-b home-teacher" data-section="profesor" aria-labelledby="home-profesor">
+    <div class="home-inner">
     <h2 id="home-profesor">Tu profesor</h2>
-    <p class="home-prepared">
-      Espacio preparado para la presentación del profesor. El nombre, la
-      fotografía y la biografía se publicarán con el diseño definitivo; todavía
-      no hay datos publicados.
-    </p>
+    <div class="home-teacher__grid">
+      <figure class="home-teacher__visual">
+        <img
+          class="home-teacher__image"
+          src="images/profesor-placeholder.svg"
+          alt="Ilustración de muestra del monograma AG con una guitarra estilizada; todavía no hay foto definitiva."
+          width="480"
+          height="560"
+          loading="lazy"
+        />
+      </figure>
+      <div class="home-teacher__text">
+        <p class="home-teacher__lead">Pablo Franco Toscano</p>
+        <p class="home-teacher__role">Profesor de guitarra de conservatorio</p>
+        <p class="home-teacher__bio">
+          Acompaña a los alumnos desde las primeras lecciones hasta tocar
+          piezas del repertorio del Carnaval de Cádiz, con un enfoque práctico
+          y cercano.
+        </p>
+      </div>
+    </div>
+    </div>
   </section>
 
-  <section class="home-section" data-section="testimonios" aria-labelledby="home-testimonios">
+  <section class="home-section home-section--tint-a" data-section="testimonios" aria-labelledby="home-testimonios">
+    <div class="home-inner">
     <h2 id="home-testimonios">Testimonios</h2>
     <p class="home-prepared">
       Aquí se incorporarán testimonios reales cuando estén disponibles.
       Todavía no hay testimonios publicados.
     </p>
+    </div>
   </section>
 
-  <section class="home-section home-cta" data-section="cta" aria-labelledby="home-cta-title">
+  <section class="home-section home-section--tint-b home-cta" data-section="cta" aria-labelledby="home-cta-title">
+    <div class="home-inner">
     <h2 id="home-cta-title">¿Por dónde empezar?</h2>
     <p class="home-lead">
       Explora los cursos publicados o abre tu biblioteca para continuar.
@@ -130,5 +201,6 @@
         <a [routerLink]="['/aula', lesson.courseSlug, lesson.lessonSlug]">Ver lección de muestra</a>
       </p>
     }
+    </div>
   </section>
 </div>
