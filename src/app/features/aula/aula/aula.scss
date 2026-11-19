@@ -134,7 +134,8 @@
 @media (max-width: 47.999rem) {
   .lesson-actions {
     width: 100%; justify-content: flex-end; flex-wrap: nowrap;
-    padding-block: var(--space-5);
+    /* Sin banda alta: el hueco táctil lo dan los controles (44px), no el contenedor. */
+    min-height: 0; padding-block: 0 var(--space-1);
   }
   /* El shell global pone nav { width:100% } a <=40rem: sin esto el cluster queda a la izquierda. */
   .lesson-nav { width: auto; max-width: 100%; justify-content: flex-end; flex-wrap: nowrap; }

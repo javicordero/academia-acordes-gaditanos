@@ -1384,6 +1384,14 @@ describe('Aula', () => {
     expect(mobile).toMatch(/\.lesson-actions[^{]*\{[^}]*width:\s*100%/);
     expect(mobile).toMatch(/\.lesson-actions[^{]*\{[^}]*justify-content:\s*flex-end/);
     expect(mobile).toMatch(/\.lesson-actions[^{]*\{[^}]*flex-wrap:\s*nowrap/);
+    // En móvil la banda pierde el padding grande y la altura de 6.5rem del escritorio:
+    // solo un separador mínimo bajo los controles; el cluster sigue a la derecha y en una fila.
+    const actionsMobile = mobile.match(/\.lesson-actions[^{]*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+    expect(actionsMobile).not.toMatch(/padding-block:\s*(?:1\.875rem|var\(--space-5\))/);
+    expect(actionsMobile).toMatch(/padding-block:\s*0(?:\s+var\(--space-[12]\))?\s*;/);
+    expect(actionsMobile).toMatch(/min-height:\s*0\s*;/);
+    expect(actionsMobile).toMatch(/justify-content:\s*flex-end/);
+    expect(actionsMobile).toMatch(/flex-wrap:\s*nowrap/);
     // El shell global pone nav { width: 100% } a <=40rem: aquí se neutraliza.
     expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*width:\s*auto/);
     expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*max-width:\s*100%/);
