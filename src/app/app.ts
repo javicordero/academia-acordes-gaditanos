@@ -22,10 +22,8 @@ import { filter, map, skip } from 'rxjs';
 
 import { AnalyticsService } from './core/analytics/analytics.service';
 import { AuthService } from './core/auth/auth.service';
-import { ThemeService } from './core/theme/theme.service';
 import { CookieBanner } from './shared/cookie-banner/cookie-banner';
 import { SiteFooter } from './shared/site-footer/site-footer';
-import { ThemeSelector } from './shared/theme-selector/theme-selector';
 
 @Component({
   selector: 'app-root',
@@ -35,11 +33,11 @@ import { ThemeSelector } from './shared/theme-selector/theme-selector';
     RouterOutlet,
     CookieBanner,
     SiteFooter,
-    ThemeSelector,
   ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './app.scss',
+  host: { '(document:click)': 'onDocumentClick($event)' },
 })
 export class App {
   readonly auth = inject(AuthService);
@@ -47,16 +45,34 @@ export class App {
   private readonly document = inject(DOCUMENT);
   /** Se instancia al arrancar para escuchar NavigationEnd tras el consentimiento. */
   private readonly analytics = inject(AnalyticsService);
-  /** Inyección de arranque: el efecto de ThemeService aplica data-theme y
-   *  meta theme-color en <html> también en el aula, donde no hay cabecera. */
-  readonly theme = inject(ThemeService);
   readonly logoutError = signal<string | null>(null);
 
   /** Única fuente de verdad del disclosure móvil; el template solo la lee. */
   readonly menuOpen = signal(false);
 
+  /** Disclosure de cuenta, independiente del menú móvil y del aula. */
+  readonly userMenuOpen = signal(false);
+
   private readonly menuToggle = viewChild<ElementRef<HTMLButtonElement>>('menuToggle');
   private readonly siteNav = viewChild<ElementRef<HTMLElement>>('siteNav');
+  private readonly userMenu = viewChild<ElementRef<HTMLElement>>('userMenu');
+  private readonly userMenuButton = viewChild<ElementRef<HTMLButtonElement>>('userMenuButton');
+
+  /**
+   * Nombre visible opcional del perfil, leído solo de los metadatos de la sesión.
+   * Nunca se muestra el correo: si el valor no es un nombre corto y seguro se
+   * usa un rótulo genérico, sin inventar datos de alumno.
+   */
+  readonly accountName = computed(() => {
+    const metadata = this.auth.session()?.user.user_metadata as
+      | Record<string, unknown>
+      | undefined;
+    const candidate = metadata?.['display_name'] ?? metadata?.['name'];
+    if (typeof candidate !== 'string') return 'Mi cuenta';
+    const name = candidate.trim();
+    if (!name || name.length > 60 || name.includes('@')) return 'Mi cuenta';
+    return name;
+  });
 
   /** Un único stream de navegaciones para la URL y el foco, sin duplicar filtros. */
   private readonly navigationEnd$ = this.router.events.pipe(
@@ -81,7 +97,10 @@ export class App {
     // ruta o entrada en el aula (donde la cabecera ni existe).
     this.navigationEnd$
       .pipe(takeUntilDestroyed())
-      .subscribe(() => this.closeMenu());
+      .subscribe(() => {
+        this.closeMenu();
+        this.closeUserMenu();
+      });
 
     // Efecto de sincronización con una API imperativa: bloquea el scroll del
     // body solo mientras el diálogo está abierto y restaura el valor previo.
@@ -171,6 +190,67 @@ export class App {
     this.closeMenu();
   }
 
+  toggleUserMenu(event?: Event): void {
+    // El disclosure de cuenta no debe cerrar el panel móvil ni disparar el
+    // cierre por click fuera con el mismo evento que lo abre.
+    event?.stopPropagation();
+    this.userMenuOpen.update((open) => !open);
+  }
+
+  closeUserMenu(restoreFocus = false): void {
+    this.userMenuOpen.set(false);
+    if (restoreFocus) {
+      this.userMenuButton()?.nativeElement.focus();
+    }
+  }
+
+  /** Escape cierra y devuelve el foco al botón; las flechas recorren las opciones. */
+  onUserMenuKeydown(event: KeyboardEvent): void {
+    if (!this.userMenuOpen()) {
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.closeUserMenu(true);
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+      return;
+    }
+    const items = Array.from(
+      this.userMenu()?.nativeElement.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+    );
+    if (items.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    const active = this.document.activeElement as HTMLElement | null;
+    const current = active ? items.indexOf(active) : -1;
+    const next =
+      event.key === 'ArrowDown'
+        ? (current + 1) % items.length
+        : (current <= 0 ? items.length - 1 : current - 1);
+    items[next].focus();
+  }
+
+  /** Evita que los clicks del desplegable cierren el menú móvil. */
+  onUserMenuClick(event: Event): void {
+    event.stopPropagation();
+  }
+
+  /** Un click fuera del desplegable lo cierra sin tocar otros estados. */
+  onDocumentClick(event: Event): void {
+    if (!this.userMenuOpen()) {
+      return;
+    }
+    const container = this.userMenu()?.nativeElement;
+    const target = event.target as Node | null;
+    if (container && target && !container.contains(target)) {
+      this.userMenuOpen.set(false);
+    }
+  }
+
   /** El foco de apertura va al primer enlace, no a la X de cierre. */
   private firstPanelControl(): HTMLElement | null {
     return (
@@ -199,6 +279,7 @@ export class App {
 
   async logout(): Promise<void> {
     this.logoutError.set(null);
+    this.closeUserMenu();
     const result = await this.auth.logout();
 
     if (!result.ok) {

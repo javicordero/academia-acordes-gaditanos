@@ -111,8 +111,7 @@
 
 .cookie-banner__button--quiet {
   border-color: transparent;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
+  text-decoration: none;
 }
 
 .cookie-banner :is(button, input):focus-visible {

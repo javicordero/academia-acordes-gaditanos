@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter, Routes } from '@angular/router';
@@ -6,11 +7,6 @@ import { App } from './app';
 import { routes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
 import { CONSENT_STORAGE_KEY } from './core/consent/consent.service';
-import {
-  THEME_META_COLORS,
-  THEME_OPTIONS,
-  THEME_STORAGE_KEY,
-} from './core/theme/theme.service';
 import { SUPABASE_CONFIG } from '../environments/supabase-config';
 
 describe('App shell', () => {
@@ -49,13 +45,23 @@ describe('App shell', () => {
     expect(links.map((link) => link.textContent?.trim())).toEqual([
       'Cursos',
       'Mis cursos',
-      'Comunidad',
+      'Foro',
     ]);
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '/cursos',
       '/mis-cursos',
-      '/comunidad',
+      '/foro',
     ]);
+  });
+
+  it('mantiene /foro con el texto visible «Foro»', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const element = fixture.nativeElement as HTMLElement;
+    const foro = element.querySelector<HTMLAnchorElement>('nav a[href="/foro"]')!;
+
+    expect(foro.textContent?.trim()).toBe('Foro');
+    expect(foro.getAttribute('href')).toBe('/foro');
   });
 
   it('incluye el pie de página compartido con el estado del proyecto', async () => {
@@ -85,7 +91,7 @@ describe('App shell', () => {
     ).not.toBeNull();
   });
 
-  it('muestra el enlace de administración solo con rol admin', async () => {
+  it('muestra Administración aparte y el menú de usuario con perfil y favoritos', async () => {
     TestBed.overrideProvider(AuthService, {
       useValue: {
         configurationPending: signal(false),
@@ -100,19 +106,31 @@ describe('App shell', () => {
     await fixture.whenStable();
 
     const element = fixture.nativeElement as HTMLElement;
+    const trigger = element.querySelector<HTMLButtonElement>('.user-menu__trigger')!;
 
     expect(
       element.querySelector<HTMLAnchorElement>('.session-actions a[href="/admin"]'),
     ).not.toBeNull();
-    expect(
-      element.querySelector<HTMLAnchorElement>('.session-actions a[href="/perfil"]'),
-    ).not.toBeNull();
+    expect(trigger.getAttribute('aria-label')).toBe('Menú de usuario');
+    expect(trigger.getAttribute('aria-controls')).toBe('user-menu-panel');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    // Sin enlaces directos de cuenta en la fila: todo vive en el desplegable.
+    expect(element.querySelector('a[href="/perfil"]')).toBeNull();
+    expect(element.querySelector('a[href="/favoritos"]')).toBeNull();
+    expect(element.querySelector('button.link-button')).toBeNull();
     expect(
       element.querySelector<HTMLAnchorElement>('.session-actions a[href="/auth/login"]'),
     ).toBeNull();
-    expect(element.querySelector('.session-actions')?.textContent).toContain(
-      'Cerrar sesión',
-    );
+
+    trigger.click();
+    await fixture.whenStable();
+    const panel = element.querySelector<HTMLElement>('#user-menu-panel')!;
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.getAttribute('role')).toBe('menu');
+    expect(panel.querySelector('a[href="/perfil"]')?.textContent?.trim()).toBe('Mi perfil');
+    expect(panel.querySelector('a[href="/favoritos"]')?.textContent?.trim()).toBe('Mis favoritos');
+    expect(panel.querySelector('button')?.textContent?.trim()).toBe('Cerrar sesión');
+    expect(panel.querySelector('.user-menu__name')?.textContent?.trim()).toBe('Mi cuenta');
   });
 });
 
@@ -219,12 +237,12 @@ describe('App shell · cabecera según la ruta', () => {
     expect(links.map((link) => link.textContent?.trim())).toEqual([
       'Cursos',
       'Mis cursos',
-      'Comunidad',
+      'Foro',
     ]);
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '/cursos',
       '/mis-cursos',
-      '/comunidad',
+      '/foro',
     ]);
     expect(toggle.tagName).toBe('BUTTON');
     expect(toggle.getAttribute('aria-label')).toBe('Abrir menú');
@@ -242,13 +260,13 @@ describe('App shell · cabecera según la ruta', () => {
 
     expect(currents()).toEqual(['page', null, null]);
 
-    await goto(fixture, '/comunidad');
+    await goto(fixture, '/foro');
     expect(currents()).toEqual([null, null, 'page']);
     expect(
       element
         .querySelector<HTMLAnchorElement>('nav a[aria-current="page"]')
         ?.getAttribute('href'),
-    ).toBe('/comunidad');
+    ).toBe('/foro');
   });
 
   it('el salto lleva al único main del shell', async () => {
@@ -287,7 +305,7 @@ describe('App shell · cabecera según la ruta', () => {
     skipLink.focus();
     expect(document.activeElement).toBe(skipLink);
 
-    await goto(fixture, '/comunidad');
+    await goto(fixture, '/foro');
 
     expect(document.activeElement).toBe(main);
   });
@@ -355,10 +373,10 @@ describe('App shell · cabecera según la ruta', () => {
     await fixture.whenStable();
     expect(document.body.style.overflow).toBe('hidden');
 
-    panel.querySelector<HTMLAnchorElement>('a[href="/comunidad"]')!.click();
+    panel.querySelector<HTMLAnchorElement>('a[href="/foro"]')!.click();
     await fixture.whenStable();
 
-    expect(TestBed.inject(Router).url).toBe('/comunidad');
+    expect(TestBed.inject(Router).url).toBe('/foro');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(fixture.componentInstance.menuOpen()).toBe(false);
     expect(document.body.style.overflow).toBe('');
@@ -386,11 +404,13 @@ describe('App shell · cabecera según la ruta', () => {
         ?.textContent?.trim(),
     ).toBe('Iniciar sesión');
     expect(sessionActions.querySelector('a[href="/perfil"]')).toBeNull();
+    expect(sessionActions.querySelector('a[href="/favoritos"]')).toBeNull();
+    expect(sessionActions.querySelector('.user-menu')).toBeNull();
     expect(sessionActions.querySelector('a[href="/admin"]')).toBeNull();
     expect(sessionActions.textContent).not.toContain('Cerrar sesión');
   });
 
-  it('muestra perfil y cierre de sesión, pero no Administración, para un alumno', async () => {
+  it('muestra el menú de cuenta, pero no Administración, para un alumno', async () => {
     TestBed.overrideProvider(AuthService, {
       useValue: {
         configurationPending: signal(false),
@@ -405,13 +425,17 @@ describe('App shell · cabecera según la ruta', () => {
     const element = fixture.nativeElement as HTMLElement;
     const sessionActions = element.querySelector<HTMLElement>('.session-actions')!;
 
-    expect(
-      sessionActions.querySelector<HTMLAnchorElement>('a[href="/perfil"]')
-        ?.textContent?.trim(),
-    ).toBe('Mi perfil');
+    expect(sessionActions.querySelector<HTMLButtonElement>('.user-menu__trigger')).not.toBeNull();
     expect(sessionActions.querySelector('a[href="/admin"]')).toBeNull();
     expect(sessionActions.querySelector('a[href="/auth/login"]')).toBeNull();
-    expect(sessionActions.textContent).toContain('Cerrar sesión');
+    expect(sessionActions.textContent).not.toContain('Cerrar sesión');
+
+    sessionActions.querySelector<HTMLButtonElement>('.user-menu__trigger')!.click();
+    await fixture.whenStable();
+    const panel = element.querySelector<HTMLElement>('#user-menu-panel')!;
+    expect(panel.querySelector('a[href="/perfil"]')?.textContent?.trim()).toBe('Mi perfil');
+    expect(panel.querySelector('a[href="/favoritos"]')?.textContent?.trim()).toBe('Mis favoritos');
+    expect(panel.querySelector('button')?.textContent?.trim()).toBe('Cerrar sesión');
   });
 
   it('declara estilos locales responsive y objetivos táctiles', async () => {
@@ -581,7 +605,7 @@ describe('App shell · cabecera según la ruta', () => {
     await fixture.whenStable();
     expect(fixture.componentInstance.menuOpen()).toBe(true);
 
-    await goto(fixture, '/comunidad');
+    await goto(fixture, '/foro');
     expect(fixture.componentInstance.menuOpen()).toBe(false);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(document.body.style.overflow).toBe('');
@@ -620,18 +644,24 @@ describe('App shell · cabecera según la ruta', () => {
     const fixture = await createShell('/cursos');
     const element = fixture.nativeElement as HTMLElement;
     const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
-    const logoutButton = element.querySelector<HTMLButtonElement>('.link-button')!;
+    const userTrigger = element.querySelector<HTMLButtonElement>('.user-menu__trigger')!;
 
     document.body.style.overflow = '';
     toggle.click();
     await fixture.whenStable();
     expect(fixture.componentInstance.menuOpen()).toBe(true);
 
+    // El botón de cuenta no cierra el panel móvil; el logout sí cierra ambos.
+    userTrigger.click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.menuOpen()).toBe(true);
+    const logoutButton = element.querySelector<HTMLButtonElement>('#user-menu-panel button')!;
     logoutButton.click();
     await fixture.whenStable();
 
     expect(logout).toHaveBeenCalledOnce();
     expect(fixture.componentInstance.menuOpen()).toBe(false);
+    expect(fixture.componentInstance.userMenuOpen()).toBe(false);
     expect(document.body.style.overflow).toBe('');
   });
 
@@ -771,9 +801,7 @@ describe('App shell · cabecera según la ruta', () => {
   });
 });
 
-describe('App shell · tema integrado', () => {
-  let meta: HTMLMetaElement;
-
+describe('App shell · tema único Línea precisa', () => {
   async function createShell(url?: string): Promise<ComponentFixture<App>> {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
@@ -785,30 +813,12 @@ describe('App shell · tema integrado', () => {
     return fixture;
   }
 
-  function trigger(root: HTMLElement): HTMLButtonElement {
-    const button = root.querySelector<HTMLButtonElement>(
-      'app-theme-selector .theme-selector__trigger',
-    );
-    expect(button).not.toBeNull();
-    return button!;
-  }
-
-  function option(label: string): HTMLButtonElement {
-    const found = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(
-        'app-theme-selector [role="menuitemradio"]',
-      ),
-    ).find((candidate) => candidate.textContent?.includes(label));
-    expect(found).toBeDefined();
-    return found!;
-  }
-
   beforeEach(async () => {
-    localStorage.removeItem(THEME_STORAGE_KEY);
-    document.documentElement.removeAttribute('data-theme');
-    meta = document.createElement('meta');
-    meta.name = 'theme-color';
-    document.head.appendChild(meta);
+    // index.html fija el tema sin JS; replicamos ese estado inicial en jsdom.
+    const index = readFileSync('src/index.html', 'utf8');
+    const declared = index.match(/<html[^>]*\bdata-theme="([^"]+)"/)?.[1];
+    expect(declared).toBe('linea');
+    document.documentElement.dataset['theme'] = declared!;
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [
@@ -819,125 +829,236 @@ describe('App shell · tema integrado', () => {
   });
 
   afterEach(() => {
-    localStorage.removeItem(THEME_STORAGE_KEY);
     document.documentElement.removeAttribute('data-theme');
-    meta.remove();
     TestBed.resetTestingModule();
   });
 
-  it('aplica creator por defecto en data-theme y en el meta theme-color', async () => {
-    const fixture = await createShell('/cursos');
-
-    expect(fixture.componentInstance.theme.theme()).toBe('creator');
-    expect(document.documentElement.dataset['theme']).toBe('creator');
-    expect(meta.content).toBe(THEME_META_COLORS['creator']);
-  });
-
-  it('coloca un único selector en la fila de herramientas de la cabecera', async () => {
-    const fixture = await createShell('/cursos');
-    const element = fixture.nativeElement as HTMLElement;
-    const tools = element.querySelector<HTMLElement>('.site-header__tools')!;
-
-    expect(tools.querySelectorAll('app-theme-selector')).toHaveLength(1);
-    expect(element.querySelectorAll('app-theme-selector')).toHaveLength(1);
-    expect(trigger(element).getAttribute('aria-label')).toBe('Cambiar tema');
-  });
-
-  it('ofrece los dieciocho temas claros con etiquetas en español y sin «Nocturno AG»', async () => {
+  it('mantiene data-theme="linea" sin selector ni persistencia', async () => {
     const fixture = await createShell('/cursos');
     const element = fixture.nativeElement as HTMLElement;
 
-    trigger(element).click();
-    await fixture.whenStable();
-
-    const texts = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(
-        'app-theme-selector [role="menuitemradio"]',
-      ),
-    ).map((button) => button.textContent ?? '');
-
-    expect(texts).toHaveLength(18);
-    for (const { label } of THEME_OPTIONS) {
-      expect(texts.some((text) => text.includes(label))).toBe(true);
-    }
-    expect(texts.some((text) => text.includes('Nocturno AG'))).toBe(false);
-    expect(texts.some((text) => text.toLowerCase().includes('nocturno'))).toBe(
-      false,
-    );
+    expect(document.documentElement.dataset['theme']).toBe('linea');
+    expect(element.querySelector('app-theme-selector')).toBeNull();
+    expect(element.querySelector('[aria-label="Cambiar tema"]')).toBeNull();
   });
 
-  it('cambia de tema desde el selector, persiste y actualiza el meta', async () => {
-    const fixture = await createShell('/cursos');
+  it('no reintroduce el tema en el aula, donde la cabecera está oculta', async () => {
+    const fixture = await createShell(aulaUrl);
     const element = fixture.nativeElement as HTMLElement;
-
-    trigger(element).click();
-    await fixture.whenStable();
-    option('Cristal sereno').click();
-    await fixture.whenStable();
-
-    expect(document.documentElement.dataset['theme']).toBe('glass');
-    expect(meta.content).toBe(THEME_META_COLORS['glass']);
-    expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY)!)).toEqual({
-      version: 1,
-      theme: 'glass',
-    });
-    expect(fixture.componentInstance.menuOpen()).toBe(false);
-  });
-
-  it('cambiar el tema no abre ni cierra el menú móvil', async () => {
-    const fixture = await createShell('/cursos');
-    const element = fixture.nativeElement as HTMLElement;
-    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
-
-    expect(fixture.componentInstance.menuOpen()).toBe(false);
-    trigger(element).click();
-    await fixture.whenStable();
-    option('Flamenco editorial').click();
-    await fixture.whenStable();
-    expect(document.documentElement.dataset['theme']).toBe('flamenco');
-    expect(fixture.componentInstance.menuOpen()).toBe(false);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-
-    toggle.click();
-    await fixture.whenStable();
-    expect(fixture.componentInstance.menuOpen()).toBe(true);
-    trigger(element).click();
-    await fixture.whenStable();
-    option('Brutalista AG').click();
-    await fixture.whenStable();
-    expect(document.documentElement.dataset['theme']).toBe('brutalista');
-    expect(fixture.componentInstance.menuOpen()).toBe(true);
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-  });
-
-  it('restaura el tema guardado al crear otro shell', async () => {
-    localStorage.setItem(
-      THEME_STORAGE_KEY,
-      JSON.stringify({ version: 1, theme: 'flamenco' }),
-    );
-
-    await createShell('/cursos');
-
-    expect(document.documentElement.dataset['theme']).toBe('flamenco');
-    expect(meta.content).toBe(THEME_META_COLORS['flamenco']);
-  });
-
-  it('mantiene el tema aplicado en el aula aunque no haya selector', async () => {
-    const fixture = await createShell('/cursos');
-    const element = fixture.nativeElement as HTMLElement;
-    trigger(element).click();
-    await fixture.whenStable();
-    option('Conservatorio').click();
-    await fixture.whenStable();
-    expect(document.documentElement.dataset['theme']).toBe('conservatorio');
-
-    await TestBed.inject(Router).navigateByUrl(aulaUrl);
-    await fixture.whenStable();
-    fixture.detectChanges();
 
     expect(element.querySelector('header.site-header')).toBeNull();
-    expect(element.querySelector('app-theme-selector')).toBeNull();
-    expect(document.documentElement.dataset['theme']).toBe('conservatorio');
-    expect(meta.content).toBe(THEME_META_COLORS['conservatorio']);
+    expect(element.querySelector('.user-menu')).toBeNull();
+    expect(document.documentElement.dataset['theme']).toBe('linea');
+  });
+});
+
+describe('App shell · menú de usuario', () => {
+  async function createShell(session: unknown): Promise<ComponentFixture<App>> {
+    TestBed.overrideProvider(AuthService, {
+      useValue: {
+        configurationPending: signal(false),
+        loading: signal(false),
+        session: signal(session),
+        isAdmin: signal(false),
+        logout: vi.fn().mockResolvedValue({ ok: true }),
+      },
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    await TestBed.inject(Router).navigateByUrl('/cursos');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function triggerOf(element: HTMLElement): HTMLButtonElement {
+    const trigger = element.querySelector<HTMLButtonElement>('.user-menu__trigger')!;
+    expect(trigger).not.toBeNull();
+    return trigger;
+  }
+
+  async function open(
+    fixture: ComponentFixture<App>,
+    element: HTMLElement,
+  ): Promise<HTMLButtonElement> {
+    const trigger = triggerOf(element);
+    trigger.click();
+    await fixture.whenStable();
+    return trigger;
+  }
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        provideRouter(shellRoutes),
+        { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '' } },
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('abre y cierra el desplegable con aria sin mostrar el correo', async () => {
+    const fixture = await createShell({
+      user: { id: 'user-1', email: 'no-debe-aparecer@ejemplo.invalid' },
+    });
+    const element = fixture.nativeElement as HTMLElement;
+    const trigger = triggerOf(element);
+
+    expect(trigger.getAttribute('aria-label')).toBe('Menú de usuario');
+    expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
+    expect(trigger.getAttribute('aria-controls')).toBe('user-menu-panel');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(element.textContent).not.toContain('no-debe-aparecer@ejemplo.invalid');
+    expect(element.querySelector('[title]')?.getAttribute('title') ?? '').not.toContain('@');
+
+    await open(fixture, element);
+    const panel = element.querySelector<HTMLElement>('#user-menu-panel')!;
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.textContent).not.toContain('no-debe-aparecer@ejemplo.invalid');
+    expect(panel.querySelector('.user-menu__name')?.textContent?.trim()).toBe('Mi cuenta');
+
+    trigger.click();
+    await fixture.whenStable();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(element.querySelector('#user-menu-panel')).toBeNull();
+  });
+
+  it('ofrece Mi perfil, Mis favoritos y Cerrar sesión como opciones accesibles', async () => {
+    const fixture = await createShell({ user: { id: 'user-1' } });
+    const element = fixture.nativeElement as HTMLElement;
+    await open(fixture, element);
+
+    const panel = element.querySelector<HTMLElement>('#user-menu-panel')!;
+    const items = Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    expect(items.map((item) => item.textContent?.trim())).toEqual([
+      'Mi perfil',
+      'Mis favoritos',
+      'Cerrar sesión',
+    ]);
+    expect(items.map((item) => item.tagName)).toEqual(['A', 'A', 'BUTTON']);
+    expect(items[0].getAttribute('href')).toBe('/perfil');
+    expect(items[1].getAttribute('href')).toBe('/favoritos');
+    const css = [...document.querySelectorAll('style')]
+      .map((style) => style.textContent ?? '')
+      .join('\n');
+    expect(css).toContain('min-height: 44px');
+    expect(getComputedStyle(items[0]).minHeight).toBe('44px');
+    expect(getComputedStyle(items[1]).minHeight).toBe('44px');
+    expect(getComputedStyle(triggerOf(element)).minHeight).toBe('44px');
+  });
+
+  it('muestra un nombre seguro del perfil y nunca el correo', async () => {
+    const fixture = await createShell({
+      user: {
+        id: 'user-1',
+        email: 'privado@ejemplo.invalid',
+        user_metadata: { display_name: 'Paco' },
+      },
+    });
+    const element = fixture.nativeElement as HTMLElement;
+    await open(fixture, element);
+
+    const panel = element.querySelector<HTMLElement>('#user-menu-panel')!;
+    expect(panel.querySelector('.user-menu__name')?.textContent?.trim()).toBe('Paco');
+    expect(element.textContent).not.toContain('privado@ejemplo.invalid');
+  });
+
+  it('Escape cierra y devuelve el foco al botón', async () => {
+    const fixture = await createShell({ user: { id: 'user-1' } });
+    const element = fixture.nativeElement as HTMLElement;
+    const trigger = await open(fixture, element);
+
+    const item = element.querySelector<HTMLElement>('#user-menu-panel [role="menuitem"]')!;
+    item.focus();
+    expect(document.activeElement).toBe(item);
+    item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+
+    expect(element.querySelector('#user-menu-panel')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('un click fuera cierra el desplegable', async () => {
+    const fixture = await createShell({ user: { id: 'user-1' } });
+    const element = fixture.nativeElement as HTMLElement;
+    const trigger = await open(fixture, element);
+
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(element.querySelector('#user-menu-panel')).toBeNull();
+  });
+
+  it('Cerrar sesión usa el logout real y limpia el estado', async () => {
+    const logout = vi.fn().mockResolvedValue({ ok: true });
+    TestBed.overrideProvider(AuthService, {
+      useValue: {
+        configurationPending: signal(false),
+        loading: signal(false),
+        session: signal({ user: { id: 'user-1' } }),
+        isAdmin: signal(false),
+        logout,
+      },
+    });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    await TestBed.inject(Router).navigateByUrl('/cursos');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    await open(fixture, element);
+
+    element.querySelector<HTMLButtonElement>('#user-menu-panel button')!.click();
+    await fixture.whenStable();
+
+    expect(logout).toHaveBeenCalledOnce();
+    expect(fixture.componentInstance.userMenuOpen()).toBe(false);
+    expect(element.querySelector('#user-menu-panel')).toBeNull();
+  });
+
+  it('la visita anónima no ve el control ni Mis favoritos', async () => {
+    const fixture = await createShell(null);
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('.user-menu')).toBeNull();
+    expect(element.querySelector('a[href="/favoritos"]')).toBeNull();
+    expect(element.querySelector('a[href="/perfil"]')).toBeNull();
+    expect(element.querySelector('a[href="/auth/login"]')).not.toBeNull();
+  });
+
+  it('declara un desplegable sin desbordes en móvil', async () => {
+    const fixture = await createShell({ user: { id: 'user-1' } });
+    await open(fixture, fixture.nativeElement as HTMLElement);
+    const css = [...document.querySelectorAll('style')]
+      .map((style) => style.textContent ?? '')
+      .join('\n');
+
+    expect(css).toContain('.user-menu__panel');
+    expect(css).toContain('position: static');
+    expect(css).toContain('max-width: none');
+    expect(css).toContain('max-width: 47.99rem');
+  });
+});
+
+describe('Acciones sin subrayado declarado (estilos globales y del shell)', () => {
+  it('ni los estilos globales ni los del shell subrayan botones o enlaces de acción', () => {
+    const global = readFileSync('src/styles.scss', 'utf8');
+    const shell = readFileSync('src/app/app.scss', 'utf8');
+
+    for (const css of [global, shell]) {
+      expect(css).not.toMatch(/text-decoration\s*:\s*underline/i);
+    }
+    // El botón enlace y los controles del shell siguen siendo acciones sin
+    // subrayado, con el foco resuelto por outline y el token --focus.
+    expect(global).toMatch(/\.link-button\s*\{[^}]*text-decoration:\s*none/);
+    expect(global).toContain(':focus-visible');
+    expect(global).toContain('--focus');
+    expect(shell).toContain('text-decoration: none');
+    expect(shell).toContain(':focus-visible');
   });
 });

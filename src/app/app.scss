@@ -4,25 +4,16 @@
   flex-direction: column;
 }
 
-main {
-  flex: 1;
-}
+main { flex: 1; }
+main:focus { outline: none; }
 
-main:focus {
-  outline: none;
-}
-
-/* Cabecera pública: una sola fila en escritorio, con marca a la izquierda y
-   navegación + cuenta a la derecha. Estilos locales para no tocar los tokens
-   globales que comparten otras áreas. */
 .site-header {
-  background: var(--surface);
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .site-header__inner {
   display: flex;
-  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem 1rem;
@@ -41,44 +32,21 @@ main:focus {
   justify-content: center;
 }
 
-/* Escritorio: las herramientas son la navegación directa de la cabecera. */
 .site-header__tools {
   display: flex;
   min-width: 0;
   flex: 0 1 auto;
-  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem 0.6rem;
 }
 
-/* El selector no impone ancho propio en la fila de herramientas. */
-app-theme-selector {
-  min-width: 0;
-}
+:is(.nav-list, .session-actions) { display: flex; align-items: center; }
+.nav-list { gap: 0.15rem; margin: 0; padding: 0; list-style: none; }
+.session-actions { gap: 0.25rem 0.5rem; }
 
-.nav-list,
-.session-actions {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-}
-
-.nav-list {
-  gap: 0.15rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.session-actions {
-  gap: 0.25rem 0.5rem;
-}
-
-/* Objetivos táctiles amplios también en la fila de escritorio. */
-.nav-list a,
-.session-actions a,
-.link-button {
+/* Una sola base de objetivo táctil para enlaces y opciones del desplegable. */
+.hdr-link {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
@@ -88,126 +56,109 @@ app-theme-selector {
   white-space: nowrap;
 }
 
-.session-actions__user {
-  min-width: 0;
-  max-width: 9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.site-header :is(a, button):focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
-}
-
-/* El hamburger solo existe en móvil; aquí queda oculto por completo. */
-.nav-toggle {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0.5rem 0.75rem;
+/* Superficie y borde compartidos por los controles y el desplegable. */
+:is(.nav-toggle, .menu-close, .user-menu__trigger, .user-menu__panel) {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
 }
 
-.nav-toggle:hover {
-  background: var(--bg);
-}
-
-.nav-toggle__icon,
-.menu-close__icon {
-  width: 1.25rem;
-  height: 1.25rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-}
-
-.nav-toggle__icon--close {
-  display: none;
-}
-
-.nav-toggle[aria-expanded='true'] .nav-toggle__icon--menu {
-  display: none;
-}
-
-.nav-toggle[aria-expanded='true'] .nav-toggle__icon--close {
-  display: block;
-}
-
-/* Cierre del overlay: oculto por defecto y solo visible con el panel abierto
-   en móvil. Es una acción adicional al toggle; ambos usan closeMenu(). */
-.menu-close {
+:is(.nav-toggle, .menu-close, .user-menu__trigger) {
   display: none;
   align-items: center;
   justify-content: center;
   min-width: 44px;
   min-height: 44px;
   padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
   color: var(--ink);
   font: inherit;
   cursor: pointer;
 }
 
-.menu-close:hover {
-  background: var(--bg);
+:is(.nav-toggle, .menu-close, .user-menu__trigger):hover { background: var(--bg); }
+
+:is(.nav-toggle__icon, .menu-close__icon, .user-menu__trigger svg) {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.6;
 }
 
-.menu-close.is-visible {
+:is(.user-menu, .user-menu__trigger) {
+  position: relative;
   display: inline-flex;
+  min-width: 0;
 }
 
-/* En escritorio no existe ni el hamburger ni esta X. */
+.user-menu__panel {
+  position: absolute;
+  z-index: 61;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 12rem;
+  max-width: min(18rem, calc(100vw - 2rem));
+  padding: 0.35rem;
+  box-shadow: var(--shadow-raised);
+}
+
+.user-menu__name {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.menu-link {
+  width: 100%;
+  justify-content: flex-start;
+  color: var(--admin-text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* El hamburger y la X del overlay solo existen en móvil. */
+.nav-toggle {
+  gap: 0.5rem;
+  padding-inline: 0.75rem;
+  font-weight: 600;
+}
+
+.nav-toggle__icon--close,
+.nav-toggle[aria-expanded='true'] .nav-toggle__icon--menu { display: none; }
+.nav-toggle[aria-expanded='true'] .nav-toggle__icon--close { display: block; }
+.menu-close.is-visible { display: inline-flex; }
+
 @media (min-width: 48rem) {
-  .menu-close.is-visible {
-    display: none;
-  }
+  .menu-close.is-visible { display: none; }
 }
 
-/* Entre 48 y 64 rem la fila sigue única: se compactan huecos y textos para
-   que quepan todos los enlaces, incluida la administración, sin desbordes. */
+/* Franja media: se compactan huecos y textos sin desbordes. */
+/* Misma compressión del wordmark en la franja media y en móvil muy estrecho. */
+@media (min-width: 48rem) and (max-width: 64rem), (max-width: 20rem) {
+  .brand__sub { font-size: 1.1rem; }
+}
+
 @media (min-width: 48rem) and (max-width: 64rem) {
-  .site-header__inner {
-    gap: 0.5rem;
-    padding-inline: 1rem;
-  }
-
-  .brand__sub {
-    font-size: 1.1rem;
-  }
-
-  .site-header__tools {
-    gap: 0.25rem 0.4rem;
-  }
-
-  .nav-list a,
-  .session-actions a,
-  .link-button {
+  .site-header__inner { gap: 0.5rem; padding-inline: 1rem; }
+  .site-header__tools { gap: 0.25rem 0.4rem; }
+  .hdr-link {
     padding-inline: 0.45rem;
     font-size: 0.9rem;
-  }
-
-  .session-actions__user {
-    max-width: 7rem;
-    font-size: 0.85rem;
   }
 }
 
 @media (max-width: 47.99rem) {
-  /* La cabecera se queda arriba para que el MISMO botón pueda cerrar el panel. */
+  /* La cabecera queda arriba para que el MISMO botón cierre el panel. */
   .site-header {
     position: sticky;
     top: 0;
@@ -220,9 +171,7 @@ app-theme-selector {
     padding: 0.4rem 1rem;
   }
 
-  .brand {
-    flex: 1 1 auto;
-  }
+  .brand { flex: 1 1 auto; }
 
   .nav-toggle {
     display: inline-flex;
@@ -230,37 +179,32 @@ app-theme-selector {
     margin-inline-start: auto;
   }
 
-  /* La X queda arriba del panel, justo bajo la cabecera fija y lejos de los
-     enlaces centrados; el padding del panel deja hueco para ella. */
+  /* X sobre el panel, bajo la cabecera fija y lejos de los enlaces. */
   .menu-close {
     position: absolute;
-    top: calc(4rem + 0.5rem);
+    top: 4.5rem;
     right: 1rem;
   }
 
-  /* Panel a pantalla completa que entra desde la izquierda, por debajo de la
-     cabecera fija. Siempre en el DOM para poder animar el translateX. */
+  /* Panel a pantalla completa que entra desde la izquierda; siempre en el DOM
+     para animar translateX por debajo de la cabecera fija. */
   .site-header__tools {
     position: fixed;
     inset: 0;
     z-index: 50;
     width: 100vw;
-    height: 100vh;
     height: 100dvh;
-    display: flex;
     flex: none;
     flex-direction: column;
-    align-items: center;
     justify-content: center;
     gap: 1rem;
-    padding: calc(4rem + 3rem) 1rem 2rem;
+    padding: 7rem 1rem 2rem;
     overflow-y: auto;
     background: var(--surface);
-    box-shadow: inset 0 1px 0 var(--border);
     transform: translateX(-100%);
     visibility: hidden;
     pointer-events: none;
-    transition: transform 0.25s ease, visibility 0s linear 0.25s;
+    transition: transform 0.25s ease, visibility 0s 0.25s;
   }
 
   .site-header__tools.is-open {
@@ -270,8 +214,7 @@ app-theme-selector {
     transition: transform 0.25s ease, visibility 0s;
   }
 
-  .site-header__tools nav,
-  .session-actions {
+  :is(.site-header__tools nav, .session-actions) {
     width: 100%;
     max-width: 22rem;
   }
@@ -282,45 +225,35 @@ app-theme-selector {
     gap: 0.5rem;
   }
 
-  .nav-list a,
-  .session-actions a,
-  .link-button {
+  .hdr-link {
     width: 100%;
     min-height: 48px;
-    justify-content: center;
     font-size: 1rem;
   }
 
   .session-actions {
     flex-direction: column;
-    flex-wrap: nowrap;
     gap: 0.5rem;
   }
 
-  .session-actions__user,
-  .session-actions__status {
-    max-width: 100%;
-    text-align: center;
+  /* En el overlay el desplegable entra en la fila: sin posicionamiento
+     absoluto no desborda en 320 px. */
+  .user-menu { width: 100%; }
+
+  .user-menu__panel {
+    position: static;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin-top: 0.35rem;
   }
 }
 
 @media (max-width: 20rem) {
-  .site-header__inner {
-    padding-inline: 0.75rem;
-  }
-
-  .brand__sub {
-    font-size: 1.1rem;
-  }
-
-  .nav-toggle__label {
-    font-size: 0.9rem;
-  }
+  .site-header__inner { padding-inline: 0.75rem; }
+  .nav-toggle__label { font-size: 0.9rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .site-header__tools,
-  .site-header__tools.is-open {
-    transition: none;
-  }
+  :is(.site-header__tools, .site-header__tools.is-open) { transition: none; }
 }

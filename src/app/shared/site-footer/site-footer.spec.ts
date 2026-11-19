@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { SiteFooter } from './site-footer';
@@ -148,5 +149,15 @@ describe('SiteFooter', () => {
     for (const [, href] of EXPECTED_LINKS) {
       expect(hrefs).toContain(href);
     }
+  });
+
+  it('los enlaces de acción del pie no declaran subrayado', () => {
+    const scss = readFileSync('src/app/shared/site-footer/site-footer.scss', 'utf8');
+    const html = readFileSync('src/app/shared/site-footer/site-footer.html', 'utf8');
+
+    expect(scss).not.toMatch(/text-decoration\s*:\s*underline/i);
+    expect(html).not.toMatch(/text-decoration\s*:\s*underline/i);
+    expect(html).toContain('site-footer__legal-link');
+    expect(html).toContain('site-footer__link');
   });
 });

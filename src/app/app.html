@@ -91,6 +91,7 @@
           <ul class="nav-list">
             <li>
               <a
+                class="hdr-link"
                 routerLink="/cursos"
                 routerLinkActive="is-active"
                 ariaCurrentWhenActive="page"
@@ -98,6 +99,7 @@
             </li>
             <li>
               <a
+                class="hdr-link"
                 routerLink="/mis-cursos"
                 routerLinkActive="is-active"
                 ariaCurrentWhenActive="page"
@@ -105,10 +107,11 @@
             </li>
             <li>
               <a
-                routerLink="/comunidad"
+                class="hdr-link"
+                routerLink="/foro"
                 routerLinkActive="is-active"
                 ariaCurrentWhenActive="page"
-              >Comunidad</a>
+              >Foro</a>
             </li>
           </ul>
         </nav>
@@ -118,35 +121,79 @@
             <span class="session-actions__status" role="status">
               Comprobando sesión…
             </span>
-          } @else if (auth.session(); as session) {
-            <span class="session-actions__user" [title]="session.user.email ?? ''">
-              {{ session.user.email ?? 'Sesión iniciada' }}
-            </span>
-            <a routerLink="/perfil" routerLinkActive="is-active" ariaCurrentWhenActive="page">Mi perfil</a>
+          } @else if (auth.session()) {
+            <!-- Administración sigue siendo un enlace de navegación separado:
+                 es un permiso, no una opción de la cuenta del alumno. -->
             @if (auth.isAdmin()) {
               <a
-                class="session-actions__admin"
+                class="session-actions__admin hdr-link"
                 routerLink="/admin"
                 routerLinkActive="is-active"
                 ariaCurrentWhenActive="page"
               >Administración</a>
             }
-            <button class="link-button" type="button" (click)="logout()">
-              Cerrar sesión
-            </button>
+            <!-- El correo nunca se muestra en la cabecera ni en atributos. -->
+            <div
+              #userMenu
+              class="user-menu"
+              (click)="onUserMenuClick($event)"
+              (keydown)="onUserMenuKeydown($event)"
+            >
+              <button
+                #userMenuButton
+                type="button"
+                class="user-menu__trigger"
+                aria-label="Menú de usuario"
+                aria-haspopup="menu"
+                aria-controls="user-menu-panel"
+                [attr.aria-expanded]="userMenuOpen()"
+                (click)="toggleUserMenu($event)"
+              >
+                <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                  <circle cx="10" cy="6.5" r="3.25" />
+                  <path d="M3.5 17c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
+                </svg>
+              </button>
+              @if (userMenuOpen()) {
+                <div
+                  id="user-menu-panel"
+                  class="user-menu__panel"
+                  role="menu"
+                  aria-label="Menú de usuario"
+                >
+                  <p class="user-menu__name">{{ accountName() }}</p>
+                  <a
+                    class="hdr-link menu-link"
+                    role="menuitem"
+                    routerLink="/perfil"
+                    routerLinkActive="is-active"
+                    ariaCurrentWhenActive="page"
+                    (click)="closeUserMenu()"
+                  >Mi perfil</a>
+                  <a
+                    class="hdr-link menu-link"
+                    role="menuitem"
+                    routerLink="/favoritos"
+                    (click)="closeUserMenu()"
+                  >Mis favoritos</a>
+                  <button
+                    role="menuitem"
+                    class="link-button hdr-link menu-link"
+                    type="button"
+                    (click)="logout()"
+                  >Cerrar sesión</button>
+                </div>
+              }
+            </div>
           } @else {
             <a
+              class="hdr-link"
               routerLink="/auth/login"
               routerLinkActive="is-active"
               ariaCurrentWhenActive="page"
             >Iniciar sesión</a>
           }
         </div>
-
-        <!-- El selector vive en la fila de herramientas: en escritorio se ve en
-             la cabecera y en móvil viaja dentro del mismo overlay del menú. Su
-             stopPropagation evita que cambiar de tema cierre el disclosure. -->
-        <app-theme-selector />
       </div>
     </div>
   </header>

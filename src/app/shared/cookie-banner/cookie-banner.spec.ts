@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { CONSENT_STORAGE_KEY, ConsentService } from '../../core/consent/consent.service';
@@ -155,5 +156,14 @@ describe('CookieBanner', () => {
 
     expect(root.classList.contains('cookie-banner--in-classroom')).toBe(true);
     expect(getComputedStyle(root).position).toBe('static');
+  });
+
+  it('los botones del banner no subrayan su texto y conservan el foco visible', () => {
+    const css = readFileSync('src/app/shared/cookie-banner/cookie-banner.scss', 'utf8');
+
+    expect(css).not.toMatch(/text-decoration\s*:\s*underline/i);
+    expect(css).toMatch(/\.cookie-banner__button--quiet\s*\{[^}]*text-decoration:\s*none/);
+    expect(css).toContain(':focus-visible');
+    expect(css).toContain('--focus');
   });
 });

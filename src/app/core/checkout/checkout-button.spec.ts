@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
@@ -242,5 +243,14 @@ describe('Botón de compra TEST', () => {
     expect(parsed.searchParams.get('comprar')).toBe('1');
     expect(start).not.toHaveBeenCalled();
     expect(go).not.toHaveBeenCalled();
+  });
+
+  it('el botón de compra no subraya su texto y conserva el foco visible', () => {
+    const css = readFileSync('src/app/core/checkout/checkout-button.scss', 'utf8');
+
+    expect(css).not.toMatch(/text-decoration\s*:\s*underline/i);
+    expect(css).toMatch(/\.buy\s*\{[^}]*text-decoration:\s*none/);
+    expect(css).toContain(':focus-visible');
+    expect(css).toContain('outline');
   });
 });

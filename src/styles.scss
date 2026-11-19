@@ -1,6 +1,7 @@
-/* Temas y fuentes se incluyen desde aquí (no desde angular.json): Sass emite
-   su CSS una sola vez y las reglas :root[data-theme=...] ganan por especificidad
-   sobre los tokens provisionales de este archivo. */
+/* Fuente y estilo único (Línea precisa) se incluyen desde aquí (no desde
+   angular.json): Sass emite su CSS una sola vez y la regla
+   :root[data-theme="linea"] gana por especificidad sobre los tokens
+   provisionales de este archivo. */
 @use './app/core/theme/fonts';
 @use './app/core/theme/theme-tokens';
 @use './app/core/theme/theme-components';
@@ -207,8 +208,7 @@ a:hover {
   color: var(--admin-accent);
   font: inherit;
   font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
+  text-decoration: none;
   cursor: pointer;
 }
 
