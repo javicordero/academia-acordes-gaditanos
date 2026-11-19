@@ -38,7 +38,9 @@
       <p>Gestiona los datos editoriales y la estructura de los cursos.</p>
       <button class="button" type="button" (click)="openNew()">Crear curso</button>
       @if (loading()) {
-        <p role="status">Cargando cursos…</p>
+        <div aria-busy="true">
+          <app-skeleton variant="list" ariaLabel="Cargando cursos…" />
+        </div>
       } @else if (error()) {
         <p class="feedback feedback--error" role="alert">No se han podido cargar los cursos. Comprueba la conexión y tus permisos.</p>
         <div class="state-actions">
@@ -70,7 +72,9 @@
       @if (selectedCourse(); as course) {
         <app-course-editor [course]="course" (cancelled)="backToCourses()" (saved)="saved()" />
       } @else if (loading()) {
-        <p role="status">Cargando datos del curso…</p>
+        <div aria-busy="true">
+          <app-skeleton variant="text" [lines]="8" ariaLabel="Cargando datos del curso…" />
+        </div>
       } @else {
         <p class="feedback feedback--error" role="alert">No se ha podido cargar este curso. Comprueba la conexión y tus permisos.</p>
         <div class="state-actions">
@@ -82,7 +86,9 @@
       @if (selectedCourse(); as course) {
         <app-structure [course]="course" (closed)="backToCourses()" />
       } @else if (loading()) {
-        <p role="status">Cargando estructura…</p>
+        <div aria-busy="true">
+          <app-skeleton variant="list" ariaLabel="Cargando estructura…" />
+        </div>
       } @else {
         <p class="feedback feedback--error" role="alert">No se ha podido cargar este curso. Comprueba la conexión y tus permisos.</p>
         <div class="state-actions">

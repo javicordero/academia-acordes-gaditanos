@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -60,6 +61,25 @@ describe('Structure', () => {
     expect(fixture.nativeElement.textContent).toContain('No hay bloques');
     expect(fixture.nativeElement.textContent).toContain('Añade una lección');
     expect(repo.list).toHaveBeenCalledWith('course');
+  });
+  it('muestra un esqueleto accesible mientras carga la estructura', async () => {
+    let resolve!: (value: { sections: typeof section[]; lessons: [] }) => void;
+    repo.list.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+    const fixture = TestBed.createComponent(Structure);
+    fixture.componentRef.setInput('course', course);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const skeleton = el.querySelector('app-skeleton') as HTMLElement | null;
+    expect(skeleton?.querySelector('.skeleton')?.getAttribute('data-variant')).toBe('index');
+    expect(skeleton!.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(el.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(el.querySelector('.sr-only[role="status"]')?.textContent?.trim()).toBe('Cargando estructura…');
+    expect(el.querySelectorAll('.sr-only[role="status"]')).toHaveLength(1);
+    resolve({ sections: [], lessons: [] });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('app-skeleton')).toBeNull();
+    expect(el.textContent).toContain('No hay bloques');
   });
   it('al abrir materiales enfoca el panel y al cerrar vuelve a estructura sin perder el editor', async () => {
     const lesson = { id: '22222222-2222-2222-2222-222222222222', course_id: 'course', section_id: 'section',
@@ -779,5 +799,33 @@ describe('Structure', () => {
     expect((legacy.querySelector('summary') as HTMLElement).textContent).toContain('Enlaces directos');
     expect(legacy.querySelector('a[aria-label="Vídeo de la lección Lección"]')).not.toBeNull();
     expect(legacy.querySelector('button[aria-label="Materiales PDF de Lección"]')).not.toBeNull();
+  });
+});
+
+describe('Geometría de temas en la estructura', () => {
+  const styles = readFileSync('src/app/features/admin/structure/structure.scss', 'utf8');
+
+  function ruleBody(selector: string): string {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return styles.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+  }
+
+  it('conserva el inspector a dos paneles y aplica la escala al workspace', () => {
+    expect(styles).toMatch(/@media\s*\(min-width:\s*60rem\)[\s\S]*grid-template-columns:\s*minmax\(0,\s*1\.15fr\)\s+minmax\(19rem,\s*\.85fr\)/);
+    expect(ruleBody('.structure-workspace')).toMatch(/gap:\s*var\(--grid-gap\)/);
+    expect(ruleBody('.structure-workspace')).toMatch(/max-width:\s*var\(--content-max-width\)/);
+    expect(ruleBody('.outline, .inspector')).toMatch(/padding:\s*var\(--card-pad\)/);
+  });
+
+  it('pestañas, filas y chips usan tokens sin perder los 44px ni el foco', () => {
+    expect(styles).toMatch(/\.inspector-tabs\s*\{[^}]*gap:\s*var\(--space-1\)/);
+    expect(styles).toMatch(/\.inspector-tabs\s*\{[^}]*border-bottom:\s*var\(--border-width\)/);
+    expect(styles).toMatch(/\.outline-select, \.outline-fold, \.outline-order__button, \.structure-drag, \.outline-add, \.structure-link\s*\{[^}]*min-width:\s*44px/);
+    expect(styles).toMatch(/\.outline-select, \.outline-fold, \.outline-order__button, \.structure-drag, \.outline-add, \.structure-link\s*\{[^}]*min-height:\s*44px/);
+    expect(ruleBody('.outline-block, .outline-lesson')).toMatch(/border:\s*var\(--border-width\)/);
+    expect(styles).toMatch(/\.structure-section--dragover[^{]*\{[^}]*outline:\s*2px solid var\(--admin-accent\)/);
+    expect(styles).not.toMatch(/border-radius:\s*8px/);
+    expect(styles).not.toMatch(/border:\s*1px\s+solid/);
+    expect(styles).not.toMatch(/--space-\d\s*:/);
   });
 });

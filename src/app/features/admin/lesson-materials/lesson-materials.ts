@@ -1,11 +1,12 @@
 ﻿import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { SkeletonBlock } from '../../../shared/skeleton/skeleton';
 import { SUPABASE_CONFIG } from '../../../../environments/supabase-config';
 import { AuthService } from '../../../core/auth/auth.service';
 import { LessonResources, PdfResource } from '../../../shared/lesson-resources/lesson-resources';
 
 @Component({
-  selector: 'app-lesson-materials', imports: [FormsModule], changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-lesson-materials', imports: [FormsModule, SkeletonBlock], changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section aria-labelledby="materials-heading" class="materials-panel">
       <h3 #heading id="materials-heading" tabindex="-1">Materiales de la lección</h3>
@@ -13,7 +14,7 @@ import { LessonResources, PdfResource } from '../../../shared/lesson-resources/l
       <button type="button" (click)="closed.emit()">Volver a estructura</button>
       <p class="materials-status" aria-live="polite">{{ status() }}</p>
       @if (error()) { <p role="alert">{{ error() }}</p> }
-      @if (loading()) { <p>Cargando materiales…</p> }
+      @if (loading()) { <div aria-busy="true"><app-skeleton variant="list" ariaLabel="Cargando materiales…" /></div> }
       @else {
         @if (listFailed()) { <button type="button" [disabled]="loading() || busy()" (click)="reload()">Recargar lista</button> }
         @else if (!items().length) { <p>No hay materiales para esta lección.</p> }
@@ -50,16 +51,7 @@ import { LessonResources, PdfResource } from '../../../shared/lesson-resources/l
         <button type="button" [disabled]="busy()" (click)="retry()">Reintentar validación</button>
       }
     </section>`,
-  styles: `
-    .materials-panel { margin-block: 1rem; display: grid; gap: .5rem; }
-    .materials-context { margin: 0; color: var(--muted); }
-    .materials-status:empty { display: none; }
-    fieldset { display: grid; gap: .5rem; min-width: 0; }
-    ul { display: grid; gap: .75rem; padding-inline-start: 1.25rem; }
-    li { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .75rem; min-width: 0; }
-    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
-    @media (min-width: 48rem) { .materials-panel { max-width: 60ch; } }
-  `
+  styleUrl: './lesson-materials.scss'
 })
 export class LessonMaterials {
   /** IDs opcionales: los aporta el host al embeber el panel o la ruta histórica.

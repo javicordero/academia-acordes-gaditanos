@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { Router, provideRouter } from '@angular/router';
@@ -171,6 +172,23 @@ describe('LessonVideo · subida Bunny desde el panel', () => {
     expect(prepareCalls()).toHaveLength(0);
     expect(tusCreate).not.toHaveBeenCalled();
     expect(fixture.componentInstance.uploadState()).toBe('idle');
+  });
+
+  it('reserva altura con un esqueleto accesible solo al consultar el estado', async () => {
+    const fixture = await setup();
+    fixture.componentInstance.uploadState.set('loading');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const skeleton = el.querySelector('app-skeleton') as HTMLElement | null;
+    expect(skeleton?.querySelector('.skeleton')?.getAttribute('data-variant')).toBe('text');
+    expect(skeleton!.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(el.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(el.querySelector('.sr-only[role="status"]')?.textContent?.trim())
+      .toBe('Comprobando el estado del vídeo de esta lección…');
+    expect(el.querySelectorAll('.sr-only[role="status"]')).toHaveLength(1);
+    fixture.componentInstance.uploadState.set('idle');
+    fixture.detectChanges();
+    expect(el.querySelector('app-skeleton')).toBeNull();
   });
 
   it('admite entrada embebida con returnUrl opcional y sin parámetros de ruta', async () => {
@@ -1128,5 +1146,25 @@ describe('UploadToasts · autocierre y dedupe', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('Geometría de temas en vídeo y avisos', () => {
+  const styles = readFileSync('src/app/features/admin/lesson-video/lesson-video.scss', 'utf8');
+
+  it('controles y progreso usan la escala sin perder 44px ni el foco de 3px', () => {
+    expect(styles).toMatch(/input\s*\{[^}]*min-height:\s*44px[^}]*border:\s*var\(--border-width\)[^}]*border-radius:\s*var\(--radius-sm\)/);
+    expect(styles).toMatch(/button\s*\{[^}]*min-height:\s*44px/);
+    expect(styles).toMatch(/button:focus-visible,\s*input:focus-visible\s*\{[^}]*outline:\s*3px solid var\(--focus\)/);
+    expect(styles).not.toMatch(/border-radius:\s*8px/);
+    expect(styles).not.toMatch(/border:\s*1px\s+solid/);
+    expect(styles).not.toMatch(/--shadow-card\s*:/);
+  });
+
+  it('los avisos flotantes toman sombra, radios y huecos del tema', () => {
+    expect(styles).toMatch(/\.toast\s*\{[^}]*border-radius:\s*var\(--radius-sm\)[^}]*box-shadow:\s*var\(--shadow-raised\)/);
+    expect(styles).toMatch(/\.toast__actions\s*\{[^}]*gap:\s*var\(--space-2\)/);
+    expect(styles).toMatch(/\.toast-stack\s*\{[^}]*gap:\s*var\(--space-2\)/);
+    expect(styles).toMatch(/\.upload\s*\{[^}]*margin-block:\s*var\(--space-5\)/);
   });
 });

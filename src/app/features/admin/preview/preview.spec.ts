@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By, DomSanitizer } from '@angular/platform-browser';
@@ -437,21 +438,26 @@ describe('Vista previa administrativa', () => {
     expect(document.activeElement === document.body || document.activeElement?.id === 'preview-heading').toBe(true);
   });
 
-  it('reserva altura al cargar y no duplica anuncios de estado', async () => {
+  it('reserva altura con un esqueleto accesible y no duplica anuncios de estado', async () => {
     authStatus.set('loading');
     await harness.navigateByUrl(path(firstId), Preview);
     harness.detectChanges();
     const root = harness.routeNativeElement!;
-    expect(root.querySelector('.content-skeleton')).not.toBeNull();
-    expect(root.querySelector('.content-skeleton')?.getAttribute('aria-hidden')).toBe('true');
+    const skeleton = root.querySelector<HTMLElement>('app-skeleton[arialabel="Cargando lección…"] .skeleton');
+    expect(skeleton?.getAttribute('data-variant')).toBe('card');
+    expect(skeleton?.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(root.textContent).toContain('Cargando lección');
-    expect(root.querySelectorAll('[role=status]')).toHaveLength(0);
+    const loadingStatus = root.querySelectorAll('.sr-only[role="status"]');
+    expect(loadingStatus).toHaveLength(1);
+    expect(loadingStatus[0].textContent?.trim()).toBe('Cargando lección…');
     expect(root.querySelector('[aria-live="polite"]')?.textContent?.trim()).toBe('');
 
     authStatus.set('authenticated');
     harness.detectChanges();
     await harness.fixture.whenStable(); harness.detectChanges();
-    // El wrapper no añade role=status: el anuncio de cambio es solo aria-live.
+    expect(root.querySelector('app-skeleton[arialabel="Cargando lección…"]')).toBeNull();
+    // El anuncio de cambio sigue siendo solo aria-live, sin role.
     const announcement = root.querySelector<HTMLElement>('p[aria-live="polite"]')!;
     expect(announcement.hasAttribute('role')).toBe(false);
     expect(announcement.textContent?.trim()).toBe('');
@@ -496,5 +502,17 @@ describe('Vista previa administrativa', () => {
     await harness.fixture.whenStable(); harness.detectChanges();
     expect(root.querySelector('form.comment-form--reply')).not.toBeNull();
     expect(progressSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('Geometría de temas en la vista previa', () => {
+  const styles = readFileSync('src/app/features/admin/preview/preview.scss', 'utf8');
+
+  it('usa la escala en los huecos locales y conserva el objetivo de 44px', () => {
+    expect(styles).toMatch(/\.preview-action\s*\{[^}]*min-height:\s*44px/);
+    expect(styles).toMatch(/\.preview-action\s*\{[^}]*padding-inline:\s*var\(--space-2\)/);
+    expect(styles).toMatch(/\.progress-control\s*\{[^}]*gap:\s*var\(--space-1\) var\(--space-2\)/);
+    expect(styles).not.toMatch(/--grid-gap\s*:/);
+    expect(styles).not.toMatch(/padding-inline:\s*\.5rem/);
   });
 });

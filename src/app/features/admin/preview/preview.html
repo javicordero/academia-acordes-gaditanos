@@ -6,8 +6,9 @@
   <p><a class="preview-action" routerLink="/admin">Volver a administración y cursos</a></p>
   @switch (state()) {
     @case ('loading') {
-      <p class="sr-only">Cargando lección…</p>
-      <div class="content-skeleton" aria-hidden="true"></div>
+      <div aria-busy="true">
+        <app-skeleton variant="card" ariaLabel="Cargando lección…" />
+      </div>
     }
     @case ('denied') { <p>Esta lección no está disponible o no tienes acceso.</p> }
     @case ('error') {

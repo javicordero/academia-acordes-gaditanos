@@ -1,0 +1,10 @@
+/* Geometría del panel de materiales: mismos huecos de escala que el resto del
+   panel de administración, sin tocar textos ni acciones de descarga. */
+.materials-panel { margin-block: var(--grid-gap); display: grid; gap: var(--space-2); }
+.materials-context { margin: 0; color: var(--muted); }
+.materials-status:empty { display: none; }
+fieldset { display: grid; gap: var(--space-2); min-width: 0; }
+ul { display: grid; gap: var(--card-gap); padding-inline-start: var(--space-4); }
+li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); min-width: 0; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+@media (min-width: 48rem) { .materials-panel { max-width: 60ch; } }

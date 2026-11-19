@@ -1,4 +1,5 @@
-﻿import { signal } from '@angular/core';
+﻿import { readFileSync } from 'node:fs';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -22,6 +23,24 @@ describe('LessonMaterials', () => {
     expect(service.list).toHaveBeenCalledTimes(1);
     fixture.componentRef.setInput('lessonId','44444444-4444-4444-4444-444444444444'); fixture.detectChanges(); await fixture.whenStable();
     expect(service.list).toHaveBeenCalledTimes(2);
+  });
+  it('muestra un esqueleto accesible mientras carga la lista de materiales', async () => {
+    let resolve!: (value: typeof item[]) => void;
+    service.list.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+    const fixture = TestBed.createComponent(LessonMaterials);
+    fixture.componentRef.setInput('courseId',course); fixture.componentRef.setInput('lessonId',lesson); fixture.componentRef.setInput('lessonTitle','Lección');
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const skeleton = el.querySelector('app-skeleton') as HTMLElement | null;
+    expect(skeleton?.querySelector('.skeleton')?.getAttribute('data-variant')).toBe('list');
+    expect(skeleton!.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(el.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(el.querySelector('.sr-only[role="status"]')?.textContent?.trim()).toBe('Cargando materiales…');
+    expect(el.querySelectorAll('.sr-only[role="status"]')).toHaveLength(1);
+    resolve([]);
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(el.querySelector('app-skeleton')).toBeNull();
+    expect(el.textContent).toContain('No hay materiales para esta lección.');
   });
   it('bloquea nuevas subidas hasta recargar la lista tras finalizar', async () => {
     const fixture = await setup(), c = fixture.componentInstance; fill(c);
@@ -163,5 +182,20 @@ describe('LessonMaterials', () => {
     fixture.componentRef.setInput('lessonTitle', 'Lección');
     fixture.detectChanges(); await fixture.whenStable();
     expect(service.list).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Geometría de temas en materiales', () => {
+  const styles = readFileSync('src/app/features/admin/lesson-materials/lesson-materials.scss', 'utf8');
+  const component = readFileSync('src/app/features/admin/lesson-materials/lesson-materials.ts', 'utf8');
+
+  it('los estilos viven en SCSS y consumen la escala sin definir tokens', () => {
+    expect(component).toMatch(/styleUrl:\s*'\.\/lesson-materials\.scss'/);
+    expect(styles).toMatch(/\.materials-panel\s*\{[^}]*margin-block:\s*var\(--grid-gap\)[^}]*gap:\s*var\(--space-2\)/);
+    expect(styles).toMatch(/ul\s*\{[^}]*gap:\s*var\(--card-gap\)/);
+    expect(styles).toMatch(/li\s*\{[^}]*gap:\s*var\(--space-1\) var\(--space-3\)/);
+    expect(styles).toMatch(/:focus-visible\s*\{[^}]*outline:\s*3px solid var\(--focus\)/);
+    expect(styles).not.toMatch(/--space-\d\s*:/);
+    expect(styles).not.toMatch(/margin-block:\s*1rem/);
   });
 });

@@ -1,13 +1,15 @@
+/* Geometría de vídeo y avisos: huecos, radios, grosores y sombras de la escala
+   de tema. Los colores de validación y el foco de 3px se conservan. */
 section {
-  margin-block: 1rem;
+  margin-block: var(--grid-gap);
   min-width: 0;
 }
 
 form {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-2);
   max-width: 42rem;
-  margin-block: 1rem;
+  margin-block: var(--grid-gap);
 }
 
 label {
@@ -18,23 +20,23 @@ input {
   width: 100%;
   min-width: 0;
   min-height: 44px;
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
 }
 
 input[aria-invalid='true'] {
-  border: 2px solid #9b2c2c;
+  border: calc(var(--border-width) * 2) solid #9b2c2c;
 }
 
 button {
   min-height: 44px;
-  padding: 0.6rem 0.9rem;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--accent);
   font: inherit;
@@ -57,20 +59,20 @@ input:focus-visible {
 
 ul {
   max-width: 42rem;
-  margin: 0.5rem 0;
-  padding-left: 1.25rem;
+  margin: var(--space-2) 0;
+  padding-left: var(--space-4);
   overflow-wrap: anywhere;
 }
 
 .upload {
   max-width: 42rem;
-  margin-block: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
+  margin-block: var(--space-5);
+  padding-top: var(--grid-gap);
+  border-top: var(--border-width) solid var(--border);
 }
 
 .upload h4 {
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--space-3);
   font-size: 1.05rem;
 }
 
@@ -80,8 +82,8 @@ ul {
 }
 
 .warning {
-  padding: 0.6rem 0.75rem;
-  border-left: 4px solid #9b2c2c;
+  padding: var(--space-2) var(--space-3);
+  border-left: calc(var(--border-width) * 3) solid #9b2c2c;
   background: #f6efe8;
   font-size: 0.9rem;
 }
@@ -90,8 +92,8 @@ ul {
   width: 100%;
   height: 1rem;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }
 
@@ -103,12 +105,12 @@ ul {
 }
 
 .upload button {
-  margin-block: 0.5rem 0;
+  margin-block: var(--space-2) 0;
 }
 
 @media (max-width: 40rem) {
   form {
-    gap: 0.65rem;
+    gap: var(--space-2);
   }
 
   button {
@@ -119,22 +121,22 @@ ul {
 /* Avisos de subida: flotan sin capturar el foco ni bloquear la interfaz. */
 .toast-stack {
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
+  right: var(--grid-gap);
+  bottom: var(--grid-gap);
   z-index: 50;
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-2);
   width: min(24rem, calc(100vw - 2rem));
   pointer-events: none;
 }
 
 .toast {
-  padding: 0.7rem 0.85rem;
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-left: calc(var(--border-width) * 3) solid var(--accent);
+  border-radius: var(--radius-sm);
   background: var(--surface);
-  box-shadow: 0 2px 10px rgb(0 0 0 / 15%);
+  box-shadow: var(--shadow-raised);
   pointer-events: auto;
   overflow-wrap: anywhere;
 }
@@ -156,7 +158,7 @@ ul {
 
 .toast__title {
   display: block;
-  margin-bottom: 0.2rem;
+  margin-bottom: var(--space-1);
   font-weight: 700;
 }
 
@@ -168,13 +170,13 @@ ul {
 .toast__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .toast__actions button {
   min-height: 36px;
-  padding: 0.35rem 0.6rem;
+  padding: var(--space-1) var(--space-2);
   font-size: 0.88rem;
 }
 
@@ -191,8 +193,8 @@ ul {
 
 @media (max-width: 40rem) {
   .toast-stack {
-    left: 1rem;
-    right: 1rem;
+    left: var(--grid-gap);
+    right: var(--grid-gap);
     width: auto;
   }
 

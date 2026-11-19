@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { Component, input, output, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -107,10 +108,17 @@ describe('Administración de cursos', () => {
     const fixture = TestBed.createComponent(Admin);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
+    const skeleton = el.querySelector('app-skeleton') as HTMLElement | null;
+    expect(skeleton).not.toBeNull();
+    expect(skeleton!.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(el.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(el.querySelector('.sr-only[role="status"]')?.textContent?.trim()).toBe('Cargando cursos…');
+    expect(el.querySelectorAll('.sr-only[role="status"]')).toHaveLength(1);
     expect(el.textContent).toContain('Cargando cursos');
     resolve([]);
     await fixture.whenStable();
     fixture.detectChanges();
+    expect(el.querySelector('app-skeleton')).toBeNull();
     expect(el.textContent).toContain('No hay cursos disponibles');
     el.querySelector<HTMLButtonElement>('button')!.click();
     await fixture.whenStable();
@@ -125,6 +133,42 @@ describe('Administración de cursos', () => {
     fixture.detectChanges();
     expect(el.textContent).toContain('No hay cursos disponibles');
     expect(document.activeElement?.textContent).toBe('Cursos');
+  });
+
+  it('muestra un esqueleto accesible al cargar el editor del curso', async () => {
+    let resolve!: (value: Course[]) => void;
+    setup(vi.fn(() => new Promise<Course[]>((done) => { resolve = done; })));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/admin/curso/c1/datos', Admin);
+    harness.detectChanges();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    const skeleton = el.querySelector('app-skeleton') as HTMLElement | null;
+    expect(skeleton?.querySelector('.skeleton')?.getAttribute('data-variant')).toBe('text');
+    expect(skeleton!.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(el.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(el.querySelector('.sr-only[role="status"]')?.textContent?.trim()).toBe('Cargando datos del curso…');
+    resolve([course]);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(el.querySelector('app-skeleton')).toBeNull();
+  });
+
+  it('muestra un esqueleto accesible al cargar la estructura', async () => {
+    let resolve!: (value: Course[]) => void;
+    setup(vi.fn(() => new Promise<Course[]>((done) => { resolve = done; })));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/admin/curso/c1/estructura', Admin);
+    harness.detectChanges();
+    const el = harness.fixture.nativeElement as HTMLElement;
+    const skeleton = el.querySelector('app-skeleton') as HTMLElement | null;
+    expect(skeleton?.querySelector('.skeleton')?.getAttribute('data-variant')).toBe('list');
+    expect(skeleton!.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(el.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(el.querySelector('.sr-only[role="status"]')?.textContent?.trim()).toBe('Cargando estructura…');
+    resolve([course]);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(el.querySelector('app-skeleton')).toBeNull();
   });
 
   it('ignora respuestas de carga anteriores a la más reciente', async () => {
@@ -362,5 +406,46 @@ describe('Administración de cursos', () => {
     await Promise.resolve();
     harness.detectChanges();
     expect(document.activeElement?.textContent).toBe('Cursos');
+  });
+});
+
+describe('Geometría de temas en el workspace editorial', () => {
+  const adminStyles = readFileSync('src/app/features/admin/admin.scss', 'utf8');
+  const editorStyles = readFileSync('src/app/features/admin/course-editor/course-editor.scss', 'utf8');
+
+  function ruleBody(css: string, selector: string): string {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+  }
+
+  it('la cabecera y los paneles declaran la escala de tema, no valores duros', () => {
+    expect(ruleBody(adminStyles, '.course-header')).toMatch(/padding:\s*var\(--card-pad\)/);
+    expect(ruleBody(adminStyles, '.course-header')).toMatch(/border:\s*var\(--border-width\)/);
+    expect(ruleBody(adminStyles, '.course-header')).toMatch(/border-radius:\s*var\(--radius-md\)/);
+    expect(ruleBody(adminStyles, '.course-header')).toMatch(/box-shadow:\s*var\(--shadow-card\)/);
+    expect(ruleBody(adminStyles, '.status-panel')).toMatch(/padding:\s*var\(--card-pad\)/);
+    expect(ruleBody(adminStyles, '.status-panel')).toMatch(/border-left:\s*calc\(var\(--border-width\)/);
+    expect(adminStyles + editorStyles).not.toMatch(/--space-\d\s*:/);
+    expect(adminStyles + editorStyles).not.toMatch(/--card-pad\s*:/);
+  });
+
+  it('listados, badges y navegación cambian huecos y radios por tema sin romper 44px', () => {
+    expect(ruleBody(adminStyles, '.section-heading')).toMatch(/margin-top:\s*var\(--section-gap\)/);
+    expect(ruleBody(adminStyles, '.course-nav__list')).toMatch(/gap:\s*var\(--space-2\)/);
+    expect(ruleBody(adminStyles, '.course-row')).toMatch(/gap:\s*var\(--space-2\)/);
+    expect(ruleBody(adminStyles, '.status-badge')).toMatch(/padding:\s*var\(--space-1\) var\(--space-2\)/);
+    expect(ruleBody(adminStyles, '.course-nav__link')).toMatch(/border-radius:\s*var\(--radius-sm\)/);
+    expect(ruleBody(adminStyles, '.course-nav__link')).toMatch(/min-height:\s*44px/);
+    expect(adminStyles).not.toMatch(/border-radius:\s*8px/);
+    expect(adminStyles).not.toMatch(/border:\s*1px\s+solid/);
+  });
+
+  it('el editor usa la misma escala en campos y feedback', () => {
+    expect(ruleBody(editorStyles, 'textarea, select')).toMatch(/padding:\s*var\(--space-2\) var\(--space-3\)/);
+    expect(ruleBody(editorStyles, 'textarea, select')).toMatch(/border:\s*var\(--border-width\)/);
+    expect(ruleBody(editorStyles, 'textarea, select')).toMatch(/border-radius:\s*var\(--radius-sm\)/);
+    expect(ruleBody(editorStyles, '.form-error-summary')).toMatch(/border-left:\s*calc\(var\(--border-width\)/);
+    expect(ruleBody(editorStyles, '.form-error-summary ul')).toMatch(/padding-left:\s*var\(--space-4\)/);
+    expect(editorStyles).not.toMatch(/border-radius:\s*var\(--radius\);/);
   });
 });

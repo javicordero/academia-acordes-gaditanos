@@ -23,6 +23,7 @@ import {
 import { filter } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { SkeletonBlock } from '../../shared/skeleton/skeleton';
 import { Course, CoursesRepository, CourseStatus } from './courses-repository';
 import { CourseEditor } from './course-editor/course-editor';
 import { LessonMaterials } from './lesson-materials/lesson-materials';
@@ -71,6 +72,7 @@ function lessonNote(lesson: Lesson | undefined): string {
     Structure,
     LessonVideo,
     LessonMaterials,
+    SkeletonBlock,
     RouterLink,
     RouterOutlet,
   ],

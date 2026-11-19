@@ -100,6 +100,21 @@ describe('Editor de cursos', () => {
     expect(el.querySelector('#slug-error')).not.toBeNull();
   });
 
+  it('el guardado no es carga de datos: avisa con texto, nunca con un esqueleto', () => {
+    const fixture = TestBed.createComponent(CourseEditor);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-skeleton')).toBeNull();
+    fixture.componentInstance.saving.set(true);
+    fixture.detectChanges();
+    expect(el.textContent).toContain('Guardando…');
+    expect(el.querySelector('.skeleton__shapes')).toBeNull();
+    expect(el.querySelector('[role="status"]')?.textContent?.trim()).toBe('Guardando…');
+    fixture.componentInstance.saving.set(false);
+    fixture.detectChanges();
+    expect(el.textContent).not.toContain('Guardando…');
+  });
+
   it('los controles con aria-label incluyen su texto visible', () => {
     const fixture = TestBed.createComponent(CourseEditor);
     fixture.detectChanges();

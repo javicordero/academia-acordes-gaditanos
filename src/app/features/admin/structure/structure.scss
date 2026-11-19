@@ -1,44 +1,49 @@
+/* Geometría de la estructura: comparte la escala de tema con el resto del
+   panel. Lo que ya declara la base global de .admin-workspace no se repite;
+   se conservan DnD, pestañas, foco, 44px, dos paneles y responsive. */
 :host { display: block; min-width: 0; }
 .structure-intro, .structure-hint, .inspector-empty, .outline-position, .inspector-legacy summary { color: var(--admin-text-muted); }
 .structure-intro, .structure-hint { font-size: .9rem; }
-.structure-hint { margin: .25rem 0 .5rem; }
-.structure-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .75rem; margin-block: .75rem; }
-.structure-workspace { display: grid; gap: 1rem; align-items: start; min-width: 0; }
+.structure-hint { margin: var(--space-1) 0 var(--space-2); }
+.structure-toolbar, .inspector-actions, .inspector-links, .inspector-tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-3); }
+.structure-toolbar { align-items: center; gap: var(--space-1) var(--space-3); margin-bottom: var(--space-3); }
+.structure-workspace { display: grid; gap: var(--grid-gap); max-width: var(--content-max-width); align-items: start; }
 @media (min-width: 60rem) {
   .structure-workspace { grid-template-columns: minmax(0, 1.15fr) minmax(19rem, .85fr); }
-  .inspector { position: sticky; top: 1rem; }
+  .inspector { position: sticky; top: var(--grid-gap); }
 }
-.outline, .inspector, .outline-block, .outline-lesson { min-width: 0; border: 1px solid var(--admin-border); border-radius: var(--radius); }
-.outline, .inspector { padding: clamp(.85rem, 2.5vw, 1.35rem); background: var(--admin-surface); }
-.outline-block, .outline-lesson { position: relative; margin: 0; padding: .35rem; }
+.outline, .inspector, .outline-block, .outline-lesson { min-width: 0; border: var(--border-width) solid var(--admin-border); border-radius: var(--radius-md); }
+.outline, .inspector { padding: var(--card-pad); background: var(--admin-surface); }
+.outline-block, .outline-lesson { position: relative; margin: 0; padding: var(--space-1); }
 .outline-block { background: var(--admin-surface-soft); }
-.outline-list { display: grid; gap: .6rem; min-width: 0; margin: .75rem 0; padding: 0; list-style: none; }
-.outline-lessons { display: grid; gap: .4rem; min-width: 0; margin: .4rem 0 .5rem .85rem; padding: 0; list-style: none; }
-.outline-row { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; min-width: 0; }
-.outline-select, .outline-fold, .outline-order__button, .structure-drag, .outline-add, .structure-link { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border-radius: 8px; color: var(--admin-text); cursor: pointer; }
-.outline-select { flex: 1 1 10rem; gap: .5rem; padding: .4rem .6rem; border: 1px solid transparent; background: transparent; text-align: left; }
-.outline-select[aria-current='true'] { border-color: var(--admin-accent); background: var(--admin-surface-hover); font-weight: 650; }
-.outline-name { min-width: 0; overflow-wrap: anywhere; }
-.outline-fold, .outline-order__button { padding: .25rem; border: 1px solid var(--admin-border); background: var(--admin-surface); }
-.outline-position { min-width: 2.75rem; font-size: .85rem; text-align: center; }
-.status-chip { display: inline-flex; align-items: center; min-height: 24px; padding: .1rem .5rem; border: 1px solid var(--admin-success); border-radius: 999px; background: var(--admin-success-surface); color: var(--admin-success-text); font-size: .75rem; font-weight: 650; white-space: nowrap; }
+/* display/padding/list-style de ambas listas los aporta `app-structure ul`. */
+.outline-list { gap: var(--card-gap); margin: var(--space-3) 0; }
+.outline-lessons { gap: var(--space-2); margin: var(--space-2) 0 var(--space-2) var(--space-3); }
+.outline-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+.outline-select, .outline-fold, .outline-order__button, .structure-drag, .outline-add, .structure-link { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border-radius: var(--radius-sm); color: var(--admin-text); }
+.outline-select, .structure-drag { padding: var(--space-1) var(--space-2); }
+.outline-select { flex: 1 1 10rem; gap: var(--space-2); border: var(--border-width) solid transparent; background: none; text-align: left; }
+.outline-select[aria-current='true'] { border-color: var(--admin-accent); background: var(--admin-surface-hover); }
+.outline-name { min-width: 0; }
+.outline-fold, .outline-order__button { padding: var(--space-1); border: var(--border-width) solid var(--admin-border); }
+.outline-position { font-size: .85rem; text-align: center; }
+.status-chip { padding: var(--space-1) var(--space-2); border: var(--border-width) solid var(--admin-success); border-radius: var(--radius-lg); background: var(--admin-success-surface); color: var(--admin-success-text); font-size: .75rem; }
 .status-chip--draft { border-color: var(--admin-warn); background: var(--admin-warn-surface); color: var(--admin-warn-text); }
-.status-chip--preview { border-color: var(--admin-border-strong); color: var(--admin-text-muted); }
-.structure-drag { padding: .35rem .55rem; border: 1px dashed var(--admin-border-strong); background: var(--admin-surface); cursor: grab; }
-.structure-section--dragover, .structure-lesson--dragover { outline: 2px solid var(--admin-accent); outline-offset: -2px; }
+/* Misma geometría para el chip de muestra y los enlaces secundarios. */
+.status-chip--preview, .inspector-legacy .structure-link { border-color: var(--admin-border-strong); color: var(--admin-text-muted); }
+.structure-drag { border: var(--border-width) dashed var(--admin-border-strong); background: var(--admin-surface); cursor: grab; }
+.structure-section--dragover, .structure-lesson--dragover { outline: 2px solid var(--admin-accent); }
 .structure-section--dragover::before, .structure-lesson--dragover::before { position: absolute; inset-block: .25rem; left: 0; width: 3px; background: var(--admin-accent); content: ''; }
-.inspector form { display: grid; gap: .5rem; max-width: none; margin: 0; padding: 0; border: 0; background: transparent; }
-.inspector-actions, .inspector-links, .inspector-tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .75rem; }
-.structure-link { padding: .45rem .7rem; border: 1px solid var(--admin-accent); border-radius: var(--radius); color: var(--admin-accent); font-weight: 650; text-decoration: none; }
-.inspector-tabs { gap: .25rem; margin: .5rem 0 .75rem; border-bottom: 1px solid var(--admin-border); }
-.inspector-tabs button { min-width: 44px; border-bottom-color: transparent; border-radius: 8px 8px 0 0; }
+.inspector form { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; background: none; }
+.structure-link { padding: var(--space-2) var(--space-3); border: var(--border-width) solid var(--admin-accent); color: var(--admin-accent); font-weight: 650; text-decoration: none; }
+.inspector-tabs { gap: var(--space-1); margin: var(--space-2) 0 var(--space-3); border-bottom: var(--border-width) solid var(--admin-border); }
+.inspector-tabs button { min-width: 44px; border-bottom-color: transparent; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
 .inspector-tabs button[aria-selected='true'] { border-color: var(--admin-border); border-bottom-color: var(--admin-accent); background: var(--admin-surface-hover); color: var(--admin-accent); }
 .inspector-tabpanel[hidden] { display: none; }
-.inspector-legacy { margin-top: .75rem; padding-top: .4rem; border-top: 1px solid var(--admin-border); }
+.inspector-legacy { margin-top: var(--space-3); border-top: var(--border-width) solid var(--admin-border); }
 .inspector-legacy summary { min-height: 44px; }
-.inspector-legacy .structure-link { border-color: var(--admin-border-strong); color: var(--admin-text-muted); }
 @media (max-width: 24rem) {
-  .outline, .inspector { padding: .6rem; }
+  .outline, .inspector { padding: var(--space-2); }
   .outline-select { flex-basis: 100%; }
-  .outline-lessons { margin-left: .35rem; }
+  .outline-lessons { margin-left: var(--space-1); }
 }

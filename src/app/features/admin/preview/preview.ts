@@ -7,6 +7,7 @@ import { PlaybackSource, VideoPlaybackService } from '../../aula/video-playback'
 import { LessonComments } from '../../comentarios/lesson-comments';
 import { PreviewRepository } from './preview-repository';
 import { ClassroomNav } from '../../aula/classroom-nav';
+import { SkeletonBlock } from '../../../shared/skeleton/skeleton';
 
 /**
  * Estados de la fuente de vídeo. `Aula` define su equivalente dentro del
@@ -18,7 +19,7 @@ type VideoState = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error' | 'expi
 
 @Component({
   selector: 'app-admin-preview',
-  imports: [RouterLink, LessonMaterials, ClassroomNav, LessonComments],
+  imports: [RouterLink, LessonMaterials, ClassroomNav, LessonComments, SkeletonBlock],
   templateUrl: './preview.html',
   styleUrls: ['../../aula/aula/aula.scss', './preview.scss'],
 })

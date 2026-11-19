@@ -1,15 +1,18 @@
-/* Workspace editorial: una sola cabecera de curso y navegación interna. */
+/* Workspace editorial: una sola cabecera de curso y navegación interna.
+   La geometría (huecos, padding, radios, grosor y sombra) viene de los tokens
+   geométricos de tema: cambiar de tema recompone el panel sin recargar. */
 .course-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem 1rem;
-  margin-top: 1.5rem;
-  padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  gap: var(--space-2) var(--grid-gap);
+  margin-top: var(--space-4);
+  padding: var(--card-pad);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 
 .course-header__info {
@@ -23,16 +26,16 @@
 }
 
 .course-header__status {
-  margin: 0.35rem 0 0;
+  margin: var(--space-1) 0 0;
   color: var(--muted);
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-lg);
   color: var(--accent);
   font-weight: 650;
   white-space: nowrap;
@@ -52,13 +55,13 @@
 }
 
 .course-nav {
-  margin-top: 1rem;
+  margin-top: var(--grid-gap);
 }
 
 .course-nav__list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -69,9 +72,9 @@
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  padding: 0.55rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
   font-weight: 600;
@@ -86,20 +89,20 @@
 }
 
 .section-heading {
-  margin-top: 1.5rem;
+  margin-top: var(--section-gap);
 }
 
 .course-row {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .course-row__head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.35rem 0.75rem;
+  gap: var(--space-1) var(--space-3);
 }
 
 .course-row__title {
@@ -117,8 +120,8 @@
 .state-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .empty-state {
@@ -128,12 +131,13 @@
 .lesson-note,
 .status-panel {
   max-width: 100%;
-  margin: 1rem 0;
-  padding: 1rem;
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--radius);
+  margin: var(--grid-gap) 0;
+  padding: var(--card-pad);
+  border: var(--border-width) solid var(--border);
+  border-left: calc(var(--border-width) * 3) solid var(--accent);
+  border-radius: var(--radius-md);
   background: var(--surface);
+  box-shadow: var(--shadow-card);
   overflow-wrap: anywhere;
 }
 

@@ -6,6 +6,7 @@ import { Lesson, Section, StructureRepository } from '../structure-repository';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
 import { LessonVideo } from '../lesson-video/lesson-video';
 import { isLessonContentType } from '../../../shared/lesson-content-type';
+import { SkeletonBlock } from '../../../shared/skeleton/skeleton';
 
 const NO_LESSONS: Lesson[] = [];
 
@@ -36,7 +37,7 @@ function lessonSlug(title: string, lessons: Lesson[]): string {
 
 @Component({
   selector: 'app-structure',
-  imports: [FormsModule, LessonMaterials, LessonVideo, RouterLink],
+  imports: [FormsModule, LessonMaterials, LessonVideo, SkeletonBlock, RouterLink],
   templateUrl: './structure.html',
   styleUrl: './structure.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

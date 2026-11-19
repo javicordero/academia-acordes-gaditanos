@@ -44,7 +44,9 @@
       <h4 id="upload-heading">Subir un vídeo desde el panel</h4>
 
       @if (uploadState() === 'loading') {
-        <p role="status" aria-live="polite">Comprobando el estado del vídeo de esta lección…</p>
+        <div aria-busy="true">
+          <app-skeleton variant="text" [lines]="2" ariaLabel="Comprobando el estado del vídeo de esta lección…" />
+        </div>
       }
 
       @if (existingVideo()) {

@@ -18,6 +18,7 @@ import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
 
 import { AuthService } from '../../../core/auth/auth.service';
+import { SkeletonBlock } from '../../../shared/skeleton/skeleton';
 import { SUPABASE_CLIENT } from '../../../core/supabase/supabase-client';
 import {
   TUS_UPLOAD_FACTORY,
@@ -73,7 +74,7 @@ function statusOf(error: unknown): number | null {
 
 @Component({
   selector: 'app-lesson-video',
-  imports: [FormsModule],
+  imports: [FormsModule, SkeletonBlock],
   templateUrl: './lesson-video.html',
   styleUrl: './lesson-video.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -5,7 +5,9 @@
 @if (error()) { <p class="feedback feedback--error" role="alert">{{ error() }}</p> }
 @if (notice()) { <p class="structure-notice" role="status">{{ notice() }}</p> }
 @if (loading()) {
-  <p>Cargando estructura…</p>
+  <div aria-busy="true">
+    <app-skeleton variant="index" ariaLabel="Cargando estructura…" />
+  </div>
 } @else if (loadFailed()) {
   <button type="button" (click)="load()">Reintentar</button>
 } @else {

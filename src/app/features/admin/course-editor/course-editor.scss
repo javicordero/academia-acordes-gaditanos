@@ -1,3 +1,4 @@
+/* Geometría del editor: los huecos, radios y grosores siguen la escala de tema. */
 fieldset {
   padding: 0;
   border: 0;
@@ -6,9 +7,9 @@ fieldset {
 
 textarea, select {
   width: 100%;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -17,27 +18,27 @@ textarea, select {
 textarea { min-height: 6rem; }
 
 .editor-note {
-  margin-bottom: 1rem;
+  margin-bottom: var(--grid-gap);
   color: var(--muted);
 }
 
 .form-error-summary {
-  margin-bottom: 1rem;
-  padding: 0.75rem 0.9rem;
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--radius);
+  margin-bottom: var(--grid-gap);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-left: calc(var(--border-width) * 3) solid var(--accent);
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
 .form-error-summary h3 {
-  margin: 0 0 0.35rem;
+  margin: 0 0 var(--space-1);
   font-size: 1rem;
 }
 
 .form-error-summary ul {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: var(--space-4);
 }
 
 .form-error-summary a {
