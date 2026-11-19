@@ -1,0 +1,102 @@
+:host {
+  display: block;
+}
+
+.theme-selector {
+  position: relative;
+  display: inline-flex;
+}
+
+.theme-selector__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border, #ddd2c0);
+  border-radius: var(--radius, 12px);
+  background: var(--surface, #fffdf8);
+  color: var(--ink, #241f1a);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.theme-selector__trigger:hover {
+  border-color: var(--accent, #8f3a29);
+  color: var(--accent, #8f3a29);
+}
+
+.theme-selector__trigger:focus-visible,
+.theme-selector__option:focus-visible {
+  outline: 3px solid var(--focus, #145a9e);
+  outline-offset: 2px;
+}
+
+.theme-selector__trigger svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+.theme-selector__chevron {
+  width: 0.75rem !important;
+  height: 0.75rem !important;
+}
+
+.theme-selector__panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 13rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border, #ddd2c0);
+  border-radius: var(--radius, 12px);
+  background: var(--surface, #fffdf8);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+
+.theme-selector__option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-radius: var(--radius, 12px);
+  background: transparent;
+  color: var(--ink, #241f1a);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.theme-selector__option:hover {
+  background: var(--bg, #f6f1e7);
+}
+
+.theme-selector__option.is-current {
+  color: var(--accent, #8f3a29);
+  font-weight: 700;
+}
+
+.theme-selector__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  color: var(--accent, #8f3a29);
+}
+
+@media (max-width: 40rem) {
+  .theme-selector__panel {
+    position: static;
+    margin-top: 0.35rem;
+  }
+}

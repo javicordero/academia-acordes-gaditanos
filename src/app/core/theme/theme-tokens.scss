@@ -1,0 +1,271 @@
+/*
+ * README INTERNO · TEMAS DE LA ACADEMIA
+ *
+ * Seis temas con ids estables: creator (PREDETERMINADO, el que más gustó al
+ * usuario), flamenco, conservatorio, nocturno, contraste y brutalista.
+ * `brutalista` ("Brutalista AG") interpreta el carácter de marca de forma cruda
+ * (bordes duros, sin radio, acento ladrillo propio); NO copia colores exactos
+ * de la web principal ni de referencias externas. El resto de paletas también
+ * son valores propios y accesibles.
+ *
+ * INTEGRACIÓN FUTURA (pendiente de los commits de menú/cookies/foro):
+ *   1. Incluir `fonts.scss` (tiene los @font-face locales con licencias OFL en
+ *      public/fonts) y esta hoja en `styles` de angular.json, en ese orden y
+ *      DESPUÉS de `src/styles.scss`, para sobrescribir los valores provisionales.
+ *   2. Inyectar ThemeService desde el shell: aplica `data-theme` en <html> y
+ *      actualiza `meta[name=theme-color]` (ya presente en index.html).
+ *   3. Aplicar --font-body a `body` y --font-display a `h1, h2, h3` cuando se
+ *      integre el rediseño. Hoy los tokens existen pero no se han aplicado a
+ *      esos selectores: no se ha tocado styles.scss ni index.html.
+ *
+ * Todos los bloques declaran los MISMOS nombres de tokens: --bg, --surface,
+ * --ink, --muted, --accent, --accent-ink, --border, --focus, --radius,
+ * --font-body, --font-display y los --admin-* ya existentes en el proyecto.
+ */
+
+:root {
+  --font-body: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Bodoni Moda', Georgia, serif;
+}
+
+/* 5 · Creator-led (PREDETERMINADO): superficie oscura, acento cálido vivo,
+   radio moderado y densidad media-alta. */
+:root[data-theme='creator'] {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --surface: #1b1f27;
+  --ink: #f5f1ea;
+  --muted: #c2c9d4;
+  --accent: #ff7a45;
+  --accent-ink: #201006;
+  --border: #3a4351;
+  --focus: #ffd166;
+  --radius: 14px;
+  --font-body: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Bodoni Moda', Georgia, serif;
+  --admin-surface: var(--surface);
+  --admin-surface-soft: var(--bg);
+  --admin-surface-hover: #262c36;
+  --admin-field-bg: #12161d;
+  --admin-border: var(--border);
+  --admin-border-strong: #7d8899;
+  --admin-text: var(--ink);
+  --admin-text-muted: var(--muted);
+  --admin-accent: var(--accent);
+  --admin-accent-strong: #ff9a6b;
+  --admin-accent-ink: var(--accent-ink);
+  --admin-focus: var(--focus);
+  --admin-disabled-border: #5b6472;
+  --admin-disabled-surface: #2a303a;
+  --admin-disabled-text: #aeb6c2;
+  --admin-success: #7ee0a6;
+  --admin-success-surface: #163326;
+  --admin-success-text: #c8f5da;
+  --admin-warn: #ffd166;
+  --admin-warn-surface: #3a2e14;
+  --admin-warn-text: #ffe9a8;
+  --admin-danger: #ff8a8a;
+  --admin-danger-surface: #3a1e22;
+  --admin-danger-text: #ffd2d2;
+}
+
+/* 1 · Híbrido flamenco-editorial: crema cálido y granada. */
+:root[data-theme='flamenco'] {
+  color-scheme: light;
+  --bg: #f6efe3;
+  --surface: #fffaf1;
+  --ink: #2b1d18;
+  --muted: #655147;
+  --accent: #9e2f2b;
+  --accent-ink: #fffdf8;
+  --border: #d9c7b0;
+  --focus: #165a86;
+  --radius: 10px;
+  --font-body: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Bodoni Moda', Georgia, serif;
+  --admin-surface: var(--surface);
+  --admin-surface-soft: var(--bg);
+  --admin-surface-hover: #f2e7d6;
+  --admin-field-bg: #ffffff;
+  --admin-border: var(--border);
+  --admin-border-strong: #8c7767;
+  --admin-text: var(--ink);
+  --admin-text-muted: var(--muted);
+  --admin-accent: var(--accent);
+  --admin-accent-strong: #782220;
+  --admin-accent-ink: var(--accent-ink);
+  --admin-focus: var(--focus);
+  --admin-disabled-border: #b3a493;
+  --admin-disabled-surface: #ece2d4;
+  --admin-disabled-text: #6f6258;
+  --admin-success: #2f6b46;
+  --admin-success-surface: #eaf5ee;
+  --admin-success-text: #225136;
+  --admin-warn: #8a5a0b;
+  --admin-warn-surface: #fff4d6;
+  --admin-warn-text: #4a3a12;
+  --admin-danger: #9b2c2c;
+  --admin-danger-surface: #fbe9e9;
+  --admin-danger-text: #6f1d1d;
+}
+
+/* 2 · Conservatorio contemporáneo: azul pizarra, limpio y frío. */
+:root[data-theme='conservatorio'] {
+  color-scheme: light;
+  --bg: #edf2f4;
+  --surface: #ffffff;
+  --ink: #14242d;
+  --muted: #4a616d;
+  --accent: #135c73;
+  --accent-ink: #ffffff;
+  --border: #c5d5dc;
+  --focus: #0b4f9c;
+  --radius: 8px;
+  --font-body: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Bodoni Moda', Georgia, serif;
+  --admin-surface: var(--surface);
+  --admin-surface-soft: var(--bg);
+  --admin-surface-hover: #e4edf1;
+  --admin-field-bg: #ffffff;
+  --admin-border: var(--border);
+  --admin-border-strong: #75909d;
+  --admin-text: var(--ink);
+  --admin-text-muted: var(--muted);
+  --admin-accent: var(--accent);
+  --admin-accent-strong: #0d4557;
+  --admin-accent-ink: var(--accent-ink);
+  --admin-focus: var(--focus);
+  --admin-disabled-border: #9aadb6;
+  --admin-disabled-surface: #e2e9ed;
+  --admin-disabled-text: #54676f;
+  --admin-success: #1f6b4f;
+  --admin-success-surface: #e6f4ee;
+  --admin-success-text: #164c38;
+  --admin-warn: #8a5a0b;
+  --admin-warn-surface: #fff4d6;
+  --admin-warn-text: #4a3a12;
+  --admin-danger: #9b2c2c;
+  --admin-danger-surface: #fbe9e9;
+  --admin-danger-text: #6f1d1d;
+}
+
+/* 3 · Nocturno AG: azul noche con acento celeste. */
+:root[data-theme='nocturno'] {
+  color-scheme: dark;
+  --bg: #0a1220;
+  --surface: #141e30;
+  --ink: #eaf1ff;
+  --muted: #a9bad2;
+  --accent: #6fb7ff;
+  --accent-ink: #07121f;
+  --border: #2c3d57;
+  --focus: #ffd166;
+  --radius: 12px;
+  --font-body: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Bodoni Moda', Georgia, serif;
+  --admin-surface: var(--surface);
+  --admin-surface-soft: var(--bg);
+  --admin-surface-hover: #1c2a41;
+  --admin-field-bg: #0f1929;
+  --admin-border: var(--border);
+  --admin-border-strong: #617895;
+  --admin-text: var(--ink);
+  --admin-text-muted: var(--muted);
+  --admin-accent: var(--accent);
+  --admin-accent-strong: #9ed0ff;
+  --admin-accent-ink: var(--accent-ink);
+  --admin-focus: var(--focus);
+  --admin-disabled-border: #4a5c75;
+  --admin-disabled-surface: #202d42;
+  --admin-disabled-text: #a3b2c8;
+  --admin-success: #79d6a5;
+  --admin-success-surface: #14352a;
+  --admin-success-text: #cef3de;
+  --admin-warn: #ffd166;
+  --admin-warn-surface: #352d15;
+  --admin-warn-text: #ffe9a8;
+  --admin-danger: #ff9b9b;
+  --admin-danger-surface: #3b1f24;
+  --admin-danger-text: #ffd5d5;
+}
+
+/* 4 · Alto contraste: blanco/negro puro, acento amarillo y foco cian muy visible. */
+:root[data-theme='contraste'] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #000000;
+  --ink: #ffffff;
+  --muted: #ffffff;
+  --accent: #ffff00;
+  --accent-ink: #000000;
+  --border: #ffffff;
+  --focus: #00ffff;
+  --radius: 4px;
+  --font-body: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Bodoni Moda', Georgia, serif;
+  --admin-surface: #000000;
+  --admin-surface-soft: #000000;
+  --admin-surface-hover: #1a1a1a;
+  --admin-field-bg: #000000;
+  --admin-border: #ffffff;
+  --admin-border-strong: #ffffff;
+  --admin-text: #ffffff;
+  --admin-text-muted: #ffffff;
+  --admin-accent: #ffff00;
+  --admin-accent-strong: #ffffff;
+  --admin-accent-ink: #000000;
+  --admin-focus: #00ffff;
+  --admin-disabled-border: #808080;
+  --admin-disabled-surface: #1a1a1a;
+  --admin-disabled-text: #b3b3b3;
+  --admin-success: #00ff66;
+  --admin-success-surface: #000000;
+  --admin-success-text: #00ff66;
+  --admin-warn: #ffff00;
+  --admin-warn-surface: #000000;
+  --admin-warn-text: #ffff00;
+  --admin-danger: #ff6666;
+  --admin-danger-surface: #000000;
+  --admin-danger-text: #ff9999;
+}
+
+/* 6 · Brutalista AG: carácter de marca crudo, bordes duros y radio cero.
+   Paleta y acento propios; no reproducen colores exactos ajenos. */
+:root[data-theme='brutalista'] {
+  color-scheme: light;
+  --bg: #e9e4d9;
+  --surface: #fffdf6;
+  --ink: #171717;
+  --muted: #4c4841;
+  --accent: #b5371a;
+  --accent-ink: #fffdf6;
+  --border: #171717;
+  --focus: #0047d1;
+  --radius: 0px;
+  --font-body: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Bodoni Moda', Georgia, serif;
+  --admin-surface: var(--surface);
+  --admin-surface-soft: var(--bg);
+  --admin-surface-hover: #ded7c9;
+  --admin-field-bg: #fffdf6;
+  --admin-border: var(--border);
+  --admin-border-strong: #171717;
+  --admin-text: var(--ink);
+  --admin-text-muted: var(--muted);
+  --admin-accent: var(--accent);
+  --admin-accent-strong: #8c2812;
+  --admin-accent-ink: var(--accent-ink);
+  --admin-focus: var(--focus);
+  --admin-disabled-border: #6f6a61;
+  --admin-disabled-surface: #d4cec0;
+  --admin-disabled-text: #4c4841;
+  --admin-success: #1b6b3a;
+  --admin-success-surface: #e4f2e6;
+  --admin-success-text: #134b28;
+  --admin-warn: #8a5a0b;
+  --admin-warn-surface: #fff1c9;
+  --admin-warn-text: #4a3a12;
+  --admin-danger: #9b2c2c;
+  --admin-danger-surface: #f9e2de;
+  --admin-danger-text: #6f1d1d;
+}
