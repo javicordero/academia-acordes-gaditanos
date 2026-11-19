@@ -96,6 +96,18 @@ a:hover {
   color: #6f2b1e;
 }
 
+/* Acciones sin subrayado en toda la app: anula el subrayado por defecto que el
+   navegador aplica a los enlaces, también en hover/foco/visitado/activo. El
+   foco visible no depende del subrayado: sigue resolviéndose con outline y el
+   token --focus de la regla :focus-visible de abajo. */
+:is(a, button, [role='button'], .button, .home-button, .link-button) {
+  text-decoration: none;
+}
+
+:is(a, button, [role='button'], .button, .home-button, .link-button):is(:hover, :focus, :visited, :active) {
+  text-decoration: none;
+}
+
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
