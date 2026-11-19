@@ -165,11 +165,11 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
       /* Barra fina; nombre para lectores de pantalla. */
       .menu {
         display:flex; align-items:center; gap:var(--space-2);
-        min-height:44px; padding:var(--space-2);
+        min-width:48px; min-height:48px; padding:0 var(--space-2);
         border:0; background:transparent; color:inherit;
         font:inherit; font-weight:700; cursor:pointer;
       }
-      .menu__icon { width:1.1rem; height:1.1rem; stroke-width:1.6; }
+      .menu__icon { width:1.45rem; height:1.45rem; stroke-width:1.6; }
       /* Sin backdrop ni X: el propio hamburger cierra el cajón y devuelve el foco. */
       .menu--open {
         position:fixed; inset:.35rem auto auto .5rem; z-index:50;

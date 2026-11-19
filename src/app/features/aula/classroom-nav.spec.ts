@@ -493,6 +493,27 @@ describe('Índice del aula', () => {
     expect(root.querySelector('.nav-backdrop')).toBeNull();
   });
 
+  it('el burger móvil crece a 48px táctiles con icono mayor y sin caja', async () => {
+    await setup();
+    const css = componentCss().replace(/\[_ngcontent-[^\]]*\]/g, '');
+    const menuRules = [...css.matchAll(/\.menu\s*\{([^}]*)\}/g)].map(m => m[1].replace(/\s+/g, ' '));
+    const mobileMenu = menuRules.find(rule => /display:\s*flex/.test(rule)) ?? '';
+    expect(mobileMenu).toMatch(/display:\s*flex/);
+    expect(mobileMenu).toMatch(/min-width:\s*48px/);
+    expect(mobileMenu).toMatch(/min-height:\s*48px/);
+    expect(mobileMenu).toMatch(/padding:\s*0\s+var\(--space-2\)/);
+    expect(mobileMenu).toMatch(/border:\s*0\s*;/);
+    expect(mobileMenu).toMatch(/background:\s*transparent/);
+    const iconRule = css.match(/\.menu__icon\s*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+    expect(iconRule).toMatch(/width:\s*1\.45rem/);
+    expect(iconRule).toMatch(/height:\s*1\.45rem/);
+    expect(iconRule).toMatch(/stroke-width:\s*1\.6/);
+    // Escritorio sigue sin burger; el cajón y el cierre flotante conservan su posición.
+    expect(css).toMatch(/\.menu\s*\{[^}]*display:\s*none/);
+    expect(css).toMatch(/\.menu--open\s*\{[^}]*position:\s*fixed/);
+    expect(css).toMatch(/nav\.open\s*\{[^}]*position:\s*fixed/);
+  });
+
   it('usa tokens de tema en la geometría del índice sin alterar el cajón', async () => {
     await setup();
     const css = componentCss();

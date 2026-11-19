@@ -1384,10 +1384,10 @@ describe('Aula', () => {
     expect(cssRule(css, '.lesson-actions')).toMatch(/width:\s*100%/);
     expect(cssRule(css, '.lesson-actions')).toMatch(/justify-content:\s*flex-end/);
     // En móvil la banda pierde el padding grande y la altura de 6.5rem del escritorio:
-    // solo un separador mínimo bajo los controles; el cluster sigue en una sola fila.
+    // ahora respira ~16px arriba y abajo antes del vídeo; una sola fila.
     const actionsMobile = mobile.match(/\.lesson-actions[^{]*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
     expect(actionsMobile).not.toMatch(/padding-block:\s*(?:1\.875rem|var\(--space-5\))/);
-    expect(actionsMobile).toMatch(/padding-block:\s*0(?:\s+var\(--space-[12]\))?\s*;/);
+    expect(actionsMobile).toMatch(/padding-block:\s*var\(--space-4\)\s*;/);
     expect(actionsMobile).toMatch(/min-height:\s*0\s*;/);
     // El shell global pone nav { width: 100% } a <=40rem: aquí se neutraliza.
     expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*width:\s*auto/);
@@ -1414,6 +1414,105 @@ describe('Aula', () => {
     expect(cssRule(css, '.lesson-actions')).toMatch(/justify-content:\s*flex-end/);
     expect(cssRule(css, '.lesson-actions')).toMatch(/width:\s*100%/);
     expect(css).toMatch(/\.favorite-toggle\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/);
+    expect(cssRule(css, ':focus-visible')).toMatch(/outline:\s*3px solid var\(--focus\)/);
+  });
+
+  it('la estrella no tiene borde: solo icono, sin caja, 44px y foco visible', async () => {
+    const favorites = { list: vi.fn().mockResolvedValue([]), toggle: vi.fn().mockResolvedValue(true) };
+    setup(vi.fn().mockResolvedValue(data), undefined, true, () => null, favorites);
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const star = root.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+    const css = authoredCss();
+    const starRule = css.match(/\.favorite-toggle\s*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+
+    expect(star.querySelector('svg')).not.toBeNull();
+    expect(star.getAttribute('aria-pressed')).toBe('false');
+    expect(star.getAttribute('aria-label')).toBe('Añadir lección a favoritos');
+    expect(starRule).toMatch(/width:\s*44px/);
+    expect(starRule).toMatch(/height:\s*44px/);
+    expect(starRule).toMatch(/padding:\s*0\s*;/);
+    expect(starRule).toMatch(/border:\s*0\s*;/);
+    expect(starRule).toMatch(/background:\s*transparent/);
+    expect(starRule).not.toMatch(/border:\s*var\(--border-width\)/);
+    // El borde de acento sigue en progreso y vídeo, nunca en la estrella.
+    expect(css).toMatch(/:is\(\.progress-button,\s*\.video-button\)[^{]*\{[^}]*border:\s*var\(--border-width\)\s+solid\s+var\(--accent\)/);
+    expect(css).not.toMatch(/:is\([^)]*\.favorite-toggle[^)]*\)[^{]*\{[^}]*border:\s*var\(--border-width\)/);
+    expect(css).toMatch(/\.favorite-toggle:hover[^{]*\{[^}]*background:/);
+    expect(css).toMatch(/\.favorite-toggle--on[^{]*\{[^}]*color:\s*var\(--accent\)/);
+    expect(cssRule(css, ':focus-visible')).toMatch(/outline:\s*3px solid var\(--focus\)/);
+  });
+
+  it('en móvil burger y acciones comparten fila: el aside sale del flujo y reserva su hueco', async () => {
+    const favorites = { list: vi.fn().mockResolvedValue([]), toggle: vi.fn().mockResolvedValue(true) };
+    setup(vi.fn().mockResolvedValue(twoLessons), undefined, true, () => null, favorites);
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const aside = root.querySelector<HTMLElement>('aside.aula-sidebar')!;
+    const content = root.querySelector<HTMLElement>('article.aula-content')!;
+    const actions = root.querySelector<HTMLElement>('.lesson-actions')!;
+    const css = authoredCss();
+    const mobile = mobileCss();
+
+    // El burger precede al contenido en el DOM; el artículo es la única celda en flujo.
+    expect(aside.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(actions.closest('article.aula-content')).toBe(content);
+    // Mecanismo declarado: el aside se saca de la rejilla y se ancla arriba a la izquierda.
+    expect(mobile).toMatch(/\.aula-layout[^{]*\{[^}]*position:\s*relative/);
+    expect(mobile).toMatch(/\.aula-sidebar[^{]*\{[^}]*position:\s*absolute/);
+    expect(mobile).toMatch(/\.aula-sidebar[^{]*\{[^}]*inset:\s*var\(--space-4\)\s+auto\s+auto\s+0/);
+    // Hueco reservado para el burger (>=48px) antes del clúster alineado a la derecha.
+    const actionsMobile = mobile.match(/\.lesson-actions[^{]*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+    expect(actionsMobile).toMatch(/padding-inline-start:\s*3\.5rem/);
+    expect(actionsMobile).toMatch(/padding-block:\s*var\(--space-4\)/);
+    expect(cssRule(css, '.lesson-actions')).toMatch(/align-items:\s*center/);
+    expect(cssRule(css, '.lesson-actions')).toMatch(/justify-content:\s*flex-end/);
+    // El vídeo conserva su sangrado y el escritorio mantiene rejilla y offset.
+    expect(cssRule(css, '.video-stage')).toMatch(/margin-inline:\s*calc\(-1 \* var\(--aula-indent\)\)/);
+    expect(css).toMatch(/grid-template-columns:\s*330px\s+minmax\(0,\s*1fr\)/);
+    expect(css).toMatch(/--aula-shell-offset:\s*0px/);
+  });
+
+  it('en móvil separa la fila del borde y del vídeo con un padding moderado, y baja el burger con ella', async () => {
+    const favorites = { list: vi.fn().mockResolvedValue([]), toggle: vi.fn().mockResolvedValue(true) };
+    setup(vi.fn().mockResolvedValue(twoLessons), undefined, true, () => null, favorites);
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const nav = root.querySelector<HTMLElement>('.lesson-nav')!;
+    const star = nav.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+    const progress = nav.querySelector<HTMLButtonElement>('.progress-button')!;
+    const next = nav.querySelector<HTMLAnchorElement>('a[aria-label^="Siguiente:"]')!;
+    const actions = root.querySelector<HTMLElement>('.lesson-actions')!;
+    const stage = root.querySelector<HTMLElement>('.video-stage')!;
+    const css = authoredCss();
+    const mobile = mobileCss();
+    const actionsMobile = mobile.match(/\.lesson-actions[^{]*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+    const sidebarMobile = mobile.match(/\.aula-sidebar[^{]*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+
+    // Aire simétrico y moderado (~16px arriba y abajo): mayor que space-3/space-1 y lejos del 1.875rem.
+    expect(actionsMobile).toMatch(/padding-block:\s*var\(--space-4\)\s*;/);
+    expect(actionsMobile).not.toMatch(/padding-block:\s*(?:0(?:\s|;)|1\.875rem|var\(--space-5\))/);
+    expect(actionsMobile).not.toMatch(/var\(--space-[123]\)/);
+    // El burger baja igual y el vídeo queda tras la banda, sin margen negativo que coma el hueco.
+    expect(sidebarMobile).toMatch(/inset:\s*var\(--space-4\)\s+auto\s+auto\s+0/);
+    expect(actions.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mobile).not.toMatch(/\.video-stage[^{]*\{[^}]*margin-block-start:\s*-/);
+    // Alineación, orden, tamaños y foco siguen intactos.
+    expect([...nav.children]).toEqual([star, progress, next]);
+    expect(cssRule(css, '.lesson-actions')).toMatch(/justify-content:\s*flex-end/);
+    expect(cssRule(css, '.lesson-actions')).toMatch(/width:\s*100%/);
+    expect(css).toMatch(/\.favorite-toggle\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/);
+    expect(css).toMatch(/\.favorite-toggle\s*\{[^}]*border:\s*0/);
+    expect(mobile).toMatch(/\.progress-button[^{]*\{[^}]*padding:\s*0\s+var\(--space-2\)/);
+    expect(mobile).toMatch(/\.progress-button[^{]*\{[^}]*font-size:\s*0?\.9rem/);
+    expect(mobile).toMatch(/\.aula-layout[^{]*\{[^}]*--aula-indent:\s*0?\.75rem/);
+    expect(cssRule(css, '.video')).toMatch(/aspect-ratio:\s*16\s*\/\s*9/);
     expect(cssRule(css, ':focus-visible')).toMatch(/outline:\s*3px solid var\(--focus\)/);
   });
 
