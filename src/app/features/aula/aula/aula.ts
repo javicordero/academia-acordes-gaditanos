@@ -7,6 +7,7 @@ import { PlaybackSource, VideoPlaybackService } from '../video-playback';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
 import { ClassroomNav } from '../classroom-nav';
 import { LessonComments } from '../../comentarios/lesson-comments';
+import { SkeletonBlock } from '../../../shared/skeleton/skeleton';
 
 /**
  * Estados de la fuente de vídeo. Se pide automáticamente al cargar una lección
@@ -17,7 +18,7 @@ type VideoState = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error' | 'expi
 
 @Component({
   selector: 'app-aula',
-  imports: [RouterLink, LessonMaterials, ClassroomNav, LessonComments],
+  imports: [RouterLink, LessonMaterials, ClassroomNav, LessonComments, SkeletonBlock],
   templateUrl: './aula.html',
   styleUrl: './aula.scss',
 })

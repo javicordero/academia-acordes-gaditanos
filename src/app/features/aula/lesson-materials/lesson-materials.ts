@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { SUPABASE_CONFIG } from '../../../../environments/supabase-config';
 import { AuthService } from '../../../core/auth/auth.service';
 import { LessonResources, PdfResource } from '../../../shared/lesson-resources/lesson-resources';
+import { SkeletonBlock } from '../../../shared/skeleton/skeleton';
 
 /**
  * Material PDF de la lección. Los enlaces firmados se preparan automáticamente
@@ -24,7 +25,7 @@ const NAV_COOLDOWN_MS = 1_000;
 
 @Component({
   selector: 'app-lesson-materials',
-  imports: [RouterLink],
+  imports: [RouterLink, SkeletonBlock],
   templateUrl: './lesson-materials.html',
   styleUrl: './lesson-materials.scss',
 })

@@ -1,0 +1,54 @@
+<div class="skeleton" [attr.data-variant]="variant()">
+  <div class="skeleton__shapes" aria-hidden="true">
+    @switch (variant()) {
+      @case ('title') {
+        <div class="skeleton__shape skeleton__title"></div>
+      }
+      @case ('text') {
+        <div class="skeleton__text">
+          @for (line of lineIndices(); track line) {
+            <div class="skeleton__shape skeleton__line"></div>
+          }
+        </div>
+      }
+      @case ('card') {
+        <div class="skeleton__card">
+          <div class="skeleton__shape skeleton__visual"></div>
+          <div class="skeleton__card-body">
+            <div class="skeleton__shape skeleton__card-title"></div>
+            <div class="skeleton__shape skeleton__line"></div>
+            <div class="skeleton__shape skeleton__line"></div>
+          </div>
+        </div>
+      }
+      @case ('list') {
+        <div class="skeleton__list">
+          @for (row of rowIndices; track row) {
+            <div class="skeleton__row">
+              <div class="skeleton__shape skeleton__avatar"></div>
+              <div class="skeleton__row-lines">
+                <div class="skeleton__shape skeleton__line"></div>
+                <div class="skeleton__shape skeleton__line"></div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+      @case ('video') {
+        <div class="skeleton__shape skeleton__video"></div>
+      }
+      @case ('index') {
+        <div class="skeleton__index">
+          @for (item of indexIndices; track item) {
+            <div class="skeleton__shape skeleton__index-row"></div>
+          }
+        </div>
+      }
+      @default {
+      }
+    }
+  </div>
+  @if (ariaLabel()) {
+    <p class="sr-only" role="status" aria-atomic="true">{{ ariaLabel() }}</p>
+  }
+</div>

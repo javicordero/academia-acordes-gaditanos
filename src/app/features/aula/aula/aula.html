@@ -11,19 +11,21 @@
     </aside>
   } @else {
     <aside class="aula-sidebar aula-sidebar--skeleton" aria-label="Índice del curso" aria-hidden="true">
-      <div class="nav-skeleton"></div>
+      <div class="nav-skeleton"><app-skeleton variant="index" ariaLabel="" /></div>
     </aside>
   }
 
   <!-- El foco programático al entrar va al contenedor (tabindex=-1, fuera del orden de tab),
        no al h1: evita el aro azul sobre el título al cargar el aula. -->
-  <article #aulaHeading tabindex="-1" class="aula-content" aria-label="Contenido de la lección">
+  <article #aulaHeading tabindex="-1" class="aula-content" aria-label="Contenido de la lección"
+    [attr.aria-busy]="state() === 'loading' ? 'true' : null">
     <!-- El control de compresión vive en la cabecera del índice (classroom-nav),
          dentro del aside; aquí no queda ningún botón sobre el vídeo. -->
     @switch (state()) {
       @case ('loading') {
-        <p class="sr-only" role="status">Preparando el aula.</p>
-        <div class="content-skeleton" aria-hidden="true"></div>
+        <div class="content-skeleton">
+          <app-skeleton variant="video" ariaLabel="Preparando el aula." />
+        </div>
       }
       @case ('unconfigured') { <h1>Aula</h1><p>El aula está pendiente de configuración.</p> }
       @case ('error') {
@@ -79,7 +81,7 @@
                 <p>Vídeo de la lección pendiente de carga.</p>
               }
               @case ('loading') {
-                <p role="status">Cargando el vídeo…</p>
+                <app-skeleton variant="video" ariaLabel="Cargando el vídeo…" />
               }
               @case ('ready') {
                 @if (videoSource(); as video) {

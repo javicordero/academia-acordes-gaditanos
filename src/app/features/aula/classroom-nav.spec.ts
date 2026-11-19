@@ -492,4 +492,16 @@ describe('Índice del aula', () => {
     expect(root.querySelector('.nav-close')).toBeNull();
     expect(root.querySelector('.nav-backdrop')).toBeNull();
   });
+
+  it('usa tokens de tema en la geometría del índice sin alterar el cajón', async () => {
+    await setup();
+    const css = componentCss();
+
+    for (const token of ['--space-', '--border-width']) {
+      expect(css).toContain(`var(${token}`);
+    }
+    expect(css).toMatch(/width:\s*85%/);
+    expect(css).toMatch(/height:\s*100dvh/);
+    expect(css).toMatch(/box-shadow:\s*none/);
+  });
 });

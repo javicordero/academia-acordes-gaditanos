@@ -2,10 +2,11 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '
 import { RouterLink } from '@angular/router';
 
 import { ForumCategory, ForumThreadRepository } from './forum-thread-repository';
+import { SkeletonBlock } from '../../shared/skeleton/skeleton';
 
 @Component({
   selector: 'app-forum-categories',
-  imports: [RouterLink],
+  imports: [RouterLink, SkeletonBlock],
   templateUrl: './forum-categories.html',
   styleUrl: './forum-categories.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

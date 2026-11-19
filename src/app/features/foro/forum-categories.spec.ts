@@ -50,6 +50,20 @@ describe('Pantalla de categorías del foro', () => {
     expect(text()).toContain('<img src=x onerror=alert(1)>');
   });
 
+  it('muestra un esqueleto accesible durante la carga', async () => {
+    let resolve!: (rows: unknown[]) => void;
+    listCategories.mockReturnValueOnce(new Promise(r => { resolve = r; }));
+    (harness.routeDebugElement?.componentInstance as ForumCategories).load();
+    harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('list');
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Cargando categorías');
+    expect(root.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('article.page')?.getAttribute('aria-busy')).toBe('true');
+    resolve([category()]);
+  });
+
   it('estado vacío accesible', async () => {
     listCategories.mockResolvedValueOnce([]);
     (harness.routeDebugElement?.componentInstance as ForumCategories).load();

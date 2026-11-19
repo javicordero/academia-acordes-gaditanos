@@ -1,0 +1,154 @@
+/* Esqueleto presentacional: color, radio y espaciado viven en tokens de tema,
+   por lo que reacciona a todos los temas sin reglas por tema. La geometría
+   reservada se deriva de esos mismos tokens para no duplicar valores duros. */
+:host {
+  --sk-gap: var(--space-3);
+  --sk-line: var(--font-size-md);
+  --sk-title: var(--font-size-2xl);
+  --sk-row: calc(var(--space-5) * 2);
+
+  display: block;
+  inline-size: 100%;
+}
+
+.skeleton,
+.skeleton__shapes {
+  display: block;
+  inline-size: 100%;
+}
+
+/* Base de todas las formas: contraste suficiente en los seis temas. */
+.skeleton__shape {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+}
+
+.skeleton__title,
+.skeleton__video {
+  border-radius: var(--radius);
+}
+
+.skeleton__title {
+  block-size: var(--sk-title);
+  inline-size: 65%;
+}
+
+.skeleton__text,
+.skeleton__card-body,
+.skeleton__row-lines {
+  display: grid;
+  gap: var(--sk-gap);
+}
+
+.skeleton__line {
+  block-size: var(--sk-line);
+  inline-size: 100%;
+}
+
+.skeleton__line:last-child {
+  inline-size: 62%;
+}
+
+.skeleton__card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.skeleton__visual,
+.skeleton__video {
+  aspect-ratio: 16 / 9;
+  inline-size: 100%;
+}
+
+.skeleton__card-body {
+  padding: var(--card-pad);
+}
+
+.skeleton__card-title {
+  block-size: var(--font-size-lg);
+  inline-size: 55%;
+}
+
+.skeleton__list {
+  display: grid;
+  gap: var(--sk-gap);
+}
+
+.skeleton__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  block-size: var(--sk-row);
+  border-block-end: var(--border-width) solid var(--border);
+}
+
+.skeleton__avatar {
+  flex: none;
+  inline-size: var(--tap-min);
+  block-size: var(--tap-min);
+  border-radius: 50%;
+}
+
+.skeleton__row-lines {
+  flex: 1;
+  gap: calc(var(--sk-gap) / 2);
+}
+
+/* El índice del aula reserva el mismo ancho que su columna real: 200 px
+   compacto y 330 px expandido (media query de aula.scss). */
+.skeleton__index {
+  display: grid;
+  gap: var(--sk-gap);
+  inline-size: clamp(12.5rem, 26vw, 20.625rem);
+  padding-inline-end: var(--space-4);
+  border-inline-end: var(--border-width) solid var(--border);
+}
+
+.skeleton__index-row {
+  block-size: var(--tap-min);
+  inline-size: 100%;
+}
+
+.skeleton__index-row:nth-child(3n) {
+  inline-size: 70%;
+}
+
+/* Oculto visualmente, disponible para tecnología de asistencia. */
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Sin movimiento (o con preferencia de reducción) no se genera el barrido. */
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton__shape::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, var(--surface), transparent);
+    opacity: 0.4;
+    animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  }
+}

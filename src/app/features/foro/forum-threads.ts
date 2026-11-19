@@ -19,6 +19,7 @@ import {
   forumFailureMessage,
 } from './forum-thread-repository';
 import { MAX_CONVERSATION_LENGTH } from '../comentarios/conversation';
+import { SkeletonBlock } from '../../shared/skeleton/skeleton';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('es-ES', {
   dateStyle: 'medium',
@@ -27,7 +28,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('es-ES', {
 
 @Component({
   selector: 'app-forum-threads',
-  imports: [RouterLink],
+  imports: [RouterLink, SkeletonBlock],
   templateUrl: './forum-threads.html',
   styleUrl: './forum-threads.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

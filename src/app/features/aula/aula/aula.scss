@@ -1,3 +1,6 @@
+/* Geometría de contenedores, tarjetas y botones gobernada por tokens de tema.
+   Se conservan los valores contractuales del aula: rejilla 200/330, sangría del
+   índice, full-bleed del vídeo, 16:9, banda de acciones y foco visible. */
 .aula-layout {
   --aula-gutter: 1.25rem;
   /* En el aula no hay cabecera global y el main del shell arranca en y=0 y mide
@@ -22,7 +25,7 @@
 /* Carga inicial: esqueleto de altura estable, sin texto visible que desplace el layout. */
 /* Ambos esqueletos comparten borde y relleno; solo cambia su altura. */
 .content-skeleton, .nav-skeleton {
-  border: 1px solid var(--border); border-radius: var(--radius);
+  border: var(--border-width) solid var(--border); border-radius: var(--radius-md);
   background: linear-gradient(90deg, var(--surface), var(--border), var(--surface));
 }
 .content-skeleton { min-height: 24rem; }
@@ -42,22 +45,22 @@
 /* Banda de acciones: duración a la izquierda, progreso y flecha a la derecha. */
 .lesson-actions {
   display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between;
-  gap: .5rem 1rem; min-height: 6.5rem; padding-block: 1.875rem;
+  gap: var(--space-2) var(--space-4); min-height: 6.5rem; padding-block: 1.875rem;
 }
-.lesson-duration { display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .9rem; }
-.lesson-nav { display: flex; flex-wrap: nowrap; align-items: center; gap: .25rem; margin: 0; }
+.lesson-duration { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: .9rem; }
+.lesson-nav { display: flex; align-items: center; gap: var(--space-1); margin: 0; }
 .lesson-nav a,
-.lesson-nav > span { display: inline-flex; align-items: center; gap: .35rem; min-height: 44px; padding: .35rem .25rem; font-size: .95rem; }
+.lesson-nav > span { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; padding: var(--space-1); font-size: .95rem; }
 
 /* Flecha de «siguiente»: glifo de ~30px, con nombre accesible en el propio enlace. */
-.arrow-circle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-inline-start: .35rem; }
+.arrow-circle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-inline-start: var(--space-1); }
 .arrow-circle svg { width: 100%; height: 100%; }
 .arrow-circle circle { fill: var(--accent); stroke: none; }
 .arrow-circle path { fill: none; stroke: var(--accent-ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
 .progress-button {
-  min-height: 44px; padding: 11px 13px;
-  border: 1px solid var(--accent); border-radius: 4px;
+  min-height: 44px; padding: var(--space-3);
+  border: var(--border-width) solid var(--accent); border-radius: var(--radius-sm);
   background: transparent; color: var(--accent);
   font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
 }
@@ -69,24 +72,24 @@
   /* A sangre completa: compensa exactamente el padding REAL de .aula-content,
      de modo que el vídeo ocupa todo el ancho de la columna y no menos. */
   margin-inline: calc(-1 * var(--aula-indent));
-  background: #252323; color: #fff; border-radius: .6rem; padding: 1rem;
+  background: #252323; color: #fff; border-radius: var(--radius-md); padding: var(--card-pad);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; min-height: 12rem;
 }
 .video-stage:has(iframe) { display: block; padding: 0; background: none; border-radius: 0; min-height: 0; }
-.video-stage p { margin: .35rem 0; }
+.video-stage p { margin: var(--space-1) 0; }
 /* Aviso de desarrollo/fallback fuera del flujo: no retrasa el vídeo; va como
    cinta superior sobre el escenario y sigue siendo texto accesible. */
 .video-stage .video-notice {
   position: absolute; inset-block-start: 0; inset-inline: 0; z-index: 1;
-  max-width: none; margin: 0; padding: .3rem .6rem;
+  max-width: none; margin: 0; padding: var(--space-1) var(--space-2);
   background: rgb(0 0 0 / 72%); color: #fff; text-align: center;
 }
 .video {
-  display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 5px;
+  display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: var(--radius-sm);
 }
 .video-button {
-  min-height: 44px; padding-inline: 1rem; border: 1px solid #fff; border-radius: 8px;
+  min-height: 44px; padding-inline: var(--space-4); border: var(--border-width) solid #fff; border-radius: var(--radius-sm);
   background: transparent; color: #fff; font: inherit; cursor: pointer;
 }
 
@@ -99,8 +102,8 @@
 }
 /* Distancia de flujo tras el vídeo (medida real ~48px; ~40px en móvil). */
 .video-stage + .lesson-title { margin-top: 48px; }
-.aula-separator { border: 0; border-top: 1px solid var(--border); margin: 40px 0 16px; }
-.aula-dudas { margin-block: 1.5rem; }
+.aula-separator { border: 0; border-top: var(--border-width) solid var(--border); margin: 40px 0 16px; }
+.aula-dudas { margin-block: var(--section-gap); }
 
 @media (min-width: 48rem) {
   .aula-layout { grid-template-columns: 330px minmax(0, 1fr); }
@@ -122,7 +125,7 @@
 
 @media (max-width: 47.999rem) {
   /* Misma fila, una sola línea: el progreso y la flecha no se parten. */
-  .lesson-actions { flex-wrap: nowrap; padding-block: 20px; }
+  .lesson-actions { padding-block: var(--space-5); }
   .lesson-nav { justify-content: flex-end; width: auto; }
   /* En móvil el reloj desaparece igual que en el referente; se conserva para lectores de pantalla. */
   .lesson-duration {

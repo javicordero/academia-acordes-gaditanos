@@ -97,6 +97,20 @@ describe('Pantalla de hilos del foro', () => {
     expect(badge.querySelector('[aria-hidden="true"]')).not.toBeNull();
   });
 
+  it('el esqueleto de hilos es decorativo y anuncia la carga una sola vez', async () => {
+    let resolve!: (rows: unknown[]) => void;
+    listThreads.mockReturnValueOnce(new Promise(r => { resolve = r; }));
+    screen().load();
+    harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('list');
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Cargando hilos');
+    expect(root.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('article.page')?.getAttribute('aria-busy')).toBe('true');
+    resolve([]);
+  });
+
   it('muestra carga, vacío y error reintentable', async () => {
     let resolve!: (rows: unknown[]) => void;
     listThreads.mockReturnValueOnce(new Promise((done) => { resolve = done; }));

@@ -87,41 +87,41 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     nav {
       background:var(--surface);
       border:0;
-      border-inline-end:1px solid var(--border);
+      border-inline-end:var(--border-width) solid var(--border);
       border-radius:0;
-      padding:0 1rem 1rem;
+      padding:0 var(--space-4) var(--space-4);
       height:100%;
       min-height:0;
       overflow-y:auto;
       overscroll-behavior:contain;
     }
-    .nav-head { display:flex; align-items:center; gap:.5rem; padding-block:.75rem; border-bottom:1px solid var(--border); }
-    .nav-back { display:inline-flex; align-items:center; gap:.4rem; flex:1 1 auto; min-width:0; min-height:44px; font-size:.9rem; }
+    .nav-head { display:flex; align-items:center; gap:var(--space-2); padding-block:var(--space-3); border-bottom:var(--border-width) solid var(--border); }
+    .nav-back { display:inline-flex; align-items:center; gap:var(--space-2); flex:1 1 auto; min-width:0; min-height:44px; font-size:.9rem; }
     .nav-back span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .nav-back__icon { width:.85rem; height:.85rem; flex:none; }
-    h2 { font-size:1.2rem; overflow-wrap:anywhere; margin:1.25rem 0 .25rem; }
-    .nav-teacher { margin:0 0 1rem; color:var(--muted); font-size:.9rem; }
-    .nav-block { border-top:1px solid var(--border); padding:.35rem 0; }
+    h2 { font-size:1.2rem; overflow-wrap:anywhere; margin:var(--space-4) 0 var(--space-1); }
+    .nav-teacher { margin:0 0 var(--space-4); color:var(--muted); font-size:.9rem; }
+    .nav-block { border-top:var(--border-width) solid var(--border); padding:var(--space-1) 0; }
     .block-toggle {
-      display:flex; align-items:center; gap:.5rem; width:100%;
-      min-height:44px; padding:.5rem .35rem;
-      border:0; border-radius:0; background:none; color:inherit;
+      display:flex; align-items:center; gap:var(--space-2); width:100%;
+      min-height:44px; padding:var(--space-2) var(--space-1);
+      border:0; background:none; color:inherit;
       font:inherit; font-weight:700; text-align:left; cursor:pointer;
     }
     .block-toggle:hover { background:#f1e9db; }
     .block-toggle__title { flex:1 1 auto; }
     .block-toggle__chevron { flex:none; font-size:.8rem; }
-    ul { list-style:none; margin:.25rem 0 .5rem; padding:0; }
+    ul { list-style:none; margin:var(--space-1) 0 var(--space-2); padding:0; }
     li a {
-      display:flex; align-items:center; gap:.5rem; min-height:44px;
-      padding:.5rem .6rem; color:inherit; text-decoration:none;
-      border-radius:0; overflow-wrap:anywhere;
+      display:flex; align-items:center; gap:var(--space-2); min-height:44px;
+      padding:var(--space-2); color:inherit; text-decoration:none;
+      overflow-wrap:anywhere;
     }
     .lesson-title { min-width:0; overflow-wrap:anywhere; }
     /* Estado de progreso visible al inicio de la fila: solo forma (check/círculo); el texto es sr-only. */
     .lesson-progress {
       display:inline-flex; align-items:center; justify-content:center; flex:none;
-      width:18px; height:18px; margin-inline-start:0; color:var(--muted);
+      width:18px; height:18px; color:var(--muted);
     }
     .lesson-progress--done { color:var(--accent); }
     .lesson-progress__icon {
@@ -157,14 +157,13 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     }
 
     .menu { display:none; }
-    .menu__label { flex:1 1 auto; }
 
     @media (max-width:47.999rem) {
       /* Barra fina, sin borde grueso ni fondo beige; el nombre queda para lectores de pantalla. */
       .menu {
-        display:flex; align-items:center; gap:.6rem;
-        min-height:44px; padding:.4rem .5rem;
-        border:0; border-radius:0; background:transparent; color:inherit;
+        display:flex; align-items:center; gap:var(--space-2);
+        min-height:44px; padding:var(--space-2);
+        border:0; background:transparent; color:inherit;
         font:inherit; font-weight:700; cursor:pointer;
       }
       .menu__icon { width:1.1rem; height:1.1rem; stroke-width:1.6; }
@@ -172,15 +171,14 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
       /* Sin backdrop ni X: el propio hamburger sigue visible sobre el cajón y lo cierra
          (aria-expanded y el foco de vuelta mantienen la alternativa accesible). */
       .menu--open {
-        position:fixed; inset-block-start:.35rem; inset-inline-start:.5rem; z-index:50;
+        position:fixed; inset:.35rem auto auto .5rem; z-index:50;
       }
       nav:not(.open) { display:none; }
       nav.open {
         position:fixed; inset:0 auto 0 0; z-index:40;
         width:85%; max-width:24rem; height:100vh; height:100dvh;
-        max-height:none; border-radius:0; border-inline-end:1px solid var(--border);
-        padding-top:3.5rem;
-        overflow-y:auto; overscroll-behavior:contain;
+        border-inline-end:var(--border-width) solid var(--border);
+        padding-top:var(--space-5);
         box-shadow:none;
       }
     }

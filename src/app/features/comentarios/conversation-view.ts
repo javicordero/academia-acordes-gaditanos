@@ -18,6 +18,7 @@ import {
   MAX_CONVERSATION_LENGTH,
   shouldHideConversation,
 } from './conversation';
+import { SkeletonBlock } from '../../shared/skeleton/skeleton';
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('es-ES', {
   dateStyle: 'medium',
@@ -88,7 +89,7 @@ export function buildConversationTree(rows: readonly ConversationPost[]): readon
  */
 @Component({
   selector: 'app-conversation-view',
-  imports: [NgClass, NgTemplateOutlet],
+  imports: [NgClass, NgTemplateOutlet, SkeletonBlock],
   templateUrl: './conversation-view.html',
   styleUrl: './conversation-view.scss',
 })

@@ -58,6 +58,19 @@ describe('Materiales del alumno', () => {
     return { css, download: css.match(/\.download-button[^{]*\{[^}]*\}/g) ?? [] };
   }
 
+  it('muestra un esqueleto de lista con un único aviso accesible mientras consulta', async () => {
+    let resolve!: (value: typeof item[]) => void;
+    const { fixture } = setup(vi.fn().mockReturnValue(new Promise(r => { resolve = r; })));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('list');
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Consultando materiales');
+    expect(root.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('section')?.getAttribute('aria-busy')).toBe('true');
+    resolve([item]);
+  });
+
   it('no consulta anónimamente y ofrece acceso interno', async () => {
     const { fixture, list } = setup(undefined, undefined, false);
     await fixture.whenStable();

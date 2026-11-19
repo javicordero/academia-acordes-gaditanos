@@ -59,6 +59,24 @@ function authoredCss(): string {
 }
 
 describe('Aula', () => {
+  it('reserva índice y vídeo con esqueletos y un único aviso accesible', async () => {
+    let resolve!: (value: AulaData) => void;
+    setup(vi.fn().mockReturnValue(new Promise<AulaData>(r => { resolve = r; })));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('.nav-skeleton app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('index');
+    expect(root.querySelector('.content-skeleton app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('video');
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Preparando el aula');
+    expect(root.querySelectorAll('.skeleton__shapes[aria-hidden="true"]')).toHaveLength(2);
+    expect(root.querySelector('article.aula-content')?.getAttribute('aria-busy')).toBe('true');
+    expect(root.querySelector('[autofocus]')).toBeNull();
+    resolve(data);
+  });
+
   it('alinea el índice en x=0, reparte 330px y el resto sin hueco y da scroll a ambas columnas', async () => {
     setup(vi.fn().mockResolvedValue(twoLessons));
     const harness = await RouterTestingHarness.create();
@@ -110,6 +128,10 @@ describe('Aula', () => {
     expect(cssRule(css, '.video')).toMatch(/width:\s*100%/);
     expect(cssRule(css, '.video')).toMatch(/aspect-ratio:\s*16\s*\/\s*9/);
     expect(cssRule(css, '.video-notice')).toMatch(/position:\s*absolute/);
+    // Espaciado, bordes, radios y relleno de tarjetas viven en tokens de tema.
+    for (const token of ['--space-', '--card-pad', '--border-width', '--radius-sm', '--radius-md']) {
+      expect(css).toContain(`var(${token}`);
+    }
     const notice = root.querySelector<HTMLElement>('.video-notice')!;
     expect(root.querySelector('.video-stage')?.contains(notice)).toBe(true);
     expect(notice.textContent).toContain('Aviso de maquetación');

@@ -2,7 +2,7 @@
 @if (state() !== 'hidden') {
   <!-- `lesson-comments` se conserva como clase de compatibilidad con el aula y la vista previa. -->
   <section class="conversation lesson-comments" data-conversation-list tabindex="-1"
-    [attr.aria-labelledby]="headingId">
+    [attr.aria-labelledby]="headingId" [attr.aria-busy]="state() === 'loading' ? 'true' : null">
     <h2 [id]="headingId">{{ heading() }}</h2>
 
     <!-- Única plantilla recursiva: raíces y descendientes comparten la misma fila. -->
@@ -84,7 +84,7 @@
 
     @switch (state()) {
       @case ('loading') {
-        <p class="comments-loading" role="status">{{ loadingText() }}</p>
+        <app-skeleton variant="list" [ariaLabel]="loadingText()" />
       }
       @case ('error') {
         <div class="comments-feedback comments-feedback--error">

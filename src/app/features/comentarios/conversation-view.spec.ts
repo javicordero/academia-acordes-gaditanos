@@ -101,6 +101,18 @@ describe('Vista compartida de conversación', () => {
     expect(list).toHaveBeenCalledTimes(1);
   });
 
+  it('el esqueleto de carga es decorativo y mantiene un único aviso accesible', async () => {
+    let resolve!: (rows: ConversationPost[]) => void;
+    list.mockReturnValueOnce(new Promise<ConversationPost[]>(r => { resolve = r; }));
+    await settle();
+    expect(root.querySelector('app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('list');
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Cargando comentarios');
+    expect(root.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('[autofocus]')).toBeNull();
+    resolve([]);
+  });
+
   it('muestra carga, alerta reintentable y recarga solo tras pulsar Reintentar', async () => {
     let resolve!: (rows: ConversationPost[]) => void;
     list.mockReturnValueOnce(new Promise<ConversationPost[]>((done) => { resolve = done; }));

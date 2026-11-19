@@ -1,10 +1,11 @@
-<article class="page" aria-labelledby="forum-threads-title">
+<article class="page" aria-labelledby="forum-threads-title"
+  [attr.aria-busy]="state() === 'loading' ? 'true' : null">
   <a class="forum-back" [routerLink]="['/comunidad']">Volver a las categorías</a>
   <h1 id="forum-threads-title">Hilos del foro</h1>
 
   @switch (state()) {
     @case ('loading') {
-      <p class="forum-status" role="status">Cargando hilos…</p>
+      <app-skeleton variant="list" ariaLabel="Cargando hilos…" />
     }
     @case ('error') {
       <div class="forum-feedback forum-feedback--error">

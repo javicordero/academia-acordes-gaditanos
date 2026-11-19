@@ -1,4 +1,5 @@
-﻿<section aria-labelledby="materials-heading">
+﻿<section aria-labelledby="materials-heading"
+  [attr.aria-busy]="state() === 'loading' ? 'true' : null">
   <h3 id="materials-heading">
     <svg class="material-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <path d="M4 2h5l3 3v9H4z" /><path d="M9 2v3h3M6 9h4M6 11.5h4" />
@@ -6,7 +7,7 @@
     Materiales de la lección
   </h3>
   @switch (state()) {
-    @case ('loading') { <p role="status">Consultando materiales…</p> }
+    @case ('loading') { <app-skeleton variant="list" ariaLabel="Consultando materiales…" /> }
     @case ('unconfigured') { <p>Los materiales están pendientes de configuración.</p> }
     @case ('anonymous') {
       <p>Inicia sesión para consultar los materiales.</p>
