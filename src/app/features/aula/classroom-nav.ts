@@ -57,12 +57,12 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
                     @if (completedIds(); as doneIds) {
                       <span class="lesson-progress" [class.lesson-progress--done]="doneIds.has(lesson.id)">
                         @if (doneIds.has(lesson.id)) {
-                          <svg class="lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                          <svg class="icon lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                             <path d="M3 8.5 6.3 12 13 4.5" />
                           </svg>
                           <span class="sr-only">Completada</span>
                         } @else {
-                          <svg class="lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                          <svg class="icon lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                             <circle cx="8" cy="8" r="5.75" />
                           </svg>
                           <span class="sr-only">Pendiente</span>
@@ -70,6 +70,14 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
                       </span>
                     }
                     <span class="lesson-title" [attr.title]="lesson.title">{{ lesson.title }}</span> @if (lesson.is_free_preview) { <small>Muestra</small> }
+                    @if (favoriteIds().has(lesson.id)) {
+                      <span class="lesson-favorite">
+                        <svg class="icon lesson-favorite__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                          <path d="M10 2.6 12.4 7.5 17.7 8.2 13.9 11.9 14.9 17.2 10 14.5 5.1 17.2 6.1 11.9 2.3 8.2 7.6 7.5Z" />
+                        </svg>
+                        <span class="sr-only">Favorita</span>
+                      </span>
+                    }
                   </a>
                 </li>
               }
@@ -97,16 +105,19 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
       overflow-y:auto;
       overscroll-behavior:contain;
     }
-    .nav-head { display:flex; align-items:center; gap:var(--space-2); padding-block:var(--space-3); border-bottom:var(--border-width) solid var(--border); }
+    /* Fila horizontal compartida por cabecera, bloques y enlaces de lección. */
+    .nav-head, .block-toggle, li a { display:flex; align-items:center; gap:var(--space-2); }
+    .nav-head { padding-block:var(--space-3); border-bottom:var(--border-width) solid var(--border); }
     .nav-back { display:inline-flex; align-items:center; gap:var(--space-2); flex:1 1 auto; min-width:0; min-height:44px; font-size:.9rem; }
-    .nav-back span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    /* Ellipsis visual del raíl y del enlace de retorno; el texto completo va en title. */
+    .nav-back span, .classroom-nav--compact .block-toggle__title,
+    .classroom-nav--compact .lesson-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .nav-back__icon { width:.85rem; height:.85rem; flex:none; }
     h2 { font-size:1.2rem; overflow-wrap:anywhere; margin:var(--space-4) 0 var(--space-1); }
     .nav-teacher { margin:0 0 var(--space-4); color:var(--muted); font-size:.9rem; }
     .nav-block { border-top:var(--border-width) solid var(--border); padding:var(--space-1) 0; }
     .block-toggle {
-      display:flex; align-items:center; gap:var(--space-2); width:100%;
-      min-height:44px; padding:var(--space-2) var(--space-1);
+      width:100%; min-height:44px; padding:var(--space-2) var(--space-1);
       border:0; background:none; color:inherit;
       font:inherit; font-weight:700; text-align:left; cursor:pointer;
     }
@@ -114,38 +125,32 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     .block-toggle__title { flex:1 1 auto; }
     .block-toggle__chevron { flex:none; font-size:.8rem; }
     ul { list-style:none; margin:var(--space-1) 0 var(--space-2); padding:0; }
-    /* Fila: el enlace ocupa el hueco y el progreso va al inicio, sin estrella aquí. */
+    /* Fila: el enlace ocupa el hueco, el progreso va al inicio y la estrella al final. */
     li.lesson-row { display:flex; align-items:center; gap:var(--space-1); }
     li a {
-      display:flex; align-items:center; gap:var(--space-2); min-height:44px;
-      flex:1 1 auto; min-width:0;
-      padding:var(--space-2); color:inherit; text-decoration:none;
-      overflow-wrap:anywhere;
+      min-height:44px; flex:1 1 auto; min-width:0; padding:var(--space-2);
+      color:inherit; text-decoration:none; overflow-wrap:anywhere;
     }
     .lesson-title { min-width:0; overflow-wrap:anywhere; }
-    /* Progreso: solo forma (check/círculo); texto en sr-only. */
-    .lesson-progress {
-      display:inline-flex; align-items:center; justify-content:center; flex:none;
-      width:18px; height:18px; color:var(--muted);
-    }
+    /* Progreso y estrella comparten geometría; el color distingue cada estado. */
+    .lesson-progress, .lesson-favorite { display:inline-flex; align-items:center; justify-content:center; flex:none; width:18px; height:18px; }
+    .lesson-progress { color:var(--muted); }
     .lesson-progress--done { color:var(--accent); }
-    .lesson-progress__icon {
-      width:1rem; height:1rem; flex:none; fill:none; stroke:currentColor;
-      stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;
-    }
+    /* El trazo común (stroke, caps, join, flex) viene de .icon en ambos SVG. */
+    .lesson-progress__icon { width:1rem; height:1rem; stroke-width:1.8; }
     .lesson-progress--done .lesson-progress__icon { stroke-width:2.2; }
+    .lesson-favorite { margin-inline-start:auto; color:var(--accent); }
+    .lesson-favorite__icon { width:.9rem; height:.9rem; fill:currentColor; stroke:currentColor; stroke-width:1.2; }
     li a[aria-current=page] { background:#f1e9db; font-weight:700; border-inline-start:3px solid var(--accent); }
     small { font-weight:400; }
 
-    /* Raíl estrecho de escritorio: ellipsis solo visual, texto completo en title. */
+    /* Raíl estrecho de escritorio: recorta paddings; el ellipsis va más arriba. */
     nav.classroom-nav--compact { padding:0 .5rem .5rem; }
     .classroom-nav--compact li.lesson-row { gap:.1rem; }
     .classroom-nav--compact .nav-teacher { display:none; }
     .classroom-nav--compact h2 { font-size:1rem; margin:.75rem 0 .25rem; }
     .classroom-nav--compact .block-toggle { gap:.3rem; padding:.35rem .15rem; }
     .classroom-nav--compact li a { gap:.35rem; padding:.35rem .3rem; }
-    .classroom-nav--compact .block-toggle__title,
-    .classroom-nav--compact .lesson-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .classroom-nav--compact .lesson-progress { width:16px; height:16px; }
     .classroom-nav--compact small { flex:none; }
 
@@ -162,18 +167,18 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     .menu { display:none; }
 
     @media (max-width:47.999rem) {
-      /* Barra fina; nombre para lectores de pantalla. */
+      /* Barra fina siempre fija en el mismo punto: al abrir no hay salto. */
       .menu {
         display:flex; align-items:center; gap:var(--space-2);
+        position:fixed; inset:var(--space-4) auto auto 0;
         min-width:48px; min-height:48px; padding:0 var(--space-2);
         border:0; background:transparent; color:inherit;
         font:inherit; font-weight:700; cursor:pointer;
       }
       .menu__icon { width:1.45rem; height:1.45rem; stroke-width:1.6; }
-      /* Sin backdrop ni X: el propio hamburger cierra el cajón y devuelve el foco. */
-      .menu--open {
-        position:fixed; inset:.35rem auto auto .5rem; z-index:50;
-      }
+      /* Sin backdrop ni X: el propio hamburger cierra el cajón y devuelve el foco.
+         Abierto solo cambia el plano, por encima del cajón, nunca la posición. */
+      .menu--open { z-index:50; }
       nav:not(.open) { display:none; }
       nav.open {
         position:fixed; inset:0 auto 0 0; z-index:40;
@@ -196,6 +201,8 @@ export class ClassroomNav {
   readonly activeId = input.required<string>();
   /** Estado real de progreso del curso; `null` cuando no hay progreso que mostrar. */
   readonly completedIds = input<ReadonlySet<string> | null>(null);
+  /** IDs favoritos del curso: solo marcan la fila, sin duplicar el toggle del aula. */
+  readonly favoriteIds = input<ReadonlySet<string>>(new Set<string>());
   readonly courseId = input.required<string>();
   readonly courseSlug = input('');
   readonly admin = input(false);

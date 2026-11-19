@@ -10,6 +10,7 @@ import { LessonResources } from '../../../shared/lesson-resources/lesson-resourc
 import { LessonComments } from '../../comentarios/lesson-comments';
 import { LessonCommentsRepository } from '../../comentarios/lesson-comments-repository';
 import { AULA_ROUTES } from '../aula.routes';
+import { ClassroomNav } from '../classroom-nav';
 import { Aula } from './aula';
 import { PlaybackSource, VIDEO_DEMO_CONFIG, VIDEO_DEMO_ENABLED, VideoPlaybackService } from '../video-playback';
 import { LessonFavoritesRepository } from '../../favoritos/repository';
@@ -1615,6 +1616,137 @@ describe('Aula', () => {
     await harness.navigateByUrl('/aula/curso/uno', Aula);
     await harness.fixture.whenStable(); harness.detectChanges();
     expect(harness.routeNativeElement!.querySelector('.favorite-toggle')).toBeNull();
+  });
+
+  // --- Set de favoritos para el índice y estrella sólida ---
+
+  it('pasa al índice el set de IDs favoritos del curso devuelto por repo.list', async () => {
+    const list = vi.fn().mockResolvedValue([{ lessonId: 'l1' }, { lessonId: 'l2' }]);
+    setup(vi.fn().mockResolvedValue(twoLessons), undefined, true, () => null,
+      { list, toggle: vi.fn().mockResolvedValue(true) });
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const nav = harness.fixture.debugElement.query(By.directive(ClassroomNav)).componentInstance as ClassroomNav;
+
+    expect(nav.favoriteIds().has('l1')).toBe(true);
+    expect(nav.favoriteIds().has('l2')).toBe(true);
+    expect(component.favoriteLessonIds().size).toBe(2);
+    expect(harness.routeNativeElement!.querySelectorAll('app-classroom-nav .lesson-favorite')).toHaveLength(2);
+  });
+
+  it('el índice marca solo la fila favorita sin duplicar el toggle del aula', async () => {
+    const list = vi.fn().mockResolvedValue([{ lessonId: 'l2' }]);
+    setup(vi.fn().mockResolvedValue(twoLessons), undefined, true, () => null,
+      { list, toggle: vi.fn().mockResolvedValue(true) });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const rows = [...root.querySelectorAll<HTMLElement>('app-classroom-nav li.lesson-row')];
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0].querySelector('.lesson-favorite')).toBeNull();
+    expect(rows[1].querySelector('.lesson-favorite .sr-only')?.textContent).toBe('Favorita');
+    expect(root.querySelector('app-classroom-nav .favorite-toggle')).toBeNull();
+    expect(root.querySelectorAll('.favorite-toggle')).toHaveLength(1);
+  });
+
+  it('sin repositorio de favoritos el set del índice queda vacío', async () => {
+    setup(vi.fn().mockResolvedValue(data));
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+
+    expect(component.favoriteLessonIds().size).toBe(0);
+    expect(harness.routeNativeElement!.querySelector('app-classroom-nav .lesson-favorite')).toBeNull();
+  });
+
+  it('si falla repo.list el set del índice queda vacío y no se muestra ninguna estrella', async () => {
+    setup(vi.fn().mockResolvedValue(data), undefined, true, () => null,
+      { list: vi.fn().mockRejectedValue(new Error('sin configuración')), toggle: vi.fn() });
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+
+    expect(component.favoriteLessonIds().size).toBe(0);
+    expect(harness.routeNativeElement!.querySelector('app-classroom-nav .lesson-favorite')).toBeNull();
+  });
+
+  it('al cambiar de lección se recalcula el set del índice', async () => {
+    const list = vi.fn()
+      .mockResolvedValueOnce([{ lessonId: 'l1' }])
+      .mockResolvedValueOnce([{ lessonId: 'l2' }]);
+    setup(vi.fn((_course: string, slug: string) =>
+      Promise.resolve({ ...twoLessons, lesson: slug === 'dos' ? secondLesson : firstLesson })),
+      undefined, true, () => null, { list, toggle: vi.fn() });
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const starRows = () => [...harness.routeNativeElement!.querySelectorAll<HTMLElement>('app-classroom-nav li.lesson-row')]
+      .map(row => !!row.querySelector('.lesson-favorite'));
+    expect(starRows()).toEqual([true, false]);
+
+    await harness.navigateByUrl('/aula/curso/dos', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(component.favoriteLessonIds().has('l2')).toBe(true);
+    expect(starRows()).toEqual([false, true]);
+  });
+
+  it('la estrella activa rellena con acento en fill y stroke, sin borde en el botón', async () => {
+    setup(vi.fn().mockResolvedValue(data), undefined, true, () => null,
+      { list: vi.fn().mockResolvedValue([{ lessonId: 'l' }]), toggle: vi.fn() });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const star = harness.routeNativeElement!.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+
+    expect(star.getAttribute('aria-pressed')).toBe('true');
+    expect(star.classList.contains('favorite-toggle--on')).toBe(true);
+    const css = authoredCss();
+    const onRule = css.match(/\.favorite-toggle--on\s+\.favorite-toggle__icon\s*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+    expect(onRule).toMatch(/fill:\s*currentColor/);
+    expect(onRule).toMatch(/stroke:\s*currentColor/);
+    expect(css).toMatch(/:is\(\.progress-button,\s*\.favorite-toggle--on\)[^{]*\{[^}]*color:\s*var\(--accent\)/);
+    // En reposo: sin relleno, trazo neutro y ningún borde en el botón.
+    expect(cssRule(css, '.icon')).toMatch(/fill:\s*none/);
+    expect(cssRule(css, '.favorite-toggle')).toMatch(/color:\s*var\(--muted\)/);
+    expect(cssRule(css, '.favorite-toggle')).toMatch(/border:\s*0/);
+  });
+
+  it('alternar la estrella actualiza el set del índice en ambos sentidos sin recargar ni guardar progreso', async () => {
+    const toggle = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const favorites = { list: vi.fn().mockResolvedValue([]), toggle };
+    const { save } = setup(vi.fn().mockResolvedValue(data), undefined, true, () => null, favorites);
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const star = () => harness.routeNativeElement!.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+    const nav = harness.fixture.debugElement.query(By.directive(ClassroomNav)).componentInstance as ClassroomNav;
+
+    expect(component.favoriteLessonIds().has('l')).toBe(false);
+    expect(nav.favoriteIds().has('l')).toBe(false);
+
+    star().click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(toggle).toHaveBeenCalledWith('l');
+    expect(component.favoriteOn()).toBe(true);
+    expect(component.favoriteLessonIds().has('l')).toBe(true);
+    expect(nav.favoriteIds().has('l')).toBe(true);
+    expect(harness.routeNativeElement!.querySelector('app-classroom-nav .lesson-favorite .sr-only')?.textContent).toBe('Favorita');
+    expect(star().getAttribute('aria-pressed')).toBe('true');
+    expect(save).not.toHaveBeenCalled();
+    expect(favorites.list).toHaveBeenCalledTimes(1); // el toggle no recarga la lista
+
+    star().click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(component.favoriteOn()).toBe(false);
+    expect(component.favoriteLessonIds().has('l')).toBe(false);
+    expect(nav.favoriteIds().has('l')).toBe(false);
+    expect(harness.routeNativeElement!.querySelector('app-classroom-nav .lesson-favorite')).toBeNull();
+    expect(star().getAttribute('aria-pressed')).toBe('false');
+    expect(save).not.toHaveBeenCalled();
+    expect(favorites.list).toHaveBeenCalledTimes(1);
   });
 
   // --- Finalización automática solo con `ended` verificado ---

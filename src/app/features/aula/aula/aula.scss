@@ -70,7 +70,9 @@
 .favorite-toggle:hover, .progress-button:hover:not(:disabled) { background: #f1e9db; }
 .progress-button:disabled { opacity: .6; cursor: not-allowed; }
 :is(.progress-button, .favorite-toggle--on) { color: var(--accent); }
-.favorite-toggle--on .favorite-toggle__icon { fill: currentColor; }
+/* Relleno del mismo acento que el trazo: la estrella activa queda sólida, sin
+   borde gris residual. En reposo `.icon` ya da `fill:none` y trazo neutro (`--muted`). */
+.favorite-toggle--on .favorite-toggle__icon { fill: currentColor; stroke: currentColor; stroke-width: 1.8; }
 .favorite-toggle__icon { width: 1.1rem; height: 1.1rem; }
 /* El foco visible ya lo da la regla global :focus-visible de este componente. */
 .auto-complete-error,

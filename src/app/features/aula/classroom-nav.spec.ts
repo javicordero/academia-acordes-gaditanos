@@ -510,8 +510,20 @@ describe('Índice del aula', () => {
     expect(iconRule).toMatch(/stroke-width:\s*1\.6/);
     // Escritorio sigue sin burger; el cajón y el cierre flotante conservan su posición.
     expect(css).toMatch(/\.menu\s*\{[^}]*display:\s*none/);
-    expect(css).toMatch(/\.menu--open\s*\{[^}]*position:\s*fixed/);
     expect(css).toMatch(/nav\.open\s*\{[^}]*position:\s*fixed/);
+  });
+
+  it('el burger abierto conserva la posición del cerrado: solo cambia el plano', async () => {
+    await setup();
+    const css = componentCss().replace(/\[_ngcontent-[^\]]*\]/g, '');
+    const mobileMenu = [...css.matchAll(/\.menu\s*\{([^}]*)\}/g)]
+      .map(m => m[1].replace(/\s+/g, ' ')).find(rule => /display:\s*flex/.test(rule)) ?? '';
+    expect(mobileMenu).toMatch(/position:\s*fixed/);
+    expect(mobileMenu).toMatch(/inset:\s*var\(--space-4\)\s+auto\s+auto\s+0/);
+    const openRule = css.match(/\.menu--open\s*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+    expect(openRule).toMatch(/z-index:\s*50/);
+    expect(openRule).not.toMatch(/position\s*:/);
+    expect(openRule).not.toMatch(/inset\s*:/);
   });
 
   it('usa tokens de tema en la geometría del índice sin alterar el cajón', async () => {
@@ -524,5 +536,98 @@ describe('Índice del aula', () => {
     expect(css).toMatch(/width:\s*85%/);
     expect(css).toMatch(/height:\s*100dvh/);
     expect(css).toMatch(/box-shadow:\s*none/);
+  });
+
+  it('sin favoriteIds no muestra ninguna estrella en el índice', async () => {
+    const { root } = await setup('video');
+    expect(root.querySelector('.lesson-favorite')).toBeNull();
+    expect(root.textContent).not.toContain('Favorita');
+  });
+
+  it('marca solo las filas favoritas con una estrella decorativa al final del enlace', async () => {
+    await TestBed.configureTestingModule({ imports: [ClassroomNav], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ClassroomNav);
+    const lessons = [
+      { id: 'l1', section_id: 's', title: 'Primera', slug: 'uno', content_type: 'video' as const },
+      { id: 'l2', section_id: 's', title: 'Segunda', slug: 'dos', content_type: 'pdf' as const, is_free_preview: true },
+    ];
+    fixture.componentRef.setInput('title', 'Curso');
+    fixture.componentRef.setInput('courseId', 'curso');
+    fixture.componentRef.setInput('courseSlug', 'curso');
+    fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
+    fixture.componentRef.setInput('lessons', lessons);
+    fixture.componentRef.setInput('activeId', 'l1');
+    fixture.componentRef.setInput('completedIds', new Set());
+    fixture.componentRef.setInput('favoriteIds', new Set(['l2']));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const links = [...root.querySelectorAll<HTMLAnchorElement>('li a')];
+    expect(links).toHaveLength(2);
+    expect(links[0].querySelector('.lesson-favorite')).toBeNull();
+
+    const star = links[1].querySelector<HTMLElement>('.lesson-favorite')!;
+    expect(star).not.toBeNull();
+    expect(star.closest('a')).toBe(links[1]);
+    expect(star.parentElement).toBe(links[1]);
+    // Después del título y de «Muestra», al final de la fila, sin solapar el progreso.
+    expect(links[1].querySelector('small')?.textContent).toBe('Muestra');
+    expect(links[1].querySelector('small')?.nextElementSibling).toBe(star);
+    expect(star.nextElementSibling).toBeNull();
+    expect(links[1].firstElementChild?.classList.contains('lesson-progress')).toBe(true);
+    expect(star.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(star.querySelector('svg path')?.getAttribute('d')).toContain('M10 2.6');
+    expect(star.querySelector<HTMLElement>('.sr-only')?.textContent).toBe('Favorita');
+    expect(star.querySelector('button')).toBeNull();
+    expect([...root.querySelectorAll('button')].some(b => b.textContent?.includes('Favorita'))).toBe(false);
+
+    const css = componentCss();
+    expect(css).toMatch(/\.lesson-favorite[^{]*\{[^}]*margin-inline-start:\s*auto/);
+    expect(css).toMatch(/\.lesson-favorite[^{]*\{[^}]*color:\s*var\(--accent\)/);
+    expect(css).toMatch(/\.lesson-favorite__icon[^{]*\{[^}]*fill:\s*currentColor/);
+    expect(css).toMatch(/\.lesson-favorite__icon[^{]*\{[^}]*stroke:\s*currentColor/);
+  });
+
+  it('refleja cambiar el set de favoritos sin recrear el índice ni perder el progreso', async () => {
+    await TestBed.configureTestingModule({ imports: [ClassroomNav], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ClassroomNav);
+    fixture.componentRef.setInput('title', 'Curso');
+    fixture.componentRef.setInput('courseId', 'curso');
+    fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
+    fixture.componentRef.setInput('lessons', [{ id: 'l', section_id: 's', title: 'Lección', slug: 'leccion', content_type: 'video' as const }]);
+    fixture.componentRef.setInput('activeId', 'l');
+    fixture.componentRef.setInput('completedIds', new Set(['l']));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const navNode = root.querySelector('nav')!;
+    expect(root.querySelector('.lesson-favorite')).toBeNull();
+
+    fixture.componentRef.setInput('favoriteIds', new Set(['l']));
+    fixture.detectChanges();
+    expect(root.querySelector('.lesson-favorite .sr-only')?.textContent).toBe('Favorita');
+    expect(root.querySelector('.lesson-progress--done')).not.toBeNull();
+    expect(root.querySelector('nav')).toBe(navNode);
+
+    fixture.componentRef.setInput('favoriteIds', new Set());
+    fixture.detectChanges();
+    expect(root.querySelector('.lesson-favorite')).toBeNull();
+    expect(root.querySelector('nav')).toBe(navNode);
+  });
+
+  it('en vista previa de administración el índice sigue intacto con el set vacío', async () => {
+    await TestBed.configureTestingModule({ imports: [ClassroomNav], providers: [provideRouter([])] }).compileComponents();
+    const fixture = TestBed.createComponent(ClassroomNav);
+    fixture.componentRef.setInput('title', 'Curso');
+    fixture.componentRef.setInput('courseId', 'curso');
+    fixture.componentRef.setInput('admin', true);
+    fixture.componentRef.setInput('sections', [{ id: 's', title: 'Bloque' }]);
+    fixture.componentRef.setInput('lessons', [{ id: 'l', section_id: 's', title: 'Lección', slug: 'leccion', content_type: 'video' as const }]);
+    fixture.componentRef.setInput('activeId', 'l');
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const link = root.querySelector<HTMLAnchorElement>('li a')!;
+    expect(root.querySelector('.lesson-favorite')).toBeNull();
+    expect(link.getAttribute('href')).toBe('/admin/vista-previa/curso/l');
+    expect(link.getAttribute('aria-current')).toBe('page');
+    expect(link.querySelector('.lesson-title')?.textContent).toBe('Lección');
   });
 });

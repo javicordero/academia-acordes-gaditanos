@@ -60,10 +60,12 @@ export class Aula {
   private readonly videoLessonId = computed(() => this.data()?.lesson.content_type === 'video' ? this.data()!.lesson.id : null);
   readonly saving = signal(false);
   readonly saveError = signal(false);
-  /** El índice ya no lleva estrella: el único control vive junto al progreso. */
+  /** El toggle vive junto al progreso; el índice solo marca las filas favoritas. */
   private readonly favoritesRepo = inject(LessonFavoritesRepository, { optional: true });
   readonly favoriteAvailable = signal(false);
   readonly favoriteOn = signal(false);
+  /** IDs favoritos del curso, para que el índice marque solo esas filas. */
+  readonly favoriteLessonIds = signal<ReadonlySet<string>>(new Set());
   readonly favoriteError = signal<string | null>(null);
   private favoriteRequest = 0;
   private favoriteToggling = false;
@@ -223,6 +225,7 @@ export class Aula {
         this.favoriteRequest++;
         this.favoriteAvailable.set(false);
         this.favoriteOn.set(false);
+        this.favoriteLessonIds.set(new Set());
         this.favoriteError.set(null);
         return;
       }
@@ -235,17 +238,20 @@ export class Aula {
     const request = ++this.favoriteRequest;
     this.favoriteToggling = false;
     this.favoriteOn.set(false);
+    this.favoriteLessonIds.set(new Set());
     this.favoriteError.set(null);
     this.favoriteAvailable.set(false);
     void repo.list().then(rows => {
       if (this.destroyed || request !== this.favoriteRequest) return;
       this.favoriteOn.set(rows.some(row => row.lessonId === lessonId));
+      this.favoriteLessonIds.set(new Set(rows.map(row => row.lessonId)));
       this.favoriteAvailable.set(true);
     }, () => {
-      // Sin configuración o sin derecho: no se pinta la estrella (honesto).
+      // Sin configuración o sin derecho: no se pinta ninguna estrella (honesto).
       if (this.destroyed || request !== this.favoriteRequest) return;
       this.favoriteAvailable.set(false);
       this.favoriteOn.set(false);
+      this.favoriteLessonIds.set(new Set());
     });
   }
 
@@ -260,6 +266,11 @@ export class Aula {
     void repo.toggle(lessonId).then(favorite => {
       if (this.destroyed || request !== this.favoriteRequest) return;
       this.favoriteOn.set(favorite);
+      // El toggle es la única fuente del cambio: actualizar el set aquí evita
+      // recargar repo.list() y mantiene la estrella del índice sincronizada.
+      const next = new Set(this.favoriteLessonIds());
+      if (favorite) next.add(lessonId); else next.delete(lessonId);
+      this.favoriteLessonIds.set(next);
     }, () => {
       if (this.destroyed || request !== this.favoriteRequest) return;
       this.favoriteError.set('No se ha podido actualizar favoritos. Inténtalo de nuevo.');

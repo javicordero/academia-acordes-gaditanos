@@ -6,6 +6,7 @@
     <aside class="aula-sidebar" aria-label="Índice del curso">
       <app-classroom-nav [title]="nav.title" [teacher]="nav.teacher" [sections]="nav.sections"
         [lessons]="nav.lessons" [activeId]="activeId()" [completedIds]="completedIds()"
+        [favoriteIds]="favoriteLessonIds()"
         [courseId]="nav.id" [courseSlug]="courseSlug()" [compact]="indexCompact()"
         (compressToggle)="toggleIndexCompact()" />
     </aside>
