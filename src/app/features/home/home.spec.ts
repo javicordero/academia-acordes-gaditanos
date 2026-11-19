@@ -237,9 +237,10 @@ describe('Portada', () => {
         'Curso de muestra · Intermedio 3',
       ]);
     for (const card of cards) {
-      const link = card.querySelector<HTMLAnchorElement>('a')!;
+      const link = card.querySelector<HTMLAnchorElement>('a.home-card__link')!;
       expect(link.getAttribute('href')).toBe('/cursos');
-      expect(link.textContent?.trim()).toBe('Ver catálogo');
+      expect(link.getAttribute('aria-label')).toBe('Ver catálogo de cursos');
+      expect(card.querySelector('.home-button')?.textContent?.trim()).toBe('Ver catálogo');
     }
     expect(segundo.textContent).not.toContain('De muestra');
     expect(segundo.querySelectorAll('.home-card__level')).toHaveLength(0);
@@ -258,7 +259,9 @@ describe('Portada', () => {
     expect(styles).toContain('object-fit:cover');
     expect(styles).toContain('height:5rem');
     expect(styles).toContain('height:3.5rem');
-    expect(styles).toContain('margin-top:calc(var(--space-5)+var(--space-4))');
+    expect(styles).toContain('font-size:var(--font-size-md)');
+    expect(styles).toContain('margin-block:var(--space-4)');
+    expect(styles).not.toContain('margin-top:calc(var(--space-5)+var(--space-4))');
     expect(styles).toMatch(/h2\[_ngcontent[^\]]+\]\{margin-top:0;?\}/);
     expect(styles).not.toContain('margin-top:2.25rem');
 
@@ -270,8 +273,7 @@ describe('Portada', () => {
     expect(movil).toContain('grid-template-columns:repeat(2,minmax(0,1fr))');
     expect(movil).toContain('grid-column:1/-1');
     expect(movil).toContain('justify-self:center');
-    expect(movil).toContain('font-size:var(--font-size-md)');
-    expect(movil).toContain('font-size:var(--font-size-sm)');
+    expect(movil).not.toContain('font-size:var(--font-size-sm)');
   });
 
   it('no muestra etiquetas de muestra ni nivel en las tarjetas, pero conserva la nota del profesor', async () => {
@@ -321,8 +323,9 @@ describe('Portada', () => {
       .map((style) => style.textContent ?? '')
       .join('\n')
       .replace(/\s+/g, '');
-    expect(styles).toContain('margin:calc(-1*clamp(2rem,6vw,4rem))calc(50%-50vw)-4rem');
-    expect(styles).toContain('width:100vw');
+    expect(styles).toContain('margin:calc(-1*clamp(2rem,6vw,4rem))-1.25rem-4rem');
+    expect(styles).toContain('width:auto');
+    expect(styles).not.toContain('width:100vw');
     expect(styles).toContain('overflow-x:clip');
     expect(styles).toContain('padding-inline:clamp(1.25rem,5vw,3rem)');
     expect(styles).toContain('padding-block:clamp(1rem,2.5vw,2rem)');
@@ -333,11 +336,137 @@ describe('Portada', () => {
     }
     const homeRule = styles.match(/\.home\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
     expect(homeRule).not.toContain('max-width');
-    expect(homeRule).toContain('calc(50%-50vw)');
+    expect(homeRule).toContain('-1.25rem');
+    expect(homeRule).not.toContain('100vw');
     expect(styles).toContain('border-bottom:var(--border-width)solidvar(--border)');
     expect(styles).toContain('border-top:var(--border-width)solidvar(--border)');
     expect(styles).toContain('background:var(--bg)');
     expect(styles).toContain('background:var(--surface)');
+  });
+
+  it('tiñe el hero con tokens, centra el divisor y deja el espaciado de listas a la rejilla', async () => {
+    const fixture = setup({
+      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
+      detail: noDetail(),
+    });
+    await fixture.whenStable();
+    const styles = Array.from(document.querySelectorAll('style'))
+      .map((style) => style.textContent ?? '')
+      .join('\n')
+      .replace(/\s+/g, '');
+
+    const heroRule = styles.match(/\.home-hero\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    const dividerRule = styles.match(/\.home-divider\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    const cardsRule = styles.match(/\.home-cards\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    const cardRule = styles.match(/\.home-card\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    const titleRule = styles.match(/\.home-courses__title\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    const linkRule = styles.match(/\.home-card__link\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    const courseRule = styles.match(/\.home-card__course\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    const cardButtonRule = styles.match(/\.home-card\[_ngcontent[^\]]+\]\.home-button\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+
+    // Fondo del hero derivado de tokens del tema, no blanco liso; conserva su línea.
+    expect(heroRule).not.toContain('background:var(--surface)');
+    expect(heroRule).toContain('color-mix(');
+    expect(heroRule).toContain('var(--accent)');
+    expect(heroRule).toContain('var(--surface)');
+    expect(heroRule).toContain('border-bottom:var(--border-width)solidvar(--border)');
+
+    // Divisor con la misma separación a ambos lados, sin la suma desequilibrada.
+    expect(dividerRule).toContain('margin-block:var(--space-4)');
+    expect(dividerRule).not.toContain('margin-top');
+    expect(dividerRule).not.toContain('margin-bottom');
+    expect(dividerRule.match(/var\(--space-[a-z0-9-]+\)/g) ?? []).toHaveLength(1);
+    // La línea abarca todo el contenido, no un trozo centrado.
+    expect(dividerRule).toContain('width:100%');
+    expect(dividerRule).not.toContain('max-width:');
+    expect(dividerRule).toContain('margin-inline:0');
+    expect(dividerRule).not.toContain('width:min(');
+
+    // El hueco entre tarjetas lo pone gap, no márgenes de ul/li ni del título.
+    expect(cardsRule).toContain('gap:var(--grid-gap)');
+    expect(cardsRule).toContain('margin:0');
+    expect(cardsRule).toContain('padding:0');
+    expect(cardsRule).toContain('list-style:none');
+    expect(cardRule).toContain('margin:0');
+    expect(titleRule).toContain('margin-bottom:var(--space-2)');
+
+    // Enlace estirado, título en tinta y botón compacto de tarjeta.
+    expect(linkRule).toContain('position:absolute');
+    expect(linkRule).toContain('inset:0');
+    expect(linkRule).toContain('z-index:1');
+    expect(courseRule).toContain('color:var(--ink)');
+    expect(courseRule).not.toContain('var(--accent)');
+    expect(cardButtonRule).toContain('padding:var(--space-1)var(--space-3)');
+    expect(cardButtonRule).toContain('margin:auto');
+
+    // Hover de tarjeta y primary estable en reposo y hover.
+    expect(styles).toMatch(/\.home-card\[_ngcontent[^\]]+\]:is\(:hover,:focus-within\)\{[^}]*transform:translateY\(-2px\)/);
+    expect(styles).toContain('border-color:var(--accent)');
+    expect(styles).toMatch(/\.home-button--primary\[_ngcontent[^\]]+\](?:,\.home-button--primary\[_ngcontent[^\]]+\]:hover)?\{background:var\(--accent\);color:var\(--accent-ink\);?\}/);
+
+    // Los CTAs del hero comparten medidas; solo cambia el color.
+    const actionsRule = styles.match(/\.home-button\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    expect(actionsRule).toContain('min-height:44px');
+    expect(actionsRule).toContain('padding:var(--space-2)var(--space-4)');
+    expect(actionsRule).toContain('font-size:var(--font-size-md)');
+    expect(actionsRule).toContain('font-weight:var(--weight-bold)');
+  });
+
+  it('hace clicable toda la tarjeta con un solo enlace y un span decorativo', async () => {
+    const fixture = setup({
+      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
+      detail: noDetail(),
+    });
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+
+    for (const card of Array.from(root.querySelectorAll<HTMLElement>('.home-card'))) {
+      const links = card.querySelectorAll('a');
+      expect(links).toHaveLength(1);
+      const link = links[0]!;
+      expect(link.classList.contains('home-card__link')).toBe(true);
+      expect(link.getAttribute('aria-label')).toBeTruthy();
+      expect(card.querySelectorAll('button')).toHaveLength(0);
+      const span = card.querySelector<HTMLElement>('.home-button--primary')!;
+      expect(span.tagName).toBe('SPAN');
+      expect(span.getAttribute('aria-hidden')).toBe('true');
+    }
+    expect(root.querySelectorAll('.home-card__link[href^="/cursos/"]')).toHaveLength(3);
+    expect(root.querySelectorAll('.home-card__link[href="/cursos"]')).toHaveLength(3);
+  });
+
+  it('equilibra las tarjetas con imagen a borde, columna flex y botón abajo', async () => {
+    const fixture = setup({
+      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
+      detail: noDetail(),
+    });
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const styles = Array.from(document.querySelectorAll('style'))
+      .map((style) => style.textContent ?? '')
+      .join('\n')
+      .replace(/\s+/g, '');
+
+    const rule = (selector: RegExp): string => styles.match(selector)?.[1] ?? '';
+    const cardRule = rule(/\.home-card\[_ngcontent[^\]]+\]\{([^}]*)\}/);
+    const coverRule = rule(/\.home-card__cover\[_ngcontent[^\]]+\]\{([^}]*)\}/);
+    const imageRule = rule(/\.home-card__image\[_ngcontent[^\]]+\]\{([^}]*)\}/);
+    const courseRule = rule(/\.home-card__course\[_ngcontent[^\]]+\]\{([^}]*)\}/);
+    const cardButtonRule = rule(/\.home-card\[_ngcontent[^\]]+\]\.home-button\[_ngcontent[^\]]+\]\{([^}]*)\}/);
+
+    expect(cardRule).toContain('display:flex');
+    expect(cardRule).toContain('flex-direction:column');
+    expect(cardRule).toContain('height:100%');
+    expect(coverRule).not.toContain('padding');
+    expect(imageRule).not.toContain('padding');
+    expect(imageRule).toContain('object-fit:cover');
+    expect(courseRule).toContain('min-height:');
+    expect(courseRule).toContain('line-height:var(--line-height-tight)');
+    expect(cardButtonRule).toContain('margin:auto');
+    expect(styles).toContain('grid-template-columns:repeat(3,minmax(0,1fr))');
+    for (const card of Array.from(root.querySelectorAll('.home-card'))) {
+      expect(card.querySelectorAll('a')).toHaveLength(1);
+    }
   });
 
   it('mantiene un único enlace al catálogo dentro de la sección de cursos', async () => {
@@ -360,9 +489,10 @@ describe('Portada', () => {
       .map((anchor) => anchor.getAttribute('href'));
     expect(hrefs).toContain('/cursos');
     expect(hrefs).toContain('/mis-cursos');
-    expect(root.querySelector('.home-button--primary')?.textContent?.trim()).toBe('Ver cursos');
+    expect(root.querySelector('.home-button--primary')?.textContent?.trim()).toBe('Nuestros cursos');
     for (const anchor of Array.from(root.querySelectorAll('a'))) {
-      expect(anchor.textContent?.trim()).not.toBe('');
+      const nombre = anchor.textContent?.trim() || anchor.getAttribute('aria-label');
+      expect(nombre).toBeTruthy();
     }
   });
 
@@ -391,9 +521,16 @@ describe('Portada', () => {
     const hero = root.querySelector<HTMLElement>('[data-section="hero"]')!;
 
     const actions = Array.from(hero.querySelectorAll<HTMLAnchorElement>('.home-actions a'));
-    expect(actions).toHaveLength(1);
+    expect(actions).toHaveLength(2);
     expect(actions[0].getAttribute('href')).toBe('/cursos');
-    expect(actions[0].textContent?.trim()).toBe('Ver cursos');
+    expect(actions[0].textContent?.trim()).toBe('Nuestros cursos');
+    const externo = actions[1]!;
+    expect(externo.getAttribute('href')).toBe('https://acordesgaditanos.com/');
+    expect(externo.getAttribute('target')).toBe('_blank');
+    expect(externo.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(externo.textContent?.trim()).toBe('Acordes Gaditanos');
+    expect(externo.getAttribute('aria-label')).toContain('Acordes Gaditanos');
+    expect(externo.classList.contains('home-button--secondary')).toBe(true);
     expect(hero.textContent).not.toContain('Mi biblioteca');
     expect(hero.textContent).not.toMatch(/inicia sesión|regístrate|pagar|comprar|precio/i);
   });

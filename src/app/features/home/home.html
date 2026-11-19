@@ -9,7 +9,10 @@
         Carnaval de Cádiz. Cursos, lecciones y progreso en un mismo sitio.
       </p>
       <p class="home-actions">
-        <a class="home-button home-button--primary" routerLink="/cursos">Ver cursos</a>
+        <a class="home-button home-button--primary" routerLink="/cursos">Nuestros cursos</a>
+        <a class="home-button home-button--secondary" href="https://acordesgaditanos.com/"
+          target="_blank" rel="noopener noreferrer"
+          aria-label="Acordes Gaditanos (se abre en pestaña nueva)">Acordes Gaditanos</a>
       </p>
     </div>
     <div class="home-hero__visual" aria-hidden="true">
@@ -64,13 +67,15 @@
             <ul class="home-cards">
               @for (course of [featured()[0], featured()[1] ?? featured()[0], featured()[2] ?? featured()[0]]; track $index; let i = $index) {
                 <li class="home-card home-surface">
+                  <a class="home-card__link" [routerLink]="['/cursos', course.slug]"
+                    [attr.aria-label]="'Ver curso: ' + course.title"></a>
                   <div class="home-card__cover" aria-hidden="true">
                     <img class="home-card__image" src="images/curso-cover.png"
                       alt="" width="480" height="300" loading="lazy" />
                     <span class="home-card__badge">{{ i + 1 }}</span>
                   </div>
                   <h3 class="home-card__course">{{ course.title }}</h3>
-                  <a class="home-button home-button--secondary" [routerLink]="['/cursos', course.slug]">Ver curso</a>
+                  <span class="home-button home-button--primary" aria-hidden="true">Ver curso</span>
                 </li>
               }
             </ul>
@@ -84,13 +89,14 @@
             <ul class="home-cards">
               @for (titulo of ['Curso de muestra · Intermedio 1', 'Curso de muestra · Intermedio 2', 'Curso de muestra · Intermedio 3']; track $index; let i = $index) {
                 <li class="home-card home-surface">
+                  <a class="home-card__link" routerLink="/cursos" aria-label="Ver catálogo de cursos"></a>
                   <div class="home-card__cover" aria-hidden="true">
                     <img class="home-card__image" src="images/curso-cover.png"
                       alt="" width="480" height="300" loading="lazy" />
                     <span class="home-card__badge">{{ i + 1 }}</span>
                   </div>
                   <h3 class="home-card__course">{{ titulo }}</h3>
-                  <a class="home-button home-button--secondary" routerLink="/cursos">Ver catálogo</a>
+                  <span class="home-button home-button--primary" aria-hidden="true">Ver catálogo</span>
                 </li>
               }
             </ul>
