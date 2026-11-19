@@ -6,31 +6,31 @@ const legalPage = () => import('./legal').then((m) => m.Legal);
 export const LEGAL_ROUTES: Routes = [
   {
     path: 'aviso-legal',
-    title: 'Aviso legal · Academia Acordes Gaditanos',
+    title: 'Aviso legal · Academia de Guitarra',
     data: { page: 'aviso-legal' },
     loadComponent: legalPage,
   },
   {
     path: 'privacidad',
-    title: 'Privacidad · Academia Acordes Gaditanos',
+    title: 'Privacidad · Academia de Guitarra',
     data: { page: 'privacidad' },
     loadComponent: legalPage,
   },
   {
     path: 'cookies',
-    title: 'Cookies · Academia Acordes Gaditanos',
+    title: 'Cookies · Academia de Guitarra',
     data: { page: 'cookies' },
     loadComponent: legalPage,
   },
   {
     path: 'terminos',
-    title: 'Términos de compra · Academia Acordes Gaditanos',
+    title: 'Términos de compra · Academia de Guitarra',
     data: { page: 'terminos' },
     loadComponent: legalPage,
   },
   {
     path: 'reembolsos',
-    title: 'Reembolsos · Academia Acordes Gaditanos',
+    title: 'Reembolsos · Academia de Guitarra',
     data: { page: 'reembolsos' },
     loadComponent: legalPage,
   },

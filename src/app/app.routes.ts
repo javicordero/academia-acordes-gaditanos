@@ -12,7 +12,7 @@ export const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    title: 'Academia Acordes Gaditanos',
+    title: 'Academia de Guitarra',
     loadComponent: home,
   },
   {
@@ -27,21 +27,21 @@ export const routes: Routes = [
   },
   {
     path: 'mis-cursos',
-    title: 'Mis cursos · Academia Acordes Gaditanos',
+    title: 'Mis cursos · Academia de Guitarra',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/mis-cursos/mis-cursos').then((m) => m.MisCursos),
   },
   {
     path: 'perfil',
-    title: 'Mi perfil · Academia Acordes Gaditanos',
+    title: 'Mi perfil · Academia de Guitarra',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/perfil/perfil').then((m) => m.Perfil),
   },
   {
     path: 'comunidad',
-    title: 'Comunidad · Academia Acordes Gaditanos',
+    title: 'Comunidad · Academia de Guitarra',
     loadChildren: () =>
       import('./features/foro/foro.routes').then((m) => m.FORO_ROUTES),
   },
@@ -52,19 +52,19 @@ export const routes: Routes = [
   },
   {
     path: 'auth/login',
-    title: 'Iniciar sesión · Academia Acordes Gaditanos',
+    title: 'Iniciar sesión · Academia de Guitarra',
     loadComponent: () =>
       import('./features/auth/login/login').then((m) => m.Login),
   },
   {
     path: 'auth/registro',
-    title: 'Crear cuenta · Academia Acordes Gaditanos',
+    title: 'Crear cuenta · Academia de Guitarra',
     loadComponent: () =>
       import('./features/auth/register/register').then((m) => m.Register),
   },
   {
     path: 'auth/recuperar',
-    title: 'Recuperar contraseña · Academia Acordes Gaditanos',
+    title: 'Recuperar contraseña · Academia de Guitarra',
     loadComponent: () =>
       import('./features/auth/forgot-password/forgot-password').then(
         (m) => m.ForgotPassword,
@@ -72,13 +72,13 @@ export const routes: Routes = [
   },
   {
     path: 'auth/callback',
-    title: 'Confirmar enlace · Academia Acordes Gaditanos',
+    title: 'Confirmar enlace · Academia de Guitarra',
     loadComponent: () =>
       import('./features/auth/callback/callback').then((m) => m.AuthCallback),
   },
   {
     path: 'auth/actualizar-contrasena',
-    title: 'Nueva contraseña · Academia Acordes Gaditanos',
+    title: 'Nueva contraseña · Academia de Guitarra',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/auth/update-password/update-password').then(
@@ -87,7 +87,7 @@ export const routes: Routes = [
   },
   {
     path: 'auth/cuenta-confirmada',
-    title: 'Correo confirmado · Academia Acordes Gaditanos',
+    title: 'Correo confirmado · Academia de Guitarra',
     loadComponent: () =>
       import('./features/auth/account-confirmed/account-confirmed').then(
         (m) => m.AccountConfirmed,
@@ -95,13 +95,13 @@ export const routes: Routes = [
   },
   {
     path: 'sin-acceso',
-    title: 'Sin acceso · Academia Acordes Gaditanos',
+    title: 'Sin acceso · Academia de Guitarra',
     loadComponent: () =>
       import('./features/auth/forbidden/forbidden').then((m) => m.Forbidden),
   },
   {
     path: 'admin',
-    title: 'Administración · Academia Acordes Gaditanos',
+    title: 'Administración · Academia de Guitarra',
     canActivate: [adminGuard],
     loadComponent: () => import('./features/admin/admin').then((m) => m.Admin),
     children: [
@@ -143,12 +143,12 @@ export const routes: Routes = [
   },
   {
     path: 'not-found',
-    title: 'Página no encontrada · Academia Acordes Gaditanos',
+    title: 'Página no encontrada · Academia de Guitarra',
     loadComponent: notFound,
   },
   {
     path: '**',
-    title: 'Página no encontrada · Academia Acordes Gaditanos',
+    title: 'Página no encontrada · Academia de Guitarra',
     loadComponent: notFound,
   },
 ];

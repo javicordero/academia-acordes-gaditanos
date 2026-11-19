@@ -1,4 +1,6 @@
-# Academia Acordes Gaditanos
+# Academia de Guitarra
+
+*De Acordes Gaditanos*
 
 Base técnica de la academia online de guitarra para el Carnaval de Cádiz. Esta
 fase levanta el proyecto Angular y su shell navegable, con **autenticación real

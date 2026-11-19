@@ -189,9 +189,10 @@ describe('App shell · cabecera según la ruta', () => {
     const cursos = element.querySelector<HTMLAnchorElement>('nav a[href="/cursos"]')!;
 
     expect(brand.getAttribute('href')).toBe('/');
-    expect(brand.getAttribute('aria-label')).toContain('Academia Acordes Gaditanos');
-    expect(brand.textContent).toContain('Academia');
-    expect(brand.textContent).toContain('Acordes Gaditanos');
+    expect(brand.getAttribute('aria-label')).toContain('Academia de Guitarra');
+    expect(brand.getAttribute('aria-label')).toContain('De Acordes Gaditanos');
+    expect(brand.textContent).toContain('Academia de Guitarra');
+    expect(brand.textContent).toContain('De Acordes Gaditanos');
     expect(cursos.textContent?.trim()).toBe('Cursos');
 
     brand.click();

@@ -91,7 +91,7 @@ describe('SiteFooter', () => {
     const meta = element.querySelector('.site-footer__meta');
 
     expect(meta?.textContent).toContain(String(new Date().getFullYear()));
-    expect(meta?.textContent).toContain('Academia Acordes Gaditanos');
+    expect(meta?.textContent).toContain('Academia de Guitarra');
   });
 
   it('enlaza todas las páginas legales con sus rutas exactas', async () => {

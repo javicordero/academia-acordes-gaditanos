@@ -17,31 +17,31 @@ const CASES: readonly LegalCase[] = [
   {
     url: '/legal/aviso-legal',
     heading: 'Aviso legal',
-    title: 'Aviso legal · Academia Acordes Gaditanos',
+    title: 'Aviso legal · Academia de Guitarra',
     key: 'aviso-legal',
   },
   {
     url: '/legal/privacidad',
     heading: 'Política de privacidad',
-    title: 'Privacidad · Academia Acordes Gaditanos',
+    title: 'Privacidad · Academia de Guitarra',
     key: 'privacidad',
   },
   {
     url: '/legal/cookies',
     heading: 'Política de cookies',
-    title: 'Cookies · Academia Acordes Gaditanos',
+    title: 'Cookies · Academia de Guitarra',
     key: 'cookies',
   },
   {
     url: '/legal/terminos',
     heading: 'Términos de compra',
-    title: 'Términos de compra · Academia Acordes Gaditanos',
+    title: 'Términos de compra · Academia de Guitarra',
     key: 'terminos',
   },
   {
     url: '/legal/reembolsos',
     heading: 'Reembolsos y desistimiento',
-    title: 'Reembolsos · Academia Acordes Gaditanos',
+    title: 'Reembolsos · Academia de Guitarra',
     key: 'reembolsos',
   },
 ];

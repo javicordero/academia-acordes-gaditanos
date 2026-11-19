@@ -7,10 +7,11 @@ portada). La fuente de verdad de los valores es `src/app/core/theme/`
 (`theme-tokens.scss`, `theme.service.ts`, `fonts.scss`, `theme-components.scss`)
 y `src/styles.scss`. Si este documento y el código discrepasen, manda el código.
 
-> **Nota de título pendiente (no aplicado):** se propone como título para el
-> subdominio «Academia de Guitarra · De Acordes Gaditanos». El título actual de
-> `src/index.html` sigue siendo «Academia Acordes Gaditanos» y **no se cambia
-> hasta confirmación**. Es una propuesta, no una decisión cerrada.
+> **Nota de título (decisión aplicada):** el título es «Academia de Guitarra»,
+> en `src/index.html` y en los títulos de documento de las rutas. La marca
+> visible del shell usa «Academia de Guitarra» como texto principal y «De
+> Acordes Gaditanos» como eyebrow. Decisión confirmada y aplicada; ya no es una
+> propuesta pendiente.
 
 ## 1. Principios
 

@@ -9,17 +9,17 @@ export const FORO_ROUTES: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    title: 'Foro · Academia Acordes Gaditanos',
+    title: 'Foro · Academia de Guitarra',
     loadComponent: () => import('./forum-categories').then((m) => m.ForumCategories),
   },
   {
     path: ':categoryId',
-    title: 'Hilos del foro · Academia Acordes Gaditanos',
+    title: 'Hilos del foro · Academia de Guitarra',
     loadComponent: () => import('./forum-threads').then((m) => m.ForumThreads),
   },
   {
     path: ':categoryId/:threadId',
-    title: 'Hilo del foro · Academia Acordes Gaditanos',
+    title: 'Hilo del foro · Academia de Guitarra',
     loadComponent: () => import('./forum-thread').then((m) => m.ForumThread),
   },
 ];

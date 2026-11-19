@@ -84,7 +84,7 @@ describe('Routes', () => {
     expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(
       'Aprende guitarra para el Carnaval de Cádiz',
     );
-    expect(TestBed.inject(Title).getTitle()).toBe('Academia Acordes Gaditanos');
+    expect(TestBed.inject(Title).getTitle()).toBe('Academia de Guitarra');
   });
 
   it('protege /perfil con el guard de autenticación', () => {
@@ -92,10 +92,10 @@ describe('Routes', () => {
   });
 
   it.each([
-    ['/cursos', 'Cursos', 'Cursos · Academia Acordes Gaditanos'],
-    ['/mis-cursos', 'Mis cursos', 'Mis cursos · Academia Acordes Gaditanos'],
-    ['/perfil', 'Mi perfil', 'Mi perfil · Academia Acordes Gaditanos'],
-    ['/comunidad', 'Foro', 'Foro · Academia Acordes Gaditanos'],
+    ['/cursos', 'Cursos', 'Cursos · Academia de Guitarra'],
+    ['/mis-cursos', 'Mis cursos', 'Mis cursos · Academia de Guitarra'],
+    ['/perfil', 'Mi perfil', 'Mi perfil · Academia de Guitarra'],
+    ['/comunidad', 'Foro', 'Foro · Academia de Guitarra'],
   ])('carga %s con su título', async (url, heading, title) => {
     await harness.navigateByUrl(url);
     await harness.fixture.whenStable();
@@ -109,7 +109,7 @@ describe('Routes', () => {
   it('monta el foro con loadChildren bajo /comunidad, sin loadComponent ni guard nuevo', async () => {
     const comunidad = routes.find((route) => route.path === 'comunidad');
 
-    expect(comunidad?.title).toBe('Comunidad · Academia Acordes Gaditanos');
+    expect(comunidad?.title).toBe('Comunidad · Academia de Guitarra');
     expect(comunidad?.canActivate).toBeUndefined();
     expect(comunidad?.loadComponent).toBeUndefined();
     expect(comunidad?.loadChildren).toBeTypeOf('function');
@@ -122,9 +122,9 @@ describe('Routes', () => {
       ':categoryId/:threadId',
     ]);
     expect(hijas.map((route) => route.title)).toEqual([
-      'Foro · Academia Acordes Gaditanos',
-      'Hilos del foro · Academia Acordes Gaditanos',
-      'Hilo del foro · Academia Acordes Gaditanos',
+      'Foro · Academia de Guitarra',
+      'Hilos del foro · Academia de Guitarra',
+      'Hilo del foro · Academia de Guitarra',
     ]);
     expect(hijas.every((route) => typeof route.loadComponent === 'function')).toBe(true);
   });
@@ -133,12 +133,12 @@ describe('Routes', () => {
     [
       '/comunidad/11111111-1111-1111-1111-111111111111',
       'Hilos del foro',
-      'Hilos del foro · Academia Acordes Gaditanos',
+      'Hilos del foro · Academia de Guitarra',
     ],
     [
       '/comunidad/11111111-1111-1111-1111-111111111111/22222222-2222-2222-2222-222222222222',
       'Hilo del foro',
-      'Hilo del foro · Academia Acordes Gaditanos',
+      'Hilo del foro · Academia de Guitarra',
     ],
   ])('carga %s del foro con su título', async (url, heading, title) => {
     await harness.navigateByUrl(url);
@@ -157,7 +157,7 @@ describe('Routes', () => {
 
     expect(h1?.textContent?.trim()).toBe('Curso de prueba');
     expect(TestBed.inject(Title).getTitle()).toBe(
-      'Curso · Academia Acordes Gaditanos',
+      'Curso · Academia de Guitarra',
     );
   });
 
@@ -201,7 +201,7 @@ describe('Routes', () => {
     expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(
       'Política de privacidad',
     );
-    expect(TestBed.inject(Title).getTitle()).toBe('Privacidad · Academia Acordes Gaditanos');
+    expect(TestBed.inject(Title).getTitle()).toBe('Privacidad · Academia de Guitarra');
   });
 
   it('conserva el guard de administración, sus alias históricos y el aula', () => {
