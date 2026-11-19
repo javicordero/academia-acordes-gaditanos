@@ -86,11 +86,13 @@ export class App {
 
   constructor() {
     // La primera navegación es la carga inicial: no le robamos el foco al usuario.
-    // En navegaciones posteriores llevamos el foco al contenido principal.
+    // En navegaciones posteriores llevamos el foco al contenido principal SIN
+    // desplazar la página: la portada tiene sangrados que el navegador intentaría
+    // hacer visibles, dejando el index scrolleado al pulsar la marca.
     this.navigationEnd$
       .pipe(skip(1), takeUntilDestroyed())
       .subscribe(() => {
-        this.document.getElementById('contenido-principal')?.focus();
+        this.document.getElementById('contenido-principal')?.focus({ preventScroll: true });
       });
 
     // Cualquier navegación cierra el panel: enlaces del menú,logout, cambio de
@@ -137,8 +139,13 @@ export class App {
     return url.includes('/aula/') || url.includes('/vista-previa');
   });
 
+  /** Abrir el overlay cierra el desplegable de cuenta: nunca se solapan. */
   toggleMenu(): void {
-    this.menuOpen.update((open) => !open);
+    const opening = !this.menuOpen();
+    if (opening) {
+      this.closeUserMenu();
+    }
+    this.menuOpen.set(opening);
   }
 
   /** Único cierre: con restoreFocus lo devuelve al botón que abrió el panel. */
@@ -191,10 +198,14 @@ export class App {
   }
 
   toggleUserMenu(event?: Event): void {
-    // El disclosure de cuenta no debe cerrar el panel móvil ni disparar el
-    // cierre por click fuera con el mismo evento que lo abre.
+    // El disclosure de cuenta no dispara el cierre por click fuera con el mismo
+    // evento que lo abre, y al abrirse cierra el overlay móvil para no solapar.
     event?.stopPropagation();
-    this.userMenuOpen.update((open) => !open);
+    const opening = !this.userMenuOpen();
+    if (opening) {
+      this.closeMenu();
+    }
+    this.userMenuOpen.set(opening);
   }
 
   closeUserMenu(restoreFocus = false): void {
@@ -234,7 +245,7 @@ export class App {
     items[next].focus();
   }
 
-  /** Evita que los clicks del desplegable cierren el menú móvil. */
+  /** El desplegable vive fuera del overlay: su click no llega a la navegación. */
   onUserMenuClick(event: Event): void {
     event.stopPropagation();
   }

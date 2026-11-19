@@ -12,15 +12,18 @@ main:focus { outline: none; }
   background: var(--surface);
 }
 
+/* Mismo ancho y gutter que el contenido (.home-inner): el brand arranca en la
+   misma línea que el texto de las secciones. El block cambia por breakpoint. */
 .site-header__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem 1rem;
   min-height: 4.5rem;
-  max-width: var(--max-width);
+  max-width: var(--content-max-width);
   margin-inline: auto;
-  padding: 0.5rem 1.25rem;
+  padding-block: 0.5rem;
+  padding-inline: clamp(1.25rem, 5vw, 3rem);
 }
 
 .brand {
@@ -32,6 +35,8 @@ main:focus { outline: none; }
   justify-content: center;
 }
 
+/* En escritorio este grupo se reordena (order 1) antes del perfil (order 2);
+   en móvil es fixed y sale del flujo, dejando perfil → burger → X en la fila. */
 .site-header__tools {
   display: flex;
   min-width: 0;
@@ -39,6 +44,7 @@ main:focus { outline: none; }
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem 0.6rem;
+  margin-inline-start: auto;
 }
 
 :is(.nav-list, .session-actions) { display: flex; align-items: center; }
@@ -86,6 +92,7 @@ main:focus { outline: none; }
   stroke-width: 1.6;
 }
 
+/* Un único perfil en la fila: antes del burger en móvil, a la derecha en escritorio. */
 :is(.user-menu, .user-menu__trigger) {
   position: relative;
   display: inline-flex;
@@ -126,30 +133,23 @@ main:focus { outline: none; }
   outline-offset: 3px;
 }
 
-/* El hamburger y la X del overlay solo existen en móvil. */
-.nav-toggle {
-  gap: 0.5rem;
-  padding-inline: 0.75rem;
-  font-weight: 600;
-}
-
-.nav-toggle__icon--close,
-.nav-toggle[aria-expanded='true'] .nav-toggle__icon--menu { display: none; }
-.nav-toggle[aria-expanded='true'] .nav-toggle__icon--close { display: block; }
+/* Un solo X cuando el menú está abierto: el botón de cierre de la fila. */
+.nav-toggle__icon--close { display: none; }
 .menu-close.is-visible { display: inline-flex; }
 
 @media (min-width: 48rem) {
+  .site-header__tools { order: 1; }
+  .user-menu { order: 2; }
   .menu-close.is-visible { display: none; }
 }
 
-/* Franja media: se compactan huecos y textos sin desbordes. */
-/* Misma compressión del wordmark en la franja media y en móvil muy estrecho. */
+/* Franja media y móvil muy estrecho: se compactan huecos y textos sin desbordes. */
 @media (min-width: 48rem) and (max-width: 64rem), (max-width: 20rem) {
   .brand__sub { font-size: 1.1rem; }
 }
 
 @media (min-width: 48rem) and (max-width: 64rem) {
-  .site-header__inner { gap: 0.5rem; padding-inline: 1rem; }
+  .site-header__inner { gap: 0.5rem; }
   .site-header__tools { gap: 0.25rem 0.4rem; }
   .hdr-link {
     padding-inline: 0.45rem;
@@ -158,7 +158,7 @@ main:focus { outline: none; }
 }
 
 @media (max-width: 47.99rem) {
-  /* La cabecera queda arriba para que el MISMO botón cierre el panel. */
+  /* La cabecera queda arriba para que perfil, burger y X sigan sobre el overlay. */
   .site-header {
     position: sticky;
     top: 0;
@@ -168,7 +168,7 @@ main:focus { outline: none; }
   .site-header__inner {
     min-height: 4rem;
     gap: 0.5rem;
-    padding: 0.4rem 1rem;
+    padding-block: 0.4rem;
   }
 
   .brand { flex: 1 1 auto; }
@@ -179,12 +179,8 @@ main:focus { outline: none; }
     margin-inline-start: auto;
   }
 
-  /* X sobre el panel, bajo la cabecera fija y lejos de los enlaces. */
-  .menu-close {
-    position: absolute;
-    top: 4.5rem;
-    right: 1rem;
-  }
+  /* X en la misma fila y eje que el burger: comparte el mínimo de 44px. */
+  .menu-close { flex: 0 0 auto; }
 
   /* Panel a pantalla completa que entra desde la izquierda; siempre en el DOM
      para animar translateX por debajo de la cabecera fija. */
@@ -235,23 +231,6 @@ main:focus { outline: none; }
     flex-direction: column;
     gap: 0.5rem;
   }
-
-  /* En el overlay el desplegable entra en la fila: sin posicionamiento
-     absoluto no desborda en 320 px. */
-  .user-menu { width: 100%; }
-
-  .user-menu__panel {
-    position: static;
-    width: 100%;
-    min-width: 0;
-    max-width: none;
-    margin-top: 0.35rem;
-  }
-}
-
-@media (max-width: 20rem) {
-  .site-header__inner { padding-inline: 0.75rem; }
-  .nav-toggle__label { font-size: 0.9rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

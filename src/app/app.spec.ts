@@ -296,11 +296,12 @@ describe('App shell · cabecera según la ruta', () => {
     centinela.remove();
   });
 
-  it('mueve el foco al contenido principal en una navegación explícita', async () => {
+  it('mueve el foco al contenido principal sin desplazar el scroll en una navegación explícita', async () => {
     const fixture = await createShell('/cursos');
     const element = fixture.nativeElement as HTMLElement;
     const main = element.querySelector<HTMLElement>('main')!;
     const skipLink = element.querySelector<HTMLAnchorElement>('.skip-link')!;
+    const focus = vi.spyOn(main, 'focus');
 
     skipLink.focus();
     expect(document.activeElement).toBe(skipLink);
@@ -308,6 +309,22 @@ describe('App shell · cabecera según la ruta', () => {
     await goto(fixture, '/foro');
 
     expect(document.activeElement).toBe(main);
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
+  it('la marca abre el índice con el foco en main y sin scroll', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const main = element.querySelector<HTMLElement>('main')!;
+    const brand = element.querySelector<HTMLAnchorElement>('.brand')!;
+    const focus = vi.spyOn(main, 'focus');
+
+    brand.click();
+    await fixture.whenStable();
+
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(document.activeElement).toBe(main);
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   });
 
   it('el hamburger nombra el panel y mantiene aria-expanded sincronizado', async () => {
@@ -424,18 +441,38 @@ describe('App shell · cabecera según la ruta', () => {
     const fixture = await createShell('/cursos');
     const element = fixture.nativeElement as HTMLElement;
     const sessionActions = element.querySelector<HTMLElement>('.session-actions')!;
+    const userMenu = element.querySelector<HTMLElement>('.user-menu')!;
 
-    expect(sessionActions.querySelector<HTMLButtonElement>('.user-menu__trigger')).not.toBeNull();
+    expect(element.querySelector<HTMLButtonElement>('.user-menu__trigger')).not.toBeNull();
+    // El perfil ya no vive en el overlay: está en la fila de la cabecera.
+    expect(sessionActions.contains(userMenu)).toBe(false);
+    expect(element.querySelector<HTMLElement>('.site-header__inner')!.contains(userMenu)).toBe(true);
     expect(sessionActions.querySelector('a[href="/admin"]')).toBeNull();
     expect(sessionActions.querySelector('a[href="/auth/login"]')).toBeNull();
     expect(sessionActions.textContent).not.toContain('Cerrar sesión');
 
-    sessionActions.querySelector<HTMLButtonElement>('.user-menu__trigger')!.click();
+    element.querySelector<HTMLButtonElement>('.user-menu__trigger')!.click();
     await fixture.whenStable();
     const panel = element.querySelector<HTMLElement>('#user-menu-panel')!;
     expect(panel.querySelector('a[href="/perfil"]')?.textContent?.trim()).toBe('Mi perfil');
     expect(panel.querySelector('a[href="/favoritos"]')?.textContent?.trim()).toBe('Mis favoritos');
     expect(panel.querySelector('button')?.textContent?.trim()).toBe('Cerrar sesión');
+  });
+
+  it('alinea el ancho y el gutter del header con el contenido (.home-inner)', async () => {
+    await createShell('/cursos');
+    const shell = readFileSync('src/app/app.scss', 'utf8');
+    const home = readFileSync('src/app/features/home/home.scss', 'utf8');
+    const header = shell.match(/\.site-header__inner\s*\{[^}]*\}/)?.[0] ?? '';
+    const content = home.match(/\.home-inner\s*\{[^}]*\}/)?.[0] ?? '';
+
+    expect(header).toContain('max-width: var(--content-max-width)');
+    expect(header).toContain('margin-inline: auto');
+    expect(header).toContain('padding-inline: clamp(1.25rem, 5vw, 3rem)');
+    expect(content).toContain('max-width: var(--content-max-width)');
+    expect(content).toContain('padding-inline: clamp(1.25rem, 5vw, 3rem)');
+    // Ninguna media query del shell vuelve a achicar el gutter horizontal.
+    expect(shell).not.toMatch(/padding-inline:\s*(?:1rem|0\.75rem)/);
   });
 
   it('declara estilos locales responsive y objetivos táctiles', async () => {
@@ -462,14 +499,13 @@ describe('App shell · cabecera según la ruta', () => {
     const element = fixture.nativeElement as HTMLElement;
     const header = element.querySelector<HTMLElement>('header.site-header')!;
     const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
-    const close = element.querySelector<HTMLButtonElement>('.menu-close')!;
     const panel = element.querySelector<HTMLElement>('#site-navigation')!;
     const nav = element.querySelector<HTMLElement>(
       'nav[aria-label="Navegación principal"]',
     )!;
 
     expect(getComputedStyle(toggle).display).toBe('none');
-    expect(getComputedStyle(close).display).toBe('none');
+    expect(element.querySelector('.menu-close')).toBeNull();
     expect(getComputedStyle(panel).display).not.toBe('none');
     expect(header.contains(nav)).toBe(true);
     expect(header.contains(panel)).toBe(true);
@@ -498,23 +534,49 @@ describe('App shell · cabecera según la ruta', () => {
     expect(document.activeElement).toBe(firstLink);
   });
 
-  it('la X del panel solo se muestra mientras el menú está abierto', async () => {
+  it('la X solo existe en la fila mientras el menú está abierto', async () => {
     const fixture = await createShell('/cursos');
     const element = fixture.nativeElement as HTMLElement;
     const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
-    const close = element.querySelector<HTMLButtonElement>('.menu-close')!;
 
-    expect(close.getAttribute('aria-label')).toBe('Cerrar menú');
-    expect(close.getAttribute('title')).toBeNull();
-    expect(close.classList.contains('is-visible')).toBe(false);
-    expect(getComputedStyle(close).display).toBe('none');
+    expect(element.querySelector('.menu-close')).toBeNull();
 
     toggle.click();
     await fixture.whenStable();
 
-    expect(close.classList.contains('is-visible')).toBe(true);
+    const close = element.querySelector<HTMLButtonElement>('.menu-close')!;
+    expect(close).not.toBeNull();
+    expect(close.getAttribute('aria-label')).toBe('Cerrar menú');
     expect(close.getAttribute('title')).toBe('Cerrar menú');
+    expect(close.classList.contains('is-visible')).toBe(true);
     expect(getComputedStyle(close).display).not.toBe('none');
+  });
+
+  it('la X está en la misma fila y altura que el burger, fuera del overlay', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
+    const row = element.querySelector<HTMLElement>('.site-header__inner')!;
+    const overlay = element.querySelector<HTMLElement>('#site-navigation')!;
+    const shell = readFileSync('src/app/app.scss', 'utf8');
+
+    toggle.click();
+    await fixture.whenStable();
+    const close = element.querySelector<HTMLButtonElement>('.menu-close')!;
+
+    // Misma clave de regla declarada: ambos son ítems de la misma fila flex,
+    // centrados en el mismo eje y con el mismo objetivo táctil de 44px.
+    expect(close.parentElement).toBe(row);
+    expect(toggle.parentElement).toBe(row);
+    expect(getComputedStyle(row).alignItems).toBe('center');
+    expect(getComputedStyle(close).minWidth).toBe('44px');
+    expect(getComputedStyle(close).minHeight).toBe('44px');
+    expect(getComputedStyle(toggle).minHeight).toBe(getComputedStyle(close).minHeight);
+    expect(overlay.contains(close)).toBe(false);
+    expect(element.querySelectorAll('.menu-close')).toHaveLength(1);
+    expect(shell).toContain('.menu-close.is-visible');
+    expect(shell).toContain('.menu-close { flex: 0 0 auto; }');
+    expect(shell).not.toContain('top: 4.5rem');
   });
 
   it('la X cierra el panel, devuelve el foco al hamburger y restaura el scroll', async () => {
@@ -522,7 +584,6 @@ describe('App shell · cabecera según la ruta', () => {
     const fixture = await createShell('/cursos');
     const element = fixture.nativeElement as HTMLElement;
     const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
-    const close = element.querySelector<HTMLButtonElement>('.menu-close')!;
 
     toggle.focus();
     toggle.click();
@@ -530,12 +591,11 @@ describe('App shell · cabecera según la ruta', () => {
     expect(document.body.style.overflow).toBe('hidden');
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
 
-    close.click();
+    element.querySelector<HTMLButtonElement>('.menu-close')!.click();
     await fixture.whenStable();
 
     expect(fixture.componentInstance.menuOpen()).toBe(false);
-    expect(close.classList.contains('is-visible')).toBe(false);
-    expect(close.getAttribute('title')).toBeNull();
+    expect(element.querySelector('.menu-close')).toBeNull();
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(toggle.getAttribute('aria-label')).toBe('Abrir menú');
     expect(document.activeElement).toBe(toggle);
@@ -651,10 +711,11 @@ describe('App shell · cabecera según la ruta', () => {
     await fixture.whenStable();
     expect(fixture.componentInstance.menuOpen()).toBe(true);
 
-    // El botón de cuenta no cierra el panel móvil; el logout sí cierra ambos.
+    // Los dos disclosures son excluyentes: abrir el perfil cierra el overlay.
     userTrigger.click();
     await fixture.whenStable();
-    expect(fixture.componentInstance.menuOpen()).toBe(true);
+    expect(fixture.componentInstance.menuOpen()).toBe(false);
+    expect(fixture.componentInstance.userMenuOpen()).toBe(true);
     const logoutButton = element.querySelector<HTMLButtonElement>('#user-menu-panel button')!;
     logoutButton.click();
     await fixture.whenStable();
@@ -1031,17 +1092,100 @@ describe('App shell · menú de usuario', () => {
     expect(element.querySelector('a[href="/auth/login"]')).not.toBeNull();
   });
 
-  it('declara un desplegable sin desbordes en móvil', async () => {
+  it('el burger de móvil es solo icono y conserva su nombre accesible', async () => {
     const fixture = await createShell({ user: { id: 'user-1' } });
-    await open(fixture, fixture.nativeElement as HTMLElement);
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
+
+    expect(element.querySelector('.nav-toggle__label')).toBeNull();
+    expect(toggle.textContent?.trim()).toBe('');
+    expect(toggle.querySelectorAll('svg')).toHaveLength(2);
+    expect(toggle.querySelector('.nav-toggle__icon--menu')).not.toBeNull();
+    expect(toggle.querySelector('.nav-toggle__icon--close')).not.toBeNull();
+    expect(toggle.getAttribute('aria-label')).toBe('Abrir menú');
+    expect(toggle.getAttribute('aria-controls')).toBe('site-navigation');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(getComputedStyle(toggle).minWidth).toBe('44px');
+    expect(getComputedStyle(toggle).minHeight).toBe('44px');
+
+    // Abrir el perfil no abre el burger; abrir el burger cierra el perfil.
+    await open(fixture, element);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    await fixture.whenStable();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle.getAttribute('aria-label')).toBe('Cerrar menú');
+    expect(element.querySelector('#user-menu-panel')).toBeNull();
+  });
+
+  it('el perfil va en la fila de la cabecera junto al burger, fuera del overlay', async () => {
+    const fixture = await createShell({
+      user: { id: 'user-1', email: 'privado@ejemplo.invalid' },
+    });
+    const element = fixture.nativeElement as HTMLElement;
+    const inner = element.querySelector<HTMLElement>('.site-header__inner')!;
+    const overlay = element.querySelector<HTMLElement>('#site-navigation')!;
+    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
+    const userMenu = element.querySelector<HTMLElement>('.user-menu')!;
+    const trigger = element.querySelector<HTMLButtonElement>('.user-menu__trigger')!;
+
+    expect(inner.contains(userMenu)).toBe(true);
+    expect(overlay.contains(userMenu)).toBe(false);
+    // En móvil el perfil precede al burger en el marcado y en el eje visual.
+    expect(userMenu.nextElementSibling).toBe(toggle);
+    expect(
+      userMenu.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(getComputedStyle(trigger).display).not.toBe('none');
+    expect(trigger.getAttribute('aria-label')).toBe('Menú de usuario');
+    expect(trigger.getAttribute('aria-controls')).toBe('user-menu-panel');
+    expect(element.querySelectorAll('.user-menu__trigger')).toHaveLength(1);
+    expect(element.textContent).not.toContain('privado@ejemplo.invalid');
+    expect(element.querySelector('.brand')?.textContent).toContain('Academia de Guitarra');
+
+    await open(fixture, element);
+    expect(element.querySelectorAll('#user-menu-panel')).toHaveLength(1);
+    expect(inner.contains(element.querySelector('#user-menu-panel'))).toBe(true);
+  });
+
+  it('el order solo reordena en escritorio, con el perfil a la derecha', async () => {
+    await createShell({ user: { id: 'user-1' } });
+    const shell = readFileSync('src/app/app.scss', 'utf8');
+    const desktop = shell.match(/@media \(min-width: 48rem\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+
+    expect(desktop).toContain('.site-header__tools { order: 1; }');
+    expect(desktop).toContain('.user-menu { order: 2; }');
+    expect(shell).not.toMatch(/^\s*order:\s*\d/m);
+  });
+
+  it('sin sesión no hay icono de perfil y «Iniciar sesión» sigue en el overlay', async () => {
+    const fixture = await createShell(null);
+    const element = fixture.nativeElement as HTMLElement;
+    const overlay = element.querySelector<HTMLElement>('#site-navigation')!;
+
+    expect(element.querySelector('.user-menu')).toBeNull();
+    expect(element.querySelector('.user-menu__trigger')).toBeNull();
+    expect(
+      overlay.querySelector<HTMLAnchorElement>('a[href="/auth/login"]')?.textContent?.trim(),
+    ).toBe('Iniciar sesión');
+  });
+
+  it('declara un desplegable absoluto y acotado, sin desbordes en móvil', async () => {
+    const fixture = await createShell({ user: { id: 'user-1' } });
+    const element = fixture.nativeElement as HTMLElement;
+    await open(fixture, element);
     const css = [...document.querySelectorAll('style')]
       .map((style) => style.textContent ?? '')
       .join('\n');
+    const panel = element.querySelector<HTMLElement>('#user-menu-panel')!;
 
+    const shell = readFileSync('src/app/app.scss', 'utf8');
     expect(css).toContain('.user-menu__panel');
-    expect(css).toContain('position: static');
-    expect(css).toContain('max-width: none');
     expect(css).toContain('max-width: 47.99rem');
+    expect(getComputedStyle(panel).position).toBe('absolute');
+    // El compilador simplifica calc() dentro de min(): se verifica en la fuente.
+    expect(shell).toContain('max-width: min(18rem, calc(100vw - 2rem))');
+    expect(shell).not.toContain('position: static');
   });
 });
 

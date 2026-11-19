@@ -24,8 +24,67 @@
         <span class="brand__sub">Academia de Guitarra</span>
       </a>
 
-      <!-- Un único disclosure: en escritorio el botón no existe y estas mismas
-           herramientas van en la fila; en móvil se convierten en el diálogo. -->
+      <!-- Primero el perfil, después el burger en móvil: un único control de
+           cuenta en la FILA, fuera del overlay, sin segundo trigger ni panel.
+           El correo nunca se muestra en la cabecera ni en atributos. -->
+      @if (!auth.loading() && auth.session()) {
+        <div
+          #userMenu
+          class="user-menu"
+          (click)="onUserMenuClick($event)"
+          (keydown)="onUserMenuKeydown($event)"
+        >
+          <button
+            #userMenuButton
+            type="button"
+            class="user-menu__trigger"
+            aria-label="Menú de usuario"
+            aria-haspopup="menu"
+            aria-controls="user-menu-panel"
+            [attr.aria-expanded]="userMenuOpen()"
+            (click)="toggleUserMenu($event)"
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+              <circle cx="10" cy="6.5" r="3.25" />
+              <path d="M3.5 17c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
+            </svg>
+          </button>
+          @if (userMenuOpen()) {
+            <div
+              id="user-menu-panel"
+              class="user-menu__panel"
+              role="menu"
+              aria-label="Menú de usuario"
+            >
+              <p class="user-menu__name">{{ accountName() }}</p>
+              <a
+                class="hdr-link menu-link"
+                role="menuitem"
+                routerLink="/perfil"
+                routerLinkActive="is-active"
+                ariaCurrentWhenActive="page"
+                (click)="closeUserMenu()"
+              >Mi perfil</a>
+              <a
+                class="hdr-link menu-link"
+                role="menuitem"
+                routerLink="/favoritos"
+                (click)="closeUserMenu()"
+              >Mis favoritos</a>
+              <button
+                role="menuitem"
+                class="link-button hdr-link menu-link"
+                type="button"
+                (click)="logout()"
+              >Cerrar sesión</button>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Un único disclosure: solo el icono hamburger; el nombre accesible vive
+           en aria-label y la X de cierre es su propio botón en esta misma fila.
+           En escritorio el botón no existe y las herramientas van en la fila. -->
       <button
         #menuToggle
         type="button"
@@ -52,10 +111,28 @@
         >
           <path d="M5 5l10 10M15 5L5 15" />
         </svg>
-        <span class="nav-toggle__label" aria-hidden="true">
-          {{ menuOpen() ? 'Cerrar' : 'Menú' }}
-        </span>
       </button>
+
+      <!-- X de cierre en la MISMA fila y eje vertical que el burger: solo existe
+           con el menú abierto, comparte los 44px y no hay otra X en el overlay. -->
+      @if (menuOpen()) {
+        <button
+          type="button"
+          class="menu-close is-visible"
+          aria-label="Cerrar menú"
+          title="Cerrar menú"
+          (click)="closeMenu(true)"
+        >
+          <svg
+            class="menu-close__icon"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M5 5l10 10M15 5L5 15" />
+          </svg>
+        </button>
+      }
 
       <div
         #siteNav
@@ -67,26 +144,6 @@
         [attr.aria-label]="menuOpen() ? 'Menú de navegación' : null"
         (click)="onPanelClick()"
       >
-        <!-- Cierre adicional dentro del overlay; el toggle de la cabecera sigue
-             alternando estado y la X comparte el mismo closeMenu(). -->
-        <button
-          type="button"
-          class="menu-close"
-          [class.is-visible]="menuOpen()"
-          aria-label="Cerrar menú"
-          [attr.title]="menuOpen() ? 'Cerrar menú' : null"
-          (click)="closeMenu(true); $event.stopPropagation()"
-        >
-          <svg
-            class="menu-close__icon"
-            viewBox="0 0 20 20"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path d="M5 5l10 10M15 5L5 15" />
-          </svg>
-        </button>
-
         <nav aria-label="Navegación principal">
           <ul class="nav-list">
             <li>
@@ -123,7 +180,8 @@
             </span>
           } @else if (auth.session()) {
             <!-- Administración sigue siendo un enlace de navegación separado:
-                 es un permiso, no una opción de la cuenta del alumno. -->
+                 es un permiso, no una opción de la cuenta del alumno. El perfil
+                 vive en la fila de la cabecera, fuera de este overlay. -->
             @if (auth.isAdmin()) {
               <a
                 class="session-actions__admin hdr-link"
@@ -132,59 +190,6 @@
                 ariaCurrentWhenActive="page"
               >Administración</a>
             }
-            <!-- El correo nunca se muestra en la cabecera ni en atributos. -->
-            <div
-              #userMenu
-              class="user-menu"
-              (click)="onUserMenuClick($event)"
-              (keydown)="onUserMenuKeydown($event)"
-            >
-              <button
-                #userMenuButton
-                type="button"
-                class="user-menu__trigger"
-                aria-label="Menú de usuario"
-                aria-haspopup="menu"
-                aria-controls="user-menu-panel"
-                [attr.aria-expanded]="userMenuOpen()"
-                (click)="toggleUserMenu($event)"
-              >
-                <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-                  <circle cx="10" cy="6.5" r="3.25" />
-                  <path d="M3.5 17c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
-                </svg>
-              </button>
-              @if (userMenuOpen()) {
-                <div
-                  id="user-menu-panel"
-                  class="user-menu__panel"
-                  role="menu"
-                  aria-label="Menú de usuario"
-                >
-                  <p class="user-menu__name">{{ accountName() }}</p>
-                  <a
-                    class="hdr-link menu-link"
-                    role="menuitem"
-                    routerLink="/perfil"
-                    routerLinkActive="is-active"
-                    ariaCurrentWhenActive="page"
-                    (click)="closeUserMenu()"
-                  >Mi perfil</a>
-                  <a
-                    class="hdr-link menu-link"
-                    role="menuitem"
-                    routerLink="/favoritos"
-                    (click)="closeUserMenu()"
-                  >Mis favoritos</a>
-                  <button
-                    role="menuitem"
-                    class="link-button hdr-link menu-link"
-                    type="button"
-                    (click)="logout()"
-                  >Cerrar sesión</button>
-                </div>
-              }
-            </div>
           } @else {
             <a
               class="hdr-link"
