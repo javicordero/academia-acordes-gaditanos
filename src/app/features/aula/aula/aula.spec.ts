@@ -1380,24 +1380,32 @@ describe('Aula', () => {
     const css = authoredCss();
     const mobile = mobileCss();
     expect(mobile).not.toBe('');
-    // La banda ocupa todo el ancho y empuja el clúster a la derecha (<768px).
-    expect(mobile).toMatch(/\.lesson-actions[^{]*\{[^}]*width:\s*100%/);
-    expect(mobile).toMatch(/\.lesson-actions[^{]*\{[^}]*justify-content:\s*flex-end/);
-    expect(mobile).toMatch(/\.lesson-actions[^{]*\{[^}]*flex-wrap:\s*nowrap/);
+    // La banda ocupa todo el ancho y empuja el clúster a la derecha (regla base, <768px).
+    expect(cssRule(css, '.lesson-actions')).toMatch(/width:\s*100%/);
+    expect(cssRule(css, '.lesson-actions')).toMatch(/justify-content:\s*flex-end/);
     // En móvil la banda pierde el padding grande y la altura de 6.5rem del escritorio:
-    // solo un separador mínimo bajo los controles; el cluster sigue a la derecha y en una fila.
+    // solo un separador mínimo bajo los controles; el cluster sigue en una sola fila.
     const actionsMobile = mobile.match(/\.lesson-actions[^{]*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
     expect(actionsMobile).not.toMatch(/padding-block:\s*(?:1\.875rem|var\(--space-5\))/);
     expect(actionsMobile).toMatch(/padding-block:\s*0(?:\s+var\(--space-[12]\))?\s*;/);
     expect(actionsMobile).toMatch(/min-height:\s*0\s*;/);
-    expect(actionsMobile).toMatch(/justify-content:\s*flex-end/);
-    expect(actionsMobile).toMatch(/flex-wrap:\s*nowrap/);
     // El shell global pone nav { width: 100% } a <=40rem: aquí se neutraliza.
     expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*width:\s*auto/);
-    expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*max-width:\s*100%/);
     expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*justify-content:\s*flex-end/);
     expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*flex-wrap:\s*nowrap/);
-    expect(mobile).toMatch(/\.progress-button[^{]*\{[^}]*min-width:\s*0/);
+
+    // Causa real del «mucho padding»: la sangría del artículo baja de ~30px a ~12px en móvil.
+    expect(cssRule(css, '.aula-content')).toMatch(/padding-inline:\s*var\(--aula-indent\)/);
+    expect(mobile).toMatch(/\.aula-layout[^{]*\{[^}]*--aula-indent:\s*0?\.75rem\s*;/);
+    // El vídeo recalcula su sangrado con la variable y conserva un margen sin tocar el borde.
+    expect(cssRule(css, '.video-stage')).toMatch(/margin-inline:\s*calc\(-1 \* var\(--aula-indent\)\)/);
+    expect(mobile).toMatch(/\.video-stage[^{]*\{[^}]*margin-inline:\s*-0?\.375rem\s*;/);
+    // Botón: relleno de ~10px a ~6px, fuente menor y 44px táctiles intactos.
+    const progressMobile = mobile.match(/\.progress-button[^{]*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+    expect(progressMobile).toMatch(/padding:\s*0\s+var\(--space-2\)/);
+    expect(progressMobile).toMatch(/font-size:\s*0?\.9rem/);
+    expect(progressMobile).toMatch(/min-width:\s*0/);
+    expect(css).toMatch(/:is\(\.progress-button[^{]*\{[^}]*min-height:\s*44px/);
     // Ni apilado, ni centrado, ni estrella oculta en móvil.
     expect(mobile).not.toMatch(/\.lesson-(actions|nav)[^{]*\{[^}]*flex-direction:\s*column/);
     expect(mobile).not.toMatch(/\.lesson-(actions|nav)[^{]*\{[^}]*justify-content:\s*(flex-start|center|space-between)/);

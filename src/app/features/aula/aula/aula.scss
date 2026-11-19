@@ -132,14 +132,14 @@
 }
 
 @media (max-width: 47.999rem) {
-  .lesson-actions {
-    width: 100%; justify-content: flex-end; flex-wrap: nowrap;
-    /* Sin banda alta: el hueco táctil lo dan los controles (44px), no el contenedor. */
-    min-height: 0; padding-block: 0 var(--space-1);
-  }
+  /* Menos sangría lateral en móvil: ~12px en vez de ~30px. La variable también
+     recalcula el sangrado del vídeo, que conserva un pequeño margen sin tocar el borde. */
+  .aula-layout { --aula-indent: 0.75rem; }
+  .video-stage { margin-inline: -0.375rem; }
+  /* width/justify/flex-wrap ya vienen de la regla base; aquí solo se baja la banda. */
+  .lesson-actions { min-height: 0; padding-block: 0 var(--space-1); }
   /* El shell global pone nav { width:100% } a <=40rem: sin esto el cluster queda a la izquierda. */
-  .lesson-nav { width: auto; max-width: 100%; justify-content: flex-end; flex-wrap: nowrap; }
-  /* A 320px el texto del botón se parte sin desbordar la banda. */
-  .progress-button { min-width: 0; }
-  .video-stage + .lesson-title { margin-top: 40px; }
+  .lesson-nav { width: auto; justify-content: flex-end; flex-wrap: nowrap; }
+  /* Menos relleno (6px) y fuente menor; min-width evita que el texto desborde a 320px. */
+  .progress-button { min-width: 0; padding: 0 var(--space-2); font-size: 0.9rem; }
 }
