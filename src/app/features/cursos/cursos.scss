@@ -4,9 +4,10 @@
   --catalog-field-min: 44px;
 }
 
+/* Cabecera como sección: hueco vertical; el ancho de lectura lo da el texto. */
 .catalog-header {
   max-width: 46rem;
-  margin-bottom: var(--section-gap);
+  padding-block: clamp(1rem, 2.5vw, 2rem);
 }
 
 .checkout-notice {

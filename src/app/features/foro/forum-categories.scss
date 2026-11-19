@@ -1,39 +1,30 @@
-:host {
-  display: block;
-}
+/* Categorías: hueco vertical en la sección y líneas finas entre categorías.
+   Cada entrada es texto separado por línea, no una tarjeta con caja y fondo. */
+:host { display: block; }
 
 .page {
-  max-width: var(--max-width);
-  margin: 0 auto;
-  padding: 2rem 1.25rem;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+  padding-block: clamp(1rem, 2.5vw, 2rem);
 }
 
-.lead {
-  max-width: 46rem;
-}
+.lead { max-width: 46rem; }
 
 .forum-list {
   display: grid;
-  gap: 1rem;
-  margin: 1.5rem 0 0;
+  gap: var(--grid-gap);
+  margin: var(--section-gap) 0 0;
   padding: 0;
   list-style: none;
 }
 
 .forum-card {
-  padding-block: 1rem;
-  border-top: 1px solid var(--border);
+  padding-block: clamp(1rem, 2.5vw, 2rem);
+  border-top: var(--border-width) solid var(--border);
 }
 
-.forum-card h2 {
-  margin-top: 0;
-  font-size: 1.25rem;
-}
-
-.forum-card__description {
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
+.forum-card h2 { margin-top: 0; font-size: 1.25rem; }
+.forum-card__description { color: var(--muted); overflow-wrap: anywhere; }
 
 .forum-link,
 .forum-button {
@@ -41,13 +32,13 @@
   align-items: center;
   justify-content: center;
   min-height: 44px;
-  padding: 0.5rem 0.9rem;
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
   text-decoration: none;
 }
 
 .forum-button {
-  border: 1px solid var(--accent);
+  border: var(--border-width) solid var(--accent);
   background: var(--accent);
   color: var(--accent-ink);
   font: inherit;
@@ -55,16 +46,15 @@
   cursor: pointer;
 }
 
-.forum-status {
-  margin-top: 1rem;
-}
+.forum-status { margin-top: var(--section-gap); }
 
+/* Aviso: conserva caja y borde; no es un panel que solo agrupa. */
 .forum-feedback {
-  margin: 1rem 0;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border);
+  margin: var(--space-4) 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border);
   border-inline-start-width: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .forum-feedback--error {

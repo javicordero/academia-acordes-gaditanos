@@ -4,6 +4,7 @@ import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ConversationError } from '../comentarios/conversation';
 import { ConversationView } from '../comentarios/conversation-view';
@@ -358,5 +359,13 @@ describe('Pantalla de un hilo del foro', () => {
     expect(remove).not.toHaveBeenCalledWith(REPLY);
     expect(text()).toContain('Hilo eliminado');
     expect(TestBed.inject(ForumModerationState).deletedThreadIds().has(THREAD)).toBe(true);
+  });
+
+  it('da a la página del hilo padding de sección y mantiene el aviso como caja', () => {
+    const styles = readFileSync('src/app/features/foro/forum-thread.scss', 'utf8');
+    const page = styles.match(/\.page\s*\{[^}]*\}/)?.[0] ?? '';
+    const feedback = styles.match(/\.forum-feedback\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(page).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(feedback).toContain('border: var(--border-width) solid var(--admin-success)');
   });
 });

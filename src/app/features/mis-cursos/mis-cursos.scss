@@ -8,11 +8,8 @@
 }
 
 /* Solo el aviso es caja; el resumen se integra con espacio y línea fina. */
-:is(.notice, .library__summary) {
-  margin: 0 0 var(--section-gap);
-}
-
 .notice {
+  margin: 0 0 var(--section-gap);
   padding: var(--space-4);
   border: var(--border-width) solid var(--border);
   border-left: calc(var(--border-width) * 5) solid var(--accent);
@@ -22,7 +19,7 @@
 
 .library {
   max-width: var(--content-max-width);
-  margin: 0 auto;
+  margin-inline: auto;
 }
 
 .library__header {
@@ -47,7 +44,8 @@
 }
 
 .library__summary {
-  padding-block: var(--card-pad);
+  margin: 0 0 var(--section-gap);
+  padding-block: clamp(1rem, 2.5vw, 2rem);
   border-top: var(--border-width) solid var(--border);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(8rem, 16rem);

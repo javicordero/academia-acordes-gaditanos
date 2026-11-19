@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ForumModerationState } from './forum-moderation-state';
 import { ForumThread } from './forum-thread';
@@ -218,5 +219,15 @@ describe('Pantalla de hilos del foro', () => {
     harness.detectChanges();
     expect(text()).not.toContain('Duda de rasgueo');
     expect(text()).toContain('Todavía no hay hilos en esta categoría.');
+  });
+
+  it('separa hilos y formulario con padding de sección y línea fina', () => {
+    const styles = readFileSync('src/app/features/foro/forum-threads.scss', 'utf8');
+    const card = styles.match(/\.forum-card\s*\{[^}]*\}/)?.[0] ?? '';
+    const form = styles.match(/\.forum-form\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(card).toContain('border-top: var(--border-width) solid var(--border)');
+    expect(card).not.toContain('background: var(--surface)');
+    expect(form).toContain('padding-block: var(--section-gap)');
+    expect(form).toContain('border-top: var(--border-width) solid var(--border)');
   });
 });

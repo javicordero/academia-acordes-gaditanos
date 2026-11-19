@@ -1,8 +1,19 @@
-.perfil { max-width: 42rem; margin: 2rem auto; padding: 0 1rem; }
-.card { padding-block: 1.5rem; border-top: 1px solid var(--border, #ccc); }
-form { display: grid; gap: .5rem; margin-block: 1.5rem; }
+/* Perfil: secciones separadas por espacio y línea fina, sin panel contenedor.
+   La geometría viene de los tokens de tema; el ancho de lectura es propio. */
+.perfil {
+  max-width: 42rem;
+  margin-inline: auto;
+  padding-block: clamp(1rem, 2.5vw, 2rem);
+}
+
+.card {
+  padding-block: clamp(1rem, 2.5vw, 2rem);
+  border-top: var(--border-width) solid var(--border);
+}
+
+form { display: grid; gap: var(--space-2); margin-block: var(--section-gap); }
 label { font-weight: 700; }
-input { min-height: 44px; padding: .5rem; font: inherit; max-width: 100%; }
-button { min-height: 44px; padding: .5rem 1rem; font: inherit; justify-self: start; }
-a { display: inline-block; padding-block: .75rem; }
-.password-links { display: flex; flex-wrap: wrap; gap: 1rem; }
+input { min-height: 44px; padding: var(--space-2); font: inherit; max-width: 100%; }
+button { min-height: 44px; padding: var(--space-2) var(--space-4); font: inherit; justify-self: start; }
+a { display: inline-block; padding-block: var(--space-3); }
+.password-links { display: flex; flex-wrap: wrap; gap: var(--space-4); }

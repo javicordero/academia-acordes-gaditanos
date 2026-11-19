@@ -239,6 +239,7 @@ describe('Páginas legales', () => {
     expect(css).toContain('20rem');
     expect(css).toContain(':focus-visible');
     expect(css).toContain('min-height:44px');
+    expect(css.replace(/\s+/g, '')).toContain('padding-block:clamp(1rem,2.5vw,2rem)');
   });
 
   it('redirige /legal al aviso legal', async () => {

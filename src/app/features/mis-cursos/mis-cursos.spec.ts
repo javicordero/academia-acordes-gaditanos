@@ -630,6 +630,7 @@ describe('MisCursos — biblioteca en rejilla', () => {
   it('el resumen no es una card: espacio y línea fina, sin caja ni radio', () => {
     const styles = readFileSync('src/app/features/mis-cursos/mis-cursos.scss', 'utf8');
     const summary = styles.match(/\.library__summary\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(summary).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
     expect(summary).toContain('border-top: var(--border-width) solid var(--border)');
     expect(summary).not.toContain('background: var(--surface)');
     expect(summary).not.toContain('border-radius');

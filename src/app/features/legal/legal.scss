@@ -12,8 +12,9 @@
 
 .legal {
   max-width: 46rem;
-  margin: 0 auto;
-  padding: clamp(1rem, 4vw, 2rem) 1rem 3rem;
+  margin-inline: auto;
+  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-inline: var(--space-4);
   color: var(--legal-ink);
   overflow-wrap: break-word;
 }
@@ -67,9 +68,9 @@
 }
 
 .legal__index {
-  margin: 0 0 2rem;
-  padding-block: 1rem;
-  border-top: 1px solid var(--legal-border);
+  margin: 0 0 var(--section-gap);
+  padding-block: var(--space-4);
+  border-top: var(--border-width) solid var(--legal-border);
 }
 
 .legal__index-title {
@@ -99,14 +100,14 @@
 }
 
 .legal__section {
-  margin: 0 0 1.5rem;
-  padding-block: 0.25rem 1rem;
-  border-top: 1px solid var(--legal-border);
+  margin: 0 0 var(--section-gap);
+  padding-block: var(--space-1) var(--space-4);
+  border-top: var(--border-width) solid var(--legal-border);
 }
 
 .legal__section--sub {
-  margin: 1rem 0 0 0.75rem;
-  border-left: 4px solid var(--legal-accent);
+  margin: var(--space-4) 0 0 var(--space-3);
+  border-left: calc(var(--border-width) * 4) solid var(--legal-accent);
 }
 
 .legal__heading {

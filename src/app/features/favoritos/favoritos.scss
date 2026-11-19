@@ -1,6 +1,7 @@
 .favorites {
   max-width: var(--content-max-width);
-  margin: 0 auto;
+  margin-inline: auto;
+  padding-block: clamp(1rem, 2.5vw, 2rem);
 }
 
 .favorites__header {
@@ -67,12 +68,10 @@
   outline-offset: 2px;
 }
 
+/* Bloque de un curso: solo agrupa lecciones; espacio y línea fina, sin caja. */
 .favorites__course {
-  margin-bottom: var(--section-gap);
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  padding-block: clamp(1rem, 2.5vw, 2rem);
+  border-top: var(--border-width) solid var(--border);
 }
 
 .favorites__course h2 {

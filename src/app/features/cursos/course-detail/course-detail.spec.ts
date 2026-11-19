@@ -439,6 +439,9 @@ describe('Ficha de curso', () => {
     }
     // Accesibilidad táctil: no depende del tema.
     expect(styles).toContain('min-height: 44px');
+    const section = styles.match(/\.section\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(section).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(section).toContain('border-bottom: var(--border-width) solid var(--border)');
   });
 
   it('hechos y temario usan líneas finas en lugar de tarjetas', () => {

@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { readFileSync } from 'node:fs';
 import { AuthService } from '../../core/auth/auth.service';
 import { Perfil } from './perfil';
 import { PerfilRepository } from './perfil-repository';
@@ -132,5 +133,14 @@ describe('Perfil', () => {
     resolveSave('Antiguo'); await Promise.resolve();
     expect(fixture.componentInstance.name()).toBe('');
     expect(fixture.componentInstance.message()).toBe('');
+  });
+
+  it('separa las secciones del perfil con padding y línea fina, sin caja', () => {
+    const styles = readFileSync('src/app/features/perfil/perfil.scss', 'utf8');
+    const card = styles.match(/\.card\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(card).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(card).toContain('border-top: var(--border-width) solid var(--border)');
+    expect(card).not.toContain('background');
+    expect(card).not.toContain('border-radius');
   });
 });

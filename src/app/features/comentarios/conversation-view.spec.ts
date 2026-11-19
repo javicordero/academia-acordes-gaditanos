@@ -918,4 +918,10 @@ describe('Vista compartida de conversación', () => {
       expect(root.querySelector('.delete-confirm')?.textContent).not.toContain('Se borrará el hilo completo');
     });
   });
+
+  it('da espacio de sección y línea fina al bloque de conversación', () => {
+    const css = styleText().replace(/\s+/g, '');
+    expect(css).toContain('padding-block:clamp(1rem,2.5vw,2rem)');
+    expect(css).toContain('border-top:var(--border-width)solidvar(--border)');
+  });
 });

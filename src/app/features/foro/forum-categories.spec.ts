@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { ForumCategories } from './forum-categories';
 import { ForumThreadRepository } from './forum-thread-repository';
 
@@ -88,5 +89,16 @@ describe('Pantalla de categorías del foro', () => {
     harness.detectChanges();
     expect(listCategories).toHaveBeenCalledTimes(3);
     expect(text()).toContain('Pasodoble');
+  });
+
+  it('separa las categorías con padding de sección y línea fina', () => {
+    const styles = readFileSync('src/app/features/foro/forum-categories.scss', 'utf8');
+    const page = styles.match(/\.page\s*\{[^}]*\}/)?.[0] ?? '';
+    const card = styles.match(/\.forum-card\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(page).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(card).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(card).toContain('border-top: var(--border-width) solid var(--border)');
+    expect(card).not.toContain('background: var(--surface)');
+    expect(card).not.toContain('border-radius');
   });
 });

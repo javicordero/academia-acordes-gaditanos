@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { LessonFavorite } from './lesson-favorite';
@@ -152,5 +153,14 @@ describe('Mis favoritos', () => {
     status.set('anonymous');
     fixture.detectChanges();
     expect(root().textContent).toContain('Inicia sesión para consultar tus favoritos');
+  });
+
+  it('agrupa cada curso con espacio y línea fina, sin caja de panel', () => {
+    const styles = readFileSync('src/app/features/favoritos/favoritos.scss', 'utf8');
+    const course = styles.match(/\.favorites__course\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(course).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(course).toContain('border-top: var(--border-width) solid var(--border)');
+    expect(course).not.toContain('background: var(--surface)');
+    expect(course).not.toContain('border-radius');
   });
 });

@@ -1,39 +1,30 @@
-:host {
-  display: block;
-}
+:host { display: block; }
 
 .page {
-  max-width: var(--max-width);
-  margin: 0 auto;
-  padding: 2rem 1.25rem;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+  padding-block: clamp(1rem, 2.5vw, 2rem);
 }
 
 .forum-back {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }
+.forum-back:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
-.forum-back:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
-
+/* Aviso de hilo eliminado: caja con borde, no panel de agrupación. */
 .forum-feedback {
-  margin: 1rem 0;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--admin-success);
+  margin: var(--section-gap) 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--admin-success);
   border-inline-start-width: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--admin-success-surface);
   color: var(--admin-success-text);
 }
-
-.forum-feedback p {
-  margin: 0 0 0.5rem;
-}
-
+.forum-feedback p { margin: 0 0 var(--space-2); }
 .forum-feedback a {
   display: inline-flex;
   align-items: center;
@@ -41,8 +32,4 @@
   color: var(--accent);
   text-decoration: none;
 }
-
-.forum-feedback a:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
+.forum-feedback a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
