@@ -8,8 +8,10 @@ import {
   VIDEO_PLAYBACK_FLAG,
   YouTubeDemoProvider,
   selectPlaybackProvider,
+  subscribePlaybackEnded,
   youtubeId,
 } from './video-playback';
+import { BUNNY_PLAYERJS_SRC } from './video-playback-bunny';
 import { BunnyStreamPlaybackProvider } from './video-playback-bunny';
 
 describe('YouTube de prueba', () => {
@@ -44,6 +46,19 @@ describe('YouTube de prueba', () => {
     expect(provider.sourceForLesson('l')).not.toBeNull();
     expect(provider.sourceForLesson('otro')).toBeNull();
     expect(provider.sourceForLesson('bad')).toBeNull();
+  });
+
+  it('la demo YouTube no ofrece ended ni carga player.js de Bunny', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [
+      { provide: VIDEO_DEMO_ENABLED, useValue: true },
+      { provide: VIDEO_DEMO_CONFIG, useValue: { l: 'Abc_123-xyz' } },
+    ] });
+    const source = TestBed.inject(YouTubeDemoProvider).sourceForLesson('l') as PlaybackSource | null;
+    expect(source?.provider).toBeUndefined();
+    expect(source?.onEnded).toBeUndefined();
+    expect(subscribePlaybackEnded(source, 'frame', vi.fn())).toBeNull();
+    expect(document.querySelector(`script[src="${BUNNY_PLAYERJS_SRC}"]`)).toBeNull();
   });
 });
 

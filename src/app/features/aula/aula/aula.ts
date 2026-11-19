@@ -1,13 +1,14 @@
-import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AulaData, AulaRepository } from '../aula-repository';
-import { PlaybackSource, VideoPlaybackService } from '../video-playback';
+import { EndedUnsubscribe, PlaybackSource, VideoPlaybackService, subscribePlaybackEnded } from '../video-playback';
 import { LessonMaterials } from '../lesson-materials/lesson-materials';
 import { ClassroomNav } from '../classroom-nav';
 import { LessonComments } from '../../comentarios/lesson-comments';
 import { SkeletonBlock } from '../../../shared/skeleton/skeleton';
+import { LessonFavoritesRepository } from '../../favoritos/repository';
 
 /**
  * Estados de la fuente de vídeo. Se pide automáticamente al cargar una lección
@@ -49,9 +50,26 @@ export class Aula {
   readonly videoState = signal<VideoState>('idle');
   /** Aviso del proveedor; se conserva al caducar para no perder su explicación. */
   readonly notice = signal<string | null>(null);
+  /** Suscripción al `ended` verificado: baja al cambiar de lección, caducar o destruir. */
+  private endedUnsub: EndedUnsubscribe | null = null;
+  private autoCompleteSignature = '';
+  private autoCompleting = false;
+  readonly autoCompleted = signal(false);
+  readonly autoCompleteError = signal<string | null>(null);
+  readonly videoFrameId = 'lesson-video-frame';
   private readonly videoLessonId = computed(() => this.data()?.lesson.content_type === 'video' ? this.data()!.lesson.id : null);
   readonly saving = signal(false);
   readonly saveError = signal(false);
+  /** El índice ya no lleva estrella: el único control vive junto al progreso. */
+  private readonly favoritesRepo = inject(LessonFavoritesRepository, { optional: true });
+  readonly favoriteAvailable = signal(false);
+  readonly favoriteOn = signal(false);
+  readonly favoriteError = signal<string | null>(null);
+  private favoriteRequest = 0;
+  private favoriteToggling = false;
+  private readonly favoriteLessonId = computed(() => this.data()?.lesson.id ?? '');
+  private readonly favoriteIdentity = computed(() =>
+    `${this.data()?.course.id ?? ''}\u0000${this.favoriteLessonId()}\u0000${this.auth.session()?.user.id ?? ''}`);
   readonly courseSlug = computed(() => this.params().get('courseSlug') ?? '');
   readonly lessonSlug = computed(() => this.params().get('lessonSlug') ?? '');
   /** Datos del índice: se conservan durante el cambio de lección para no desmontar el nav. */
@@ -112,6 +130,8 @@ export class Aula {
       this.request++;
       this.videoRequest++;
       this.clearVideoTimer();
+      this.endedUnsub?.();
+      this.endedUnsub = null;
     });
     effect(() => {
       const status = this.auth.status();
@@ -192,6 +212,64 @@ export class Aula {
         }
       });
     });
+
+    // La estrella pertenece a la lección abierta y a la identidad: se recarga al
+    // entrar o cambiar de lección, no al refrescar un token del mismo usuario.
+    effect(() => {
+      const status = this.auth.status();
+      this.favoriteIdentity(); // dependencia: curso, lección e identidad
+      const lessonId = this.favoriteLessonId();
+      if (!this.favoritesRepo || status !== 'authenticated' || !lessonId) {
+        this.favoriteRequest++;
+        this.favoriteAvailable.set(false);
+        this.favoriteOn.set(false);
+        this.favoriteError.set(null);
+        return;
+      }
+      untracked(() => this.loadFavorite(lessonId));
+    });
+  }
+
+  private loadFavorite(lessonId: string): void {
+    const repo = this.favoritesRepo!;
+    const request = ++this.favoriteRequest;
+    this.favoriteToggling = false;
+    this.favoriteOn.set(false);
+    this.favoriteError.set(null);
+    this.favoriteAvailable.set(false);
+    void repo.list().then(rows => {
+      if (this.destroyed || request !== this.favoriteRequest) return;
+      this.favoriteOn.set(rows.some(row => row.lessonId === lessonId));
+      this.favoriteAvailable.set(true);
+    }, () => {
+      // Sin configuración o sin derecho: no se pinta la estrella (honesto).
+      if (this.destroyed || request !== this.favoriteRequest) return;
+      this.favoriteAvailable.set(false);
+      this.favoriteOn.set(false);
+    });
+  }
+
+  /** Alterna el favorito de la lección actual sin tocar el progreso manual. */
+  toggleFavorite(): void {
+    const repo = this.favoritesRepo;
+    const lessonId = this.favoriteLessonId();
+    if (!repo || !this.favoriteAvailable() || !lessonId || this.favoriteToggling) return;
+    const request = this.favoriteRequest;
+    this.favoriteToggling = true;
+    this.favoriteError.set(null);
+    void repo.toggle(lessonId).then(favorite => {
+      if (this.destroyed || request !== this.favoriteRequest) return;
+      this.favoriteOn.set(favorite);
+    }, () => {
+      if (this.destroyed || request !== this.favoriteRequest) return;
+      this.favoriteError.set('No se ha podido actualizar favoritos. Inténtalo de nuevo.');
+    }).finally(() => {
+      if (request === this.favoriteRequest) this.favoriteToggling = false;
+    });
+  }
+
+  favoriteLabel(): string {
+    return this.favoriteOn() ? 'Quitar lección de favoritos' : 'Añadir lección a favoritos';
   }
 
   /** Botón único en el contenido: alterna el ancho del índice sin ocultarlo. */
@@ -208,13 +286,26 @@ export class Aula {
     afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
   }
 
-  /** Retira el reproductor y descarta cualquier firma en curso. */
+  /** Retira el reproductor y descarta firma, suscripción y avisos en curso. */
   private resetVideo(): void {
     this.videoRequest++;
     this.clearVideoTimer();
+    this.endedUnsub?.();
+    this.endedUnsub = null;
+    this.autoCompleteSignature = '';
+    this.autoCompleting = false;
+    this.autoCompleted.set(false);
+    this.autoCompleteError.set(null);
     this.videoSource.set(null);
     this.notice.set(null);
     this.videoState.set('idle');
+  }
+
+  private clearEnded(): void {
+    this.endedUnsub?.();
+    this.endedUnsub = null;
+    this.autoCompleteSignature = '';
+    this.autoCompleted.set(false);
   }
 
   private clearVideoTimer(): void {
@@ -234,6 +325,8 @@ export class Aula {
     if (!lessonId) return;
     const request = ++this.videoRequest;
     this.clearVideoTimer();
+    this.clearEnded();
+    this.autoCompleteError.set(null);
     this.videoSource.set(null);
     this.videoState.set('loading');
 
@@ -253,6 +346,8 @@ export class Aula {
       }
       this.notice.set(source.notice);
       this.videoState.set('ready');
+      // Solo el proveedor verificado ofrece `ended`; sin él queda el botón manual.
+      this.endedUnsub = subscribePlaybackEnded(source, this.videoFrameId, () => this.onVideoEnded(lessonId, request));
       this.scheduleExpiry(source, request);
     }).catch(() => {
       if (!this.destroyed && request === this.videoRequest) this.videoState.set('error');
@@ -273,8 +368,40 @@ export class Aula {
   private expire(request: number): void {
     if (this.destroyed || request !== this.videoRequest) return;
     this.clearVideoTimer();
+    this.clearEnded();
     this.videoSource.set(null);
     this.videoState.set('expired');
+  }
+
+  /**
+   * `ended` verificado del proveedor: guarda una sola vez, y solo con derecho
+   * activo, usuario vigente, misma generación y lección aún no completada.
+   * No demuestra atención real; complementa, no sustituye, el botón manual.
+   */
+  private onVideoEnded(lessonId: string, request: number): void {
+    if (this.destroyed || request !== this.videoRequest) return;
+    const data = this.data();
+    if (!data || data.lesson.id !== lessonId || !data.canTrack || data.completed) return;
+    const userId = this.auth.session()?.user.id;
+    if (!userId) return;
+    const signature = `${lessonId}\u0000${request}`;
+    if (this.autoCompleting || this.autoCompleteSignature === signature) return;
+    this.autoCompleteSignature = signature;
+    this.autoCompleting = true;
+    void this.repository.save(userId, lessonId, true).then(() => {
+      if (this.destroyed || request !== this.videoRequest || this.data()?.lesson.id !== lessonId) return;
+      const current = this.data()!;
+      const ids = new Set(current.completedLessonIds ?? []);
+      ids.add(lessonId);
+      this.data.set({ ...current, completed: true, completedLessonIds: [...ids] });
+      this.autoCompleted.set(true);
+    }).catch(() => {
+      if (this.destroyed || request !== this.videoRequest) return;
+      this.autoCompleteSignature = '';
+      this.autoCompleteError.set('No se pudo marcar la lección como completada. Inténtalo de nuevo.');
+    }).finally(() => {
+      if (request === this.videoRequest) this.autoCompleting = false;
+    });
   }
 
   // El reintento manual fuerza una recarga aunque la clave efectiva no cambie.

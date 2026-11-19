@@ -32,7 +32,7 @@ El repositorio hermano del cancionero (`acordes-gaditanos`) no se toca. Lo que s
 
 - No inventar precios, duración del acceso, visibilidad del foro, política de reembolsos, número de cursos ni otras decisiones abiertas del plan.
 - Compra individual por curso, sin suscripción. El acceso no tiene caducidad programada, pero es revocable desde servidor (reembolso, contracargo u operación de soporte según la política que se apruebe). No prometer disponibilidad perpetua.
-- El progreso es manual. La lección de muestra se marca por lección; el resto exige derecho activo.
+- El progreso es manual y también se marca automáticamente al terminar un vídeo cuando el proveedor emite un evento `ended` verificado (Bunny Player.js; sin autoplay). El evento no prueba atención real: un seek al final también puede dispararlo, así que se conserva el botón manual. Solo se guarda con derecho activo, usuario vigente y misma lección/generación; nunca en vista previa de administración ni con una fuente sin contrato verificado.
 - Panel de administración propio: requisito confirmado. Ruta `/admin` lazy en el futuro, con CRUD editorial de cursos, bloques y orden, lecciones, borradores y vista previa, metadatos de vídeo y documentos anexos. La subida de vídeo y los archivos privados van por servidor. No crear UI ni subidas reales hasta que toque.
 - Foro y dudas por lección: fase posterior, misma cuenta. Las preguntas usarán un único servicio de conversación; no crear un sistema de comentarios paralelo.
 - La portada debe presentar al profesor, pero estructura, textos, nombre, foto, bio, credenciales y testimonios quedan para el diseño definitivo. No inventarlos ni construir la landing ahora; la raíz sigue provisional.

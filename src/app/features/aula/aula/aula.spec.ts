@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By, DomSanitizer } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -12,6 +12,7 @@ import { LessonCommentsRepository } from '../../comentarios/lesson-comments-repo
 import { AULA_ROUTES } from '../aula.routes';
 import { Aula } from './aula';
 import { PlaybackSource, VIDEO_DEMO_CONFIG, VIDEO_DEMO_ENABLED, VideoPlaybackService } from '../video-playback';
+import { LessonFavoritesRepository } from '../../favoritos/repository';
 
 const lesson = { id: 'l', section_id: 's', slug: 'uno', title: 'Lección', content_type: 'video' as const };
 const data: AulaData = { course: { id: 'c', title: 'Curso' }, lesson, sections: [{id: 's', title: 'Bloque'}], lessons: [lesson], canTrack: true, completed: false, completedLessonIds: [] };
@@ -100,6 +101,29 @@ describe('Aula', () => {
     expect(css).toMatch(/\.aula-content[^{]*\{[^}]*overflow-y:\s*auto/);
   });
 
+  it('el offset del shell lleva unidad para que el max-height no se descarte y la rueda desplace', async () => {
+    setup(vi.fn().mockResolvedValue(data));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const css = authoredCss();
+
+    // Sin unidad, calc(100dvh - 0) es inválido: el navegador descarta max-height y
+    // .aula-content deja de desbordar, por lo que la rueda no desplaza (PageDown sí).
+    const declared = css.match(/--aula-shell-offset:\s*([^;]+);/)?.[1]?.trim();
+    expect(declared).toBeDefined();
+    expect(declared).toMatch(/^-?[\d.]+(px|rem|em|vh|dvh|%)$/);
+    expect(css).not.toMatch(/--aula-shell-offset:\s*0\s*;/);
+
+    // Ambas columnas comparten el mismo calc con unidades compatibles y fallback 100vh.
+    expect(css).toMatch(/\.aula-sidebar[^{]*\{[^}]*height:\s*calc\(100vh\s*-\s*var\(--aula-shell-offset\)\)/);
+    expect(css).toMatch(/\.aula-sidebar[^{]*\{[^}]*height:\s*calc\(100dvh\s*-\s*var\(--aula-shell-offset\)\)/);
+    expect(css).toMatch(/\.aula-content[^{]*\{[^}]*max-height:\s*calc\(100vh\s*-\s*var\(--aula-shell-offset\)\)/);
+    expect(css).toMatch(/\.aula-content[^{]*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*var\(--aula-shell-offset\)\)/);
+    expect(css).toMatch(/\.aula-content[^{]*\{[^}]*overflow-y:\s*auto/);
+    expect(css).toMatch(/\.aula-content[^{]*\{[^}]*overscroll-behavior:\s*contain/);
+  });
+
   it('el vídeo ocupa todo el ancho de la columna: el full-bleed compensa el padding real', async () => {
     setup(vi.fn().mockResolvedValue(data));
     const harness = await RouterTestingHarness.create();
@@ -137,6 +161,24 @@ describe('Aula', () => {
     expect(notice.textContent).toContain('Aviso de maquetación');
   });
 
+  it('alinea todo el clúster de acciones a la derecha sin empujes desde la izquierda', async () => {
+    setup(vi.fn().mockResolvedValue(twoLessons));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const css = authoredCss();
+
+    const actionsRule = cssRule(css, '.lesson-actions');
+    expect(actionsRule).toMatch(/justify-content:\s*flex-end/);
+    expect(actionsRule).toMatch(/width:\s*100%/);
+    expect(actionsRule).not.toMatch(/justify-content:\s*(space-between|flex-start)/);
+    // Ningún margin-left:auto en .lesson-nav que empuje el grupo desde la izquierda.
+    expect(cssRule(css, '.lesson-nav')).not.toMatch(/margin-left/);
+    expect(css).not.toMatch(/\.lesson-nav[^{]*\{[^}]*margin-left:\s*auto/);
+    // No se reintroduce el reloj/duración en la fila (ni en la regla móvil).
+    expect(css).not.toMatch(/\.lesson-duration/);
+  });
+
   it('separa el título del vídeo y mantiene título y separador con la misma sangría', async () => {
     setup(vi.fn().mockResolvedValue(data));
     const harness = await RouterTestingHarness.create();
@@ -155,6 +197,7 @@ describe('Aula', () => {
     save = vi.fn().mockResolvedValue(undefined),
     user = true,
     sourceForLesson: () => PlaybackSource | null | Promise<PlaybackSource | null> = () => null,
+    favorites: { list: ReturnType<typeof vi.fn>; toggle: ReturnType<typeof vi.fn> } | null = null,
   ) {
     const status = signal(user ? 'authenticated' : 'anonymous');
     const session = signal(user ? { user: { id: 'u' } } : null);
@@ -166,8 +209,22 @@ describe('Aula', () => {
       { provide: AulaRepository, useValue: { load, save } },
       { provide: VideoPlaybackService, useValue: { sourceForLesson: source } },
       { provide: LessonCommentsRepository, useValue: { list: vi.fn().mockResolvedValue([]), create: vi.fn() } },
+      { provide: LessonFavoritesRepository, useValue: favorites },
     ] });
     return { save, session, status, error, source };
+  }
+
+  /** Fuente con `ended` verificable: el aula solo conoce el contrato, no el script. */
+  function playbackWithEnded(capture: { handler?: () => void; unsub?: () => void }): () => PlaybackSource {
+    return () => ({
+      ...fakeSource(),
+      provider: 'bunny',
+      onEnded: (_frameId, handler) => {
+        capture.handler = handler;
+        capture.unsub = vi.fn();
+        return () => { capture.unsub?.(); capture.handler = undefined; };
+      },
+    });
   }
 
   it('sitúa el progreso entre los extremos de navegación sin enlaces rotos', async () => {
@@ -180,9 +237,9 @@ describe('Aula', () => {
     expect(nav.textContent).not.toContain('Primera lección');
     expect(nav.textContent).not.toContain('Siguiente:');
     expect(nav.classList.contains('lesson-nav--end')).toBe(true);
-    expect(nav.firstElementChild?.classList.contains('progress-button')).toBe(true);
+    expect(nav.firstElementChild?.tagName).toBe('BUTTON');
     expect(nav.lastElementChild?.tagName).toBe('A');
-    expect(nav.querySelector('button')?.disabled).toBe(false);
+    expect(nav.querySelector<HTMLButtonElement>('.progress-button')?.disabled).toBe(false);
     expect(nav.querySelectorAll('a').length).toBe(1);
     expect(nav.querySelector('a')?.getAttribute('aria-label')).toBe('Siguiente: Lección');
   });
@@ -685,7 +742,7 @@ describe('Aula', () => {
     expect(root.querySelector('nav[aria-label="Navegación entre lecciones"]')).not.toBeNull();
   });
 
-  it('coloca las acciones antes del vídeo: duración a la izquierda, completar y flechas separadas a la derecha', async () => {
+  it('coloca las acciones antes del vídeo: solo progreso y flecha, sin duración ni reloj aunque haya datos', async () => {
     const timed = { ...twoLessons, lesson: { ...firstLesson, duration_seconds: 125 } };
     const { source } = setup(vi.fn().mockResolvedValue(timed), undefined, true, () => Promise.resolve(fakeSource()));
     const harness = await RouterTestingHarness.create();
@@ -695,22 +752,21 @@ describe('Aula', () => {
 
     const actions = root.querySelector<HTMLElement>('.lesson-actions')!;
     const stage = root.querySelector<HTMLElement>('.video-stage')!;
-    const duration = root.querySelector<HTMLElement>('.lesson-duration')!;
     const progress = root.querySelector<HTMLButtonElement>('.progress-button')!;
     const next = root.querySelector<HTMLAnchorElement>('a[aria-label^="Siguiente:"]')!;
     expect(actions.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(duration.textContent).toContain('2:05');
-    expect(duration.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(progress.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(root.querySelector('.lesson-nav__divider')).toBeNull();
     expect(source).toHaveBeenCalledWith('l1');
 
-    // Iconografía genérica: reloj antes de la duración; solo la flecha circular de
-    // siguiente, con nombre accesible real y sin texto de navegación a la vista.
-    const clock = duration.querySelector<SVGElement>('svg.icon--clock')!;
-    expect(clock).not.toBeNull();
-    expect(clock.getAttribute('aria-hidden')).toBe('true');
-    expect(clock.compareDocumentPosition(duration.querySelector('span')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // La fila solo contiene el nav con progreso y flecha: ni duración, ni reloj, ni texto a la izquierda.
+    expect(actions.querySelector('.lesson-duration')).toBeNull();
+    expect(actions.querySelector('svg.icon--clock')).toBeNull();
+    expect(actions.textContent).not.toContain('Duración');
+    expect(actions.children).toHaveLength(1);
+    expect(actions.firstElementChild?.classList.contains('lesson-nav')).toBe(true);
+
+    // Iconografía genérica: sin SVG en el botón; solo la flecha circular con nombre accesible.
     expect(progress.matches('.progress-button')).toBe(true);
     expect(progress.querySelector('svg')).toBeNull();
     const arrow = next.querySelector<HTMLElement>('.arrow-circle')!;
@@ -1253,5 +1309,215 @@ describe('Aula', () => {
     session.set(null);
     harness.detectChanges();
     expect(component.indexCompact()).toBe(false); // logout: identidad distinta
+  });
+
+  // --- Estrella única, junto al progreso (el índice ya no la repite) ---
+
+  it('pinta una sola estrella en lesson-actions, junto al progreso y antes de la flecha', async () => {
+    const favorites = { list: vi.fn().mockResolvedValue([]), toggle: vi.fn().mockResolvedValue(true) };
+    setup(vi.fn().mockResolvedValue(twoLessons), undefined, true, () => null, favorites);
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const actions = root.querySelector<HTMLElement>('.lesson-actions')!;
+    const nav = actions.querySelector<HTMLElement>('.lesson-nav')!;
+    const progress = nav.querySelector<HTMLButtonElement>('.progress-button')!;
+    const star = actions.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+    const next = nav.querySelector<HTMLAnchorElement>('a[aria-label^="Siguiente:"]')!;
+
+    expect(star).not.toBeNull();
+    expect(star.parentElement).toBe(nav);
+    // Orden visible: estrella → progreso → flecha, agrupados a la derecha.
+    expect(nav.firstElementChild).toBe(star);
+    expect(star.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(progress.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(root.querySelectorAll('.favorite-toggle')).toHaveLength(1);
+    expect(root.querySelector('app-classroom-nav .favorite-toggle')).toBeNull();
+    expect(star.getAttribute('aria-pressed')).toBe('false');
+    expect(star.getAttribute('aria-label')).toBe('Añadir lección a favoritos');
+    expect(star.getAttribute('title')).toBe('Añadir lección a favoritos');
+    expect(star.textContent?.trim()).toBe('');
+    expect(star.querySelector('svg path')?.getAttribute('d')).toContain('M10 2.6');
+    expect(star.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(cssRule(authoredCss(), '.favorite-toggle')).toMatch(/height:\s*44px/);
+    expect(cssRule(authoredCss(), ':focus-visible')).toMatch(/outline:\s*3px solid var\(--focus\)/);
+    expect(favorites.list).toHaveBeenCalled();
+  });
+
+  it('alterna el favorito sin guardar progreso ni navegar, actualizando aria sin recargar', async () => {
+    const toggle = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const favorites = { list: vi.fn().mockResolvedValue([]), toggle };
+    const { save } = setup(vi.fn().mockResolvedValue(data), undefined, true, () => null, favorites);
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const navNode = root.querySelector<HTMLElement>('.lesson-nav')!;
+    const router = TestBed.inject(Router);
+    const navigateByUrl = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const star = () => root.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+
+    star().click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(toggle).toHaveBeenCalledWith('l');
+    expect(star().getAttribute('aria-pressed')).toBe('true');
+    expect(star().getAttribute('aria-label')).toBe('Quitar lección de favoritos');
+    expect(star().classList.contains('favorite-toggle--on')).toBe(true);
+
+    star().click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(star().getAttribute('aria-pressed')).toBe('false');
+    expect(star().getAttribute('aria-label')).toBe('Añadir lección a favoritos');
+    expect(star().classList.contains('favorite-toggle--on')).toBe(false);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(component.data()?.completed).toBe(false);
+    expect(navigateByUrl).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(root.querySelector('.lesson-nav')).toBe(navNode);
+  });
+
+  it('parte del estado real del servidor y lo recarga al cambiar de lección o de identidad', async () => {
+    const list = vi.fn()
+      .mockResolvedValueOnce([{ lessonId: 'l1' }])
+      .mockResolvedValueOnce([{ lessonId: 'l2' }])
+      .mockResolvedValue([]);
+    const { session } = setup(vi.fn().mockResolvedValue(twoLessons), undefined, true, () => null,
+      { list, toggle: vi.fn().mockResolvedValue(true) });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const starLabel = () => harness.routeNativeElement!.querySelector<HTMLButtonElement>('.favorite-toggle')?.getAttribute('aria-label');
+    expect(starLabel()).toBe('Quitar lección de favoritos');
+
+    await harness.navigateByUrl('/aula/curso/dos', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(starLabel()).toBe('Quitar lección de favoritos');
+
+    session.set({ user: { id: 'otro' } });
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(starLabel()).toBe('Añadir lección a favoritos');
+    expect(list.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('avisa accesiblemente sin cambiar el estado si falla el favorito, sin filtrar motivos', async () => {
+    const toggle = vi.fn().mockRejectedValue(new Error('token=secreto alumno@ejemplo.test'));
+    setup(vi.fn().mockResolvedValue(data), undefined, true, () => null,
+      { list: vi.fn().mockResolvedValue([{ lessonId: 'l' }]), toggle });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const star = root.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+
+    star.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(star.getAttribute('aria-pressed')).toBe('true');
+    expect(star.getAttribute('aria-label')).toBe('Quitar lección de favoritos');
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('No se ha podido actualizar favoritos');
+    expect(root.textContent).not.toContain('secreto');
+    expect(root.textContent).not.toContain('@');
+  });
+
+  it('bloquea el doble clic de la estrella', async () => {
+    const toggle = vi.fn().mockResolvedValue(true);
+    setup(vi.fn().mockResolvedValue(data), undefined, true, () => null,
+      { list: vi.fn().mockResolvedValue([]), toggle });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const star = harness.routeNativeElement!.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+    star.click();
+    star.click();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(toggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin repositorio de favoritos no pinta ninguna estrella', async () => {
+    setup(vi.fn().mockResolvedValue(data));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(harness.routeNativeElement!.querySelector('.favorite-toggle')).toBeNull();
+  });
+
+  // --- Finalización automática solo con `ended` verificado ---
+
+  it('marca completada al terminar el vídeo, una sola vez, sin robar foco', async () => {
+    const capture: { handler?: () => void; unsub?: () => void } = {};
+    const { save } = setup(vi.fn().mockResolvedValue(data), undefined, true, playbackWithEnded(capture));
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('#lesson-video-frame')).not.toBeNull();
+    expect(capture.handler).toBeTypeOf('function');
+
+    const focused = document.activeElement;
+    capture.handler!();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(save).toHaveBeenCalledWith('u', 'l', true);
+    expect(component.data()?.completed).toBe(true);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Lección completada');
+    expect(root.querySelector('.progress-button')?.textContent?.trim()).toBe('Marcar como pendiente');
+    expect(document.activeElement).toBe(focused);
+
+    capture.handler!();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('no guarda con ended si no hay derecho de seguimiento (como en la vista previa)', async () => {
+    const capture: { handler?: () => void } = {};
+    const { save } = setup(vi.fn().mockResolvedValue({ ...data, canTrack: false }), undefined, true, playbackWithEnded(capture));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    capture.handler!();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(save).not.toHaveBeenCalled();
+    expect(harness.routeNativeElement!.textContent).not.toContain('Lección completada');
+  });
+
+  it('descarta un ended tardío al cambiar de lección o tras destruir el componente', async () => {
+    const capture: { handler?: () => void } = {};
+    const { save } = setup(vi.fn().mockResolvedValue(twoLessons), undefined, true, playbackWithEnded(capture));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const old = capture.handler!;
+
+    await harness.navigateByUrl('/aula/curso/dos', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    old();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(save).not.toHaveBeenCalled();
+
+    harness.fixture.destroy();
+    old();
+    await Promise.resolve();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('avisa si falla el guardado automático sin marcar la lección', async () => {
+    const capture: { handler?: () => void } = {};
+    const save = vi.fn().mockRejectedValue(new Error('sin detalle'));
+    setup(vi.fn().mockResolvedValue(data), save, true, playbackWithEnded(capture));
+    const harness = await RouterTestingHarness.create();
+    const component = await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+
+    capture.handler!();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    await harness.fixture.whenStable(); harness.detectChanges();
+    expect(save).toHaveBeenCalledWith('u', 'l', true);
+    expect(component.data()?.completed).toBe(false);
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('No se pudo marcar la lección como completada');
   });
 });

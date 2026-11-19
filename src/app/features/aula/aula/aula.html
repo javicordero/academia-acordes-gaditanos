@@ -47,16 +47,16 @@
             <p class="sr-only" role="status" aria-live="polite">Preparando la lección siguiente.</p>
           }
           <div class="lesson-actions">
-            @if (aula.lesson.duration_seconds) {
-              <span class="lesson-duration">
-                <svg class="icon icon--clock" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                  <circle cx="8" cy="8" r="6.25" />
-                  <path d="M8 4.5V8l2.6 1.6" />
-                </svg>
-                <span>Duración: {{ durationLabel(aula.lesson.duration_seconds) }}</span>
-              </span>
-            }
             <nav aria-label="Navegación entre lecciones" class="lesson-nav lesson-nav--end">
+              @if (favoriteAvailable()) {
+                <button type="button" class="favorite-toggle" [class.favorite-toggle--on]="favoriteOn()"
+                  [attr.aria-pressed]="favoriteOn()" [attr.aria-label]="favoriteLabel()" [attr.title]="favoriteLabel()"
+                  (click)="toggleFavorite()">
+                  <svg class="icon favorite-toggle__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                    <path d="M10 2.6 12.4 7.5 17.7 8.2 13.9 11.9 14.9 17.2 10 14.5 5.1 17.2 6.1 11.9 2.3 8.2 7.6 7.5Z" />
+                  </svg>
+                </button>
+              }
               <button class="progress-button" type="button" [disabled]="saving() || !aula.canTrack" (click)="toggleProgress()">
                 {{ aula.completed ? 'Marcar como pendiente' : 'Marcar como completada' }}
               </button>
@@ -72,6 +72,9 @@
               }
             </nav>
           </div>
+          @if (autoCompleted()) { <p class="sr-only" role="status">Lección completada</p> }
+          @if (autoCompleteError()) { <p class="auto-complete-error" role="alert">{{ autoCompleteError() }}</p> }
+          @if (favoriteError()) { <p class="favorite-error" role="alert">{{ favoriteError() }}</p> }
 
           @if (aula.lesson.content_type === 'video') { <div class="video-stage">
             <span class="sr-only">Vídeo de la lección</span>
@@ -85,7 +88,7 @@
               }
               @case ('ready') {
                 @if (videoSource(); as video) {
-                  <iframe class="video" [src]="video.embedUrl" [title]="'Vídeo de la lección: ' + aula.lesson.title"
+                  <iframe id="lesson-video-frame" class="video" [src]="video.embedUrl" [title]="'Vídeo de la lección: ' + aula.lesson.title"
                     loading="eager" referrerpolicy="strict-origin-when-cross-origin"
                     sandbox="allow-scripts allow-same-origin allow-presentation"
                     allow="fullscreen; encrypted-media" allowfullscreen></iframe>

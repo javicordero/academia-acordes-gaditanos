@@ -1,12 +1,14 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SUPABASE_CLIENT } from '../../core/supabase/supabase-client';
 import {
+  BUNNY_PLAYERJS_SRC,
   PLAYBACK_NOW,
   PlaybackHttpError,
   PlaybackNetworkError,
   PlaybackResponseError,
+  BunnyEndedMonitor,
   BunnyStreamPlaybackProvider,
   validatePlaybackPayload,
 } from './video-playback-bunny';
@@ -150,5 +152,93 @@ describe('BunnyStreamPlaybackProvider: clasificación de fallos', () => {
     const provider = TestBed.inject(BunnyStreamPlaybackProvider);
     expect(await provider.requestTicket(LESSON)).toBeNull();
     expect(await provider.sourceForLesson(LESSON)).toBeNull();
+  });
+});
+
+/** Player.js simulado: `emit` representa el postMessage del iframe traducido por la librería. */
+class FakePlayer {
+  static instances: FakePlayer[] = [];
+  static supportsEnded = true;
+  readonly handlers = new Map<string, () => void>();
+  destroyed = false;
+
+  constructor(readonly options: { id: string }) { FakePlayer.instances.push(this); }
+
+  supports(feature: string, name: string): boolean {
+    return feature === 'event' && name === 'ended' && FakePlayer.supportsEnded;
+  }
+  on(event: string, handler: () => void): void { this.handlers.set(event, handler); }
+  off(event: string, handler: () => void): void {
+    if (this.handlers.get(event) === handler) this.handlers.delete(event);
+  }
+  destroy(): void { this.destroyed = true; }
+  emit(event: string): void { this.handlers.get(event)?.(); }
+}
+
+describe('BunnyEndedMonitor: evento `ended` verificado', () => {
+  beforeEach(() => {
+    FakePlayer.instances = [];
+    FakePlayer.supportsEnded = true;
+    (globalThis as { PlayerJS?: unknown }).PlayerJS = FakePlayer;
+    TestBed.resetTestingModule();
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'PlayerJS');
+    document.querySelectorAll(`script[src="${BUNNY_PLAYERJS_SRC}"]`).forEach(s => s.remove());
+  });
+
+  function monitor(): BunnyEndedMonitor {
+    TestBed.configureTestingModule({});
+    return TestBed.inject(BunnyEndedMonitor);
+  }
+
+  it('avisa solo con ended del iframe asociado; la baja limpia y admite renovar', async () => {
+    const m = monitor();
+    const onEnded = vi.fn();
+    const unsubscribe = m.subscribe('frame-1', onEnded)!;
+    await Promise.resolve();
+    const player = FakePlayer.instances.at(-1)!;
+    expect(player.options.id).toBe('frame-1');
+
+    player.emit('timeupdate');
+    player.emit('progress');
+    expect(onEnded).not.toHaveBeenCalled();
+    player.emit('ended');
+    expect(onEnded).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    player.emit('ended');
+    expect(onEnded).toHaveBeenCalledTimes(1);
+    expect(player.destroyed).toBe(true);
+
+    const renewed = m.subscribe('frame-2', onEnded)!;
+    await Promise.resolve();
+    const fresh = FakePlayer.instances.at(-1)!;
+    expect(fresh.options.id).toBe('frame-2');
+    fresh.emit('ended');
+    expect(onEnded).toHaveBeenCalledTimes(2);
+    renewed();
+  });
+
+  it('no registra ningún listener si el reproductor no declara soporte para ended', async () => {
+    FakePlayer.supportsEnded = false;
+    const m = monitor();
+    const onEnded = vi.fn();
+    m.subscribe('frame-1', onEnded);
+    await Promise.resolve();
+    expect(FakePlayer.instances.at(-1)?.handlers.size).toBe(0);
+    FakePlayer.instances.at(-1)?.emit('ended');
+    expect(onEnded).not.toHaveBeenCalled();
+  });
+
+  it('el adaptador Bunny entrega provider y onEnded sin exponer la URL ni el token', async () => {
+    const { provider } = providerFor({ embedUrl: SIGNED_URL, expiresAt: 1_700_000_900, notice: AVISO });
+    const source = await provider.sourceForLesson(LESSON);
+    expect(source?.provider).toBe('bunny');
+    expect(source?.onEnded).toBeTypeOf('function');
+    const unsubscribe = source!.onEnded!('frame-1', vi.fn());
+    await Promise.resolve();
+    FakePlayer.instances.at(-1)?.emit('ended');
+    unsubscribe!();
   });
 });

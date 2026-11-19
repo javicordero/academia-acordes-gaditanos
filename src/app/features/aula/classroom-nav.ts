@@ -51,25 +51,27 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
           <ul [id]="'bloque-' + section.id" [hidden]="!isExpanded(section.id)">
             @for (lesson of lessons(); track lesson.id) {
               @if (lesson.section_id === section.id) {
-                <li><a [routerLink]="admin() ? ['/admin/vista-previa', courseId(), lesson.id] : ['/aula', courseSlug(), lesson.slug]"
-                  [attr.aria-current]="lesson.id === activeId() ? 'page' : null" (click)="closeMenu()">
-                  @if (completedIds(); as doneIds) {
-                    <span class="lesson-progress" [class.lesson-progress--done]="doneIds.has(lesson.id)">
-                      @if (doneIds.has(lesson.id)) {
-                        <svg class="lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                          <path d="M3 8.5 6.3 12 13 4.5" />
-                        </svg>
-                        <span class="sr-only">Completada</span>
-                      } @else {
-                        <svg class="lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                          <circle cx="8" cy="8" r="5.75" />
-                        </svg>
-                        <span class="sr-only">Pendiente</span>
-                      }
-                    </span>
-                  }
-                  <span class="lesson-title" [attr.title]="lesson.title">{{ lesson.title }}</span> @if (lesson.is_free_preview) { <small>Muestra</small> }
-                </a></li>
+                <li class="lesson-row">
+                  <a class="lesson-row__link" [routerLink]="admin() ? ['/admin/vista-previa', courseId(), lesson.id] : ['/aula', courseSlug(), lesson.slug]"
+                    [attr.aria-current]="lesson.id === activeId() ? 'page' : null" (click)="closeMenu()">
+                    @if (completedIds(); as doneIds) {
+                      <span class="lesson-progress" [class.lesson-progress--done]="doneIds.has(lesson.id)">
+                        @if (doneIds.has(lesson.id)) {
+                          <svg class="lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                            <path d="M3 8.5 6.3 12 13 4.5" />
+                          </svg>
+                          <span class="sr-only">Completada</span>
+                        } @else {
+                          <svg class="lesson-progress__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                            <circle cx="8" cy="8" r="5.75" />
+                          </svg>
+                          <span class="sr-only">Pendiente</span>
+                        }
+                      </span>
+                    }
+                    <span class="lesson-title" [attr.title]="lesson.title">{{ lesson.title }}</span> @if (lesson.is_free_preview) { <small>Muestra</small> }
+                  </a>
+                </li>
               }
             }
           </ul>
@@ -79,11 +81,11 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
   `,
   styles: [`
     :host { display:block; min-width:0; height:100%; min-height:0; }
-    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    .sr-only, .menu__label { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
     :focus-visible { outline:3px solid var(--focus); outline-offset:2px; border-radius:2px; }
     .icon { display:inline-block; width:1em; height:1em; flex:none; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
 
-    /* Índice integrado: superficie continua y separadores, sin tarjeta flotante ni sombra. */
+    /* Índice integrado, sin tarjeta flotante. */
     nav {
       background:var(--surface);
       border:0;
@@ -112,13 +114,16 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     .block-toggle__title { flex:1 1 auto; }
     .block-toggle__chevron { flex:none; font-size:.8rem; }
     ul { list-style:none; margin:var(--space-1) 0 var(--space-2); padding:0; }
+    /* Fila: el enlace ocupa el hueco y el progreso va al inicio, sin estrella aquí. */
+    li.lesson-row { display:flex; align-items:center; gap:var(--space-1); }
     li a {
       display:flex; align-items:center; gap:var(--space-2); min-height:44px;
+      flex:1 1 auto; min-width:0;
       padding:var(--space-2); color:inherit; text-decoration:none;
       overflow-wrap:anywhere;
     }
     .lesson-title { min-width:0; overflow-wrap:anywhere; }
-    /* Estado de progreso visible al inicio de la fila: solo forma (check/círculo); el texto es sr-only. */
+    /* Progreso: solo forma (check/círculo); texto en sr-only. */
     .lesson-progress {
       display:inline-flex; align-items:center; justify-content:center; flex:none;
       width:18px; height:18px; color:var(--muted);
@@ -132,11 +137,9 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     li a[aria-current=page] { background:#f1e9db; font-weight:700; border-inline-start:3px solid var(--accent); }
     small { font-weight:400; }
 
-    /* Raíl estrecho (~200px, solo escritorio porque el control es de escritorio):
-       se reducen paddings y se ocultan profesor y etiquetas secundarias; títulos y
-       progreso siguen visibles. La elipsis es solo visual: el texto completo permanece
-       en title y en el nombre accesible del enlace. */
+    /* Raíl estrecho de escritorio: ellipsis solo visual, texto completo en title. */
     nav.classroom-nav--compact { padding:0 .5rem .5rem; }
+    .classroom-nav--compact li.lesson-row { gap:.1rem; }
     .classroom-nav--compact .nav-teacher { display:none; }
     .classroom-nav--compact h2 { font-size:1rem; margin:.75rem 0 .25rem; }
     .classroom-nav--compact .block-toggle { gap:.3rem; padding:.35rem .15rem; }
@@ -146,7 +149,7 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     .classroom-nav--compact .lesson-progress { width:16px; height:16px; }
     .classroom-nav--compact small { flex:none; }
 
-    /* El control de compresión solo existe en escritorio; en móvil manda .menu (cajón). */
+    /* Compresión solo en escritorio; en móvil manda .menu. */
     .index-compress { display:none; }
     @media (min-width:48rem) {
       .index-compress {
@@ -159,7 +162,7 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     .menu { display:none; }
 
     @media (max-width:47.999rem) {
-      /* Barra fina, sin borde grueso ni fondo beige; el nombre queda para lectores de pantalla. */
+      /* Barra fina; nombre para lectores de pantalla. */
       .menu {
         display:flex; align-items:center; gap:var(--space-2);
         min-height:44px; padding:var(--space-2);
@@ -167,9 +170,7 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
         font:inherit; font-weight:700; cursor:pointer;
       }
       .menu__icon { width:1.1rem; height:1.1rem; stroke-width:1.6; }
-      .menu__label { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-      /* Sin backdrop ni X: el propio hamburger sigue visible sobre el cajón y lo cierra
-         (aria-expanded y el foco de vuelta mantienen la alternativa accesible). */
+      /* Sin backdrop ni X: el propio hamburger cierra el cajón y devuelve el foco. */
       .menu--open {
         position:fixed; inset:.35rem auto auto .5rem; z-index:50;
       }
@@ -181,9 +182,6 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
         padding-top:var(--space-5);
         box-shadow:none;
       }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .menu, nav { transition:none; }
     }
   `],
 })

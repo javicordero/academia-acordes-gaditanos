@@ -1,22 +1,17 @@
-/* Geometría de contenedores, tarjetas y botones gobernada por tokens de tema.
-   Se conservan los valores contractuales del aula: rejilla 200/330, sangría del
-   índice, full-bleed del vídeo, 16:9, banda de acciones y foco visible. */
+/* Geometría con tokens de tema: rejilla 200/330, full-bleed y foco visible. */
 .aula-layout {
   --aula-gutter: 1.25rem;
-  /* En el aula no hay cabecera global y el main del shell arranca en y=0 y mide
-     100dvh: las columnas llenan la ventana y conservan su scroll propio. */
-  --aula-shell-offset: 0;
-  /* Sangría interior de la columna de contenido; el vídeo la compensa a sangre completa.
-     El índice NO la usa: debe arrancar en x=0. */
+  /* Sin cabecera global: columnas a 100dvh; la unidad mantiene válido el calc(). */
+  --aula-shell-offset: 0px;
+  /* El índice no la usa; el vídeo la compensa a sangre completa. */
   --aula-indent: 30px;
   display: grid;
   gap: 0;
-  /* El shell reserva 1.25rem a cada lado: se compensa para que el grid use el ancho real. */
+  /* Compensa el gutter del shell. */
   margin-inline: calc(-1 * var(--aula-gutter));
 }
 
-/* min-height:0 permite que cada columna se contraiga y tenga scroll propio en escritorio.
-   El aside no lleva padding horizontal: el índice y el hamburger móvil arrancan en x=0. */
+/* Columnas con scroll propio; el aside arranca en x=0. */
 .aula-sidebar { min-width: 0; min-height: 0; }
 .aula-content { min-width: 0; min-height: 0; padding-inline: var(--aula-indent); }
 /* El foco de entrada es programático (tabindex=-1, fuera del orden de tab): sin aro azul. */
@@ -37,40 +32,54 @@
   clip-path: inset(50%); white-space: nowrap;
 }
 
-:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 /* Iconos genéricos propios: mismo hueco y alineación que el referente, sin assets ajenos. */
 .icon { display: inline-block; width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 
-/* Banda de acciones: duración a la izquierda, progreso y flecha a la derecha. */
+/* Banda de acciones: estrella, progreso y flecha a la derecha; sin reloj. */
 .lesson-actions {
-  display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between;
+  display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end;
+  width: 100%;
   gap: var(--space-2) var(--space-4); min-height: 6.5rem; padding-block: 1.875rem;
 }
-.lesson-duration { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: .9rem; }
 .lesson-nav { display: flex; align-items: center; gap: var(--space-1); margin: 0; }
 .lesson-nav a,
-.lesson-nav > span { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; padding: var(--space-1); font-size: .95rem; }
+.lesson-nav > span { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; padding: var(--space-1); }
 
-/* Flecha de «siguiente»: glifo de ~30px, con nombre accesible en el propio enlace. */
+/* Flecha «siguiente»: glifo de ~30px, nombre en el enlace. */
 .arrow-circle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-inline-start: var(--space-1); }
 .arrow-circle svg { width: 100%; height: 100%; }
 .arrow-circle circle { fill: var(--accent); stroke: none; }
 .arrow-circle path { fill: none; stroke: var(--accent-ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
-.progress-button {
-  min-height: 44px; padding: var(--space-3);
-  border: var(--border-width) solid var(--accent); border-radius: var(--radius-sm);
-  background: transparent; color: var(--accent);
-  font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+:is(.progress-button, .video-button, .favorite-toggle) {
+  min-height: 44px; border-radius: var(--radius-sm);
+  background: transparent; font: inherit; cursor: pointer;
 }
-.progress-button:hover:not(:disabled) { background: #f1e9db; }
+.progress-button {
+  padding: var(--space-3); border: var(--border-width) solid var(--accent);
+  font-size: 16px; font-weight: 600;
+}
+.favorite-toggle:hover, .progress-button:hover:not(:disabled) { background: #f1e9db; }
 .progress-button:disabled { opacity: .6; cursor: not-allowed; }
+
+/* Única estrella del aula: misma fila que el progreso, antes de la flecha. */
+.favorite-toggle {
+  display: inline-grid; place-items: center; flex: none;
+  width: 44px; height: 44px; padding: 0;
+  border: var(--border-width) solid var(--accent); color: var(--muted);
+}
+:is(.progress-button, .favorite-toggle--on) { color: var(--accent); }
+.favorite-toggle--on .favorite-toggle__icon { fill: currentColor; }
+.favorite-toggle__icon { width: 1.1rem; height: 1.1rem; }
+/* El foco visible ya lo da la regla global :focus-visible de este componente. */
+.auto-complete-error,
+.favorite-error { margin: 0; color: var(--admin-danger-text); font-size: .9rem; }
 
 .video-stage {
   position: relative;
-  /* A sangre completa: compensa exactamente el padding REAL de .aula-content,
-     de modo que el vídeo ocupa todo el ancho de la columna y no menos. */
+  /* Compensa el padding real de .aula-content. */
   margin-inline: calc(-1 * var(--aula-indent));
   background: #252323; color: #fff; border-radius: var(--radius-md); padding: var(--card-pad);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -78,19 +87,17 @@
 }
 .video-stage:has(iframe) { display: block; padding: 0; background: none; border-radius: 0; min-height: 0; }
 .video-stage p { margin: var(--space-1) 0; }
-/* Aviso de desarrollo/fallback fuera del flujo: no retrasa el vídeo; va como
-   cinta superior sobre el escenario y sigue siendo texto accesible. */
+/* Aviso de fallback como cinta superior, sin retrasar el vídeo. */
 .video-stage .video-notice {
   position: absolute; inset-block-start: 0; inset-inline: 0; z-index: 1;
   max-width: none; margin: 0; padding: var(--space-1) var(--space-2);
   background: rgb(0 0 0 / 72%); color: #fff; text-align: center;
 }
 .video {
-  display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: var(--radius-sm);
+  display: block; width: 100%; aspect-ratio: 16 / 9; border: 0;
 }
 .video-button {
-  min-height: 44px; padding-inline: var(--space-4); border: var(--border-width) solid #fff; border-radius: var(--radius-sm);
-  background: transparent; color: #fff; font: inherit; cursor: pointer;
+  padding-inline: var(--space-4); border: var(--border-width) solid #fff; color: #fff;
 }
 
 /* Título y separador comparten la sangría de la columna; el vídeo va a sangre completa. */
@@ -107,8 +114,7 @@
 
 @media (min-width: 48rem) {
   .aula-layout { grid-template-columns: 330px minmax(0, 1fr); }
-  /* Raíl estrecho: el índice sigue visible (~200px) y el vídeo gana espacio, sin ser
-     pantalla completa: el título y los apartados siguen bajo el vídeo. */
+  /* Raíl estrecho (~200px): índice visible, vídeo sin pantalla completa. */
   .aula-layout--compact { grid-template-columns: 200px minmax(0, 1fr); }
   /* Índice y contenido llenan la altura disponible y se desplazan por separado. */
   .aula-sidebar {
@@ -124,17 +130,7 @@
 }
 
 @media (max-width: 47.999rem) {
-  /* Misma fila, una sola línea: el progreso y la flecha no se parten. */
+  /* Misma fila, una sola línea: el progreso y la flecha siguen agrupados a la derecha. */
   .lesson-actions { padding-block: var(--space-5); }
-  .lesson-nav { justify-content: flex-end; width: auto; }
-  /* En móvil el reloj desaparece igual que en el referente; se conserva para lectores de pantalla. */
-  .lesson-duration {
-    position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip-path: inset(50%); white-space: nowrap;
-  }
   .video-stage + .lesson-title { margin-top: 40px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .progress-button, .video-button { transition: none; }
 }

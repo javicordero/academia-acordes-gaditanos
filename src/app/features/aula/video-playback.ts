@@ -13,10 +13,35 @@ import { BunnyStreamPlaybackProvider } from './video-playback-bunny';
  * convierte desde los segundos que responde la firma del servidor. YouTube y
  * los mocks existentes no lo traen.
  */
+/** Baja de la suscripción al evento `ended`. Nunca expone URL ni token. */
+export type EndedUnsubscribe = () => void;
+
 export interface PlaybackSource {
   readonly embedUrl: SafeResourceUrl;
   readonly notice: string;
   readonly expiresAt?: number;
+  /** Solo el adaptador Bunny marca su procedencia; la demo YouTube no. */
+  readonly provider?: 'bunny';
+  /**
+   * Suscripción opcional y segura al evento `ended` del proveedor. Devuelve una
+   * función de baja, o `null` si el proveedor no puede verificar el evento.
+   * El iframe se identifica por `frameId`; la URL firmada nunca sale de aquí.
+   */
+  readonly onEnded?: (frameId: string, handler: () => void) => EndedUnsubscribe | null;
+}
+
+/** Contrato único para el aula: fuentes sin soporte no inventan ningún evento. */
+export function subscribePlaybackEnded(
+  source: PlaybackSource | null,
+  frameId: string,
+  handler: () => void,
+): EndedUnsubscribe | null {
+  if (!source || typeof source.onEnded !== 'function') return null;
+  try {
+    return source.onEnded(frameId, handler) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export interface VideoPlaybackProvider {

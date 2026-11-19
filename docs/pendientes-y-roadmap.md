@@ -20,7 +20,8 @@ Documentos de referencia: `README.md`, `docs/arquitectura-datos.md`,
 - Catálogo público de cursos y ficha de curso que enlaza solo las lecciones que
   devuelve RLS.
 - Aula `/aula/:courseSlug/:lessonSlug` con índice de bloques, reproductor
-  desacoplado del proveedor, progreso manual y vista previa administrativa.
+  desacoplado del proveedor, progreso manual y automático al terminar el vídeo
+  (`ended` verificado de Bunny Player.js) y vista previa administrativa.
 - `/mis-cursos` y perfil propio (`display_name`).
 - Materiales PDF privados: bucket `lesson-pdfs`, puente `service_role`,
   listado, preparación, subida firmada, finalización y descarga con URL firmada
@@ -69,6 +70,12 @@ Documentos de referencia: `README.md`, `docs/arquitectura-datos.md`,
 | D14 | Alcance de lanzamiento de subtítulos, capítulos y bucle A–B | Depende de capacidades reales de Bunny que no se han verificado | Fuera de lanzamiento inicial; evaluar después | Pendiente (usuario) |
 | D15 | Duración de vídeo: metadatos del proveedor o dato editorial manual | La duración no se captura automáticamente; depende del proveedor | Duración manual (dato editorial separado) hasta la integración de Bunny | Pendiente (usuario) |
 | D16 | Copia de seguridad externa de PostgreSQL y restauración probada antes de cobrar | Riesgo de pérdida si se cobra sin respaldo probado | Concretar y probar antes de activar cobros con usuarios reales | Pendiente (usuario) |
+
+Nota (2026-11-19): el progreso es manual y también automático al recibir el
+`ended` verificado de Bunny Player.js (decisión del promotor, ver
+`docs/decisiones-producto.md`). El evento no prueba atención real ni sustituye
+al botón manual; no hay autoplay ni promesa de DRM. Sin contrato verificable no
+se marca nada.
 
 Nota (2026-11-18): existen plantillas orientativas en `/legal/` y sus enlaces
 en el pie de página, marcadas como «Plantilla orientativa: revisar antes de

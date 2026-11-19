@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { Injectable, InjectionToken, inject } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
@@ -167,12 +168,113 @@ function validEmbedUrl(value: string, expiresAt: number | null): boolean {
   return Number(expires) === expiresAt;
 }
 
+/** Único script permitido: el oficial de Bunny, nunca un Player de terceros. */
+export const BUNNY_PLAYERJS_SRC = 'https://assets.mediadelivery.net/playerjs/playerjs-latest.min.js';
+
+interface BunnyPlayerLike {
+  on(event: string, handler: () => void): void;
+  off?(event: string, handler: () => void): void;
+  supports?(feature: string, name: string): boolean;
+  destroy?(): void;
+}
+
+type PlayerJsCtor = new (options: { id: string }) => BunnyPlayerLike;
+
+function playerJsCtor(): PlayerJsCtor | null {
+  const candidate = (globalThis as { PlayerJS?: unknown }).PlayerJS;
+  return typeof candidate === 'function' ? candidate as PlayerJsCtor : null;
+}
+
+/**
+ * Puente al `ended` de Bunny Player.js. Solo carga el script oficial cuando
+ * existe una fuente Bunny; la demo YouTube nunca llega aquí. Si el script falla
+ * o el reproductor no declara `supports('event','ended')`, no se registra nada:
+ * el botón manual sigue siendo el único camino de guardado.
+ */
+@Injectable({ providedIn: 'root' })
+export class BunnyEndedMonitor {
+  private readonly doc = inject(DOCUMENT);
+  private script: HTMLScriptElement | null = null;
+  private loading: Promise<boolean> | null = null;
+  private readonly players = new Map<string, { player: BunnyPlayerLike; handler: () => void }>();
+
+  /** Devuelve siempre una baja, aunque el script no llegue a cargar. */
+  subscribe(frameId: string, handler: () => void): () => void {
+    if (!frameId) return () => {};
+    let cancelled = false;
+    void this.ensurePlayer().then(ok => {
+      if (!ok || cancelled) return;
+      const ctor = playerJsCtor();
+      if (!ctor) return;
+      let player: BunnyPlayerLike;
+      try {
+        player = new ctor({ id: frameId });
+      } catch {
+        return;
+      }
+      try {
+        if (typeof player.supports === 'function' && !player.supports('event', 'ended')) {
+          player.destroy?.();
+          return;
+        }
+        if (typeof player.on !== 'function') {
+          player.destroy?.();
+          return;
+        }
+        player.on('ended', handler);
+      } catch {
+        try { player.destroy?.(); } catch { /* sin estado que limpiar */ }
+        return;
+      }
+      this.players.set(frameId, { player, handler });
+    });
+    return () => {
+      cancelled = true;
+      this.detach(frameId);
+    };
+  }
+
+  private detach(frameId: string): void {
+    const entry = this.players.get(frameId);
+    if (entry) {
+      try { entry.player.off?.('ended', entry.handler); } catch { /* sin listener */ }
+      try { entry.player.destroy?.(); } catch { /* sin estado */ }
+      this.players.delete(frameId);
+    }
+    if (this.players.size === 0) this.resetScript();
+  }
+
+  private ensurePlayer(): Promise<boolean> {
+    if (playerJsCtor()) return Promise.resolve(true);
+    if (this.loading) return this.loading;
+    this.loading = new Promise<boolean>(resolve => {
+      const script = this.doc.createElement('script');
+      script.src = BUNNY_PLAYERJS_SRC;
+      script.async = true;
+      script.onload = () => resolve(playerJsCtor() !== null);
+      script.onerror = () => resolve(false);
+      this.script = script;
+      this.doc.head.appendChild(script);
+    });
+    return this.loading;
+  }
+
+  private resetScript(): void {
+    if (this.script) {
+      this.script.remove();
+      this.script = null;
+    }
+    this.loading = null;
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class BunnyStreamPlaybackProvider implements VideoPlaybackProvider {
   readonly id = 'bunny';
   private readonly client = inject(SUPABASE_CLIENT, { optional: true });
   private readonly sanitizer = inject(DomSanitizer);
   private readonly now = inject(PLAYBACK_NOW);
+  private readonly ended = inject(BunnyEndedMonitor);
 
   async sourceForLesson(lessonId: string): Promise<PlaybackSource | null> {
     const ticket = await this.requestTicket(lessonId);
@@ -206,6 +308,8 @@ export class BunnyStreamPlaybackProvider implements VideoPlaybackProvider {
     const source: PlaybackSource = {
       embedUrl: this.sanitizer.bypassSecurityTrustResourceUrl(valid.embedUrl),
       notice: valid.notice,
+      provider: 'bunny',
+      onEnded: (frameId, handler) => this.ended.subscribe(frameId, handler),
     };
     if (valid.expiresAt === null) return { source, expiresAt: null };
     return {

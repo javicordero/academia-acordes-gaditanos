@@ -22,6 +22,24 @@ temario o biografía.
   Esta comprobación se refiere a esa operación concreta de alta de curso y
   bloques; no se extiende a otros flujos.
 
+## Progreso automático al terminar el vídeo (2026-11-19)
+
+- **Decisión del promotor:** además del botón manual, una lección queda marcada
+  como completada cuando el reproductor emite un evento `ended` verificado.
+- **Contrato:** solo con fuente Bunny y su Player.js oficial
+  (`assets.mediadelivery.net/playerjs/playerjs-latest.min.js`); la demo YouTube
+  de maquetación no ofrece este evento. No se inventa ni se finge: si el script
+  no carga o el reproductor no declara `supports('event','ended')`, no se marca
+  nada y sigue el botón manual.
+- **Guardas:** mismo alumno, derecho activo (`canTrack`), lección y generación
+  vigentes, lección aún no completada y una sola escritura por evento. La vista
+  previa de administración y el anonimato nunca guardan progreso. La baja del
+  listener ocurre al cambiar de lección, caducar/renovar la firma o destruir el
+  componente. No hay autoplay ni robo de foco.
+- **Límite:** `ended` es la mejor señal disponible, pero **no prueba atención
+  real**: un seek al final también puede dispararlo. No se promete DRM,
+  verificación de visionado ni corrección automática.
+
 ## Proveedor de vídeo (2026-11-18)
 
 Sustituye a la entrada «Vídeo provisional» de «Confirmado por el usuario».
