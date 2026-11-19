@@ -142,6 +142,11 @@
             >Iniciar sesión</a>
           }
         </div>
+
+        <!-- El selector vive en la fila de herramientas: en escritorio se ve en
+             la cabecera y en móvil viaja dentro del mismo overlay del menú. Su
+             stopPropagation evita que cambiar de tema cierre el disclosure. -->
+        <app-theme-selector />
       </div>
     </div>
   </header>

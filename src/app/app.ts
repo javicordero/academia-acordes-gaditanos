@@ -22,12 +22,21 @@ import { filter, map, skip } from 'rxjs';
 
 import { AnalyticsService } from './core/analytics/analytics.service';
 import { AuthService } from './core/auth/auth.service';
+import { ThemeService } from './core/theme/theme.service';
 import { CookieBanner } from './shared/cookie-banner/cookie-banner';
 import { SiteFooter } from './shared/site-footer/site-footer';
+import { ThemeSelector } from './shared/theme-selector/theme-selector';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, CookieBanner, SiteFooter],
+  imports: [
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+    CookieBanner,
+    SiteFooter,
+    ThemeSelector,
+  ],
   templateUrl: './app.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './app.scss',
@@ -38,6 +47,9 @@ export class App {
   private readonly document = inject(DOCUMENT);
   /** Se instancia al arrancar para escuchar NavigationEnd tras el consentimiento. */
   private readonly analytics = inject(AnalyticsService);
+  /** Inyección de arranque: el efecto de ThemeService aplica data-theme y
+   *  meta theme-color en <html> también en el aula, donde no hay cabecera. */
+  readonly theme = inject(ThemeService);
   readonly logoutError = signal<string | null>(null);
 
   /** Única fuente de verdad del disclosure móvil; el template solo la lee. */

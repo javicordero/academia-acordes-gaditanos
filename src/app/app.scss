@@ -52,6 +52,11 @@ main:focus {
   gap: 0.35rem 0.6rem;
 }
 
+/* El selector no impone ancho propio en la fila de herramientas. */
+app-theme-selector {
+  min-width: 0;
+}
+
 .nav-list,
 .session-actions {
   display: flex;
