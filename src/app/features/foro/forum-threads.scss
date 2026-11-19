@@ -25,10 +25,8 @@
 
 .forum-card {
   min-width: 0;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding-block: 0.85rem;
+  border-top: 1px solid var(--border);
 }
 
 .forum-card h2 {

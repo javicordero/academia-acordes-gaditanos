@@ -21,12 +21,12 @@ describe('Pantalla de categorías del foro', () => {
     listCategories.mockResolvedValue([category()]);
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: 'comunidad', children: [{ path: '', component: ForumCategories }] }]),
+        provideRouter([{ path: 'foro', children: [{ path: '', component: ForumCategories }] }]),
         { provide: ForumThreadRepository, useValue: { listCategories } },
       ],
     });
     harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl('/comunidad', ForumCategories);
+    await harness.navigateByUrl('/foro', ForumCategories);
     await harness.fixture.whenStable();
     harness.detectChanges();
     text = () => harness.routeNativeElement?.textContent ?? '';
@@ -36,7 +36,7 @@ describe('Pantalla de categorías del foro', () => {
     expect(harness.routeNativeElement?.querySelectorAll('h1')).toHaveLength(1);
     expect(text()).toContain('Foro');
     expect(text()).toContain('Ritmo y acompañamiento');
-    const link = harness.routeNativeElement?.querySelector<HTMLAnchorElement>('a[href="/comunidad/' + CATEGORY + '"]');
+    const link = harness.routeNativeElement?.querySelector<HTMLAnchorElement>('a[href="/foro/' + CATEGORY + '"]');
     expect(link?.textContent).toContain('Ver hilos de Pasodoble');
     expect(listCategories).toHaveBeenCalledTimes(1);
   });

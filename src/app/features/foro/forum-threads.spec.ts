@@ -46,7 +46,7 @@ describe('Pantalla de hilos del foro', () => {
     list.mockResolvedValue([]);
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: 'comunidad', children: [
+        provideRouter([{ path: 'foro', children: [
           { path: ':categoryId', component: ForumThreads },
           { path: ':categoryId/:threadId', component: ForumThread },
         ] }]),
@@ -56,7 +56,7 @@ describe('Pantalla de hilos del foro', () => {
       ],
     });
     harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl('/comunidad/' + CATEGORY, ForumThreads);
+    await harness.navigateByUrl('/foro/' + CATEGORY, ForumThreads);
     await harness.fixture.whenStable();
     harness.detectChanges();
     text = () => harness.routeNativeElement?.textContent ?? '';
@@ -86,7 +86,7 @@ describe('Pantalla de hilos del foro', () => {
     expect(text()).toContain('2 respuestas');
     expect(harness.routeNativeElement?.querySelector('time')?.getAttribute('datetime'))
       .toBe('2026-11-18T10:00:00Z');
-    expect(harness.routeNativeElement?.querySelector<HTMLAnchorElement>(`a[href="/comunidad/${CATEGORY}/${THREAD}"]`))
+    expect(harness.routeNativeElement?.querySelector<HTMLAnchorElement>(`a[href="/foro/${CATEGORY}/${THREAD}"]`))
       .not.toBeNull();
   });
 
@@ -165,7 +165,7 @@ describe('Pantalla de hilos del foro', () => {
     await harness.fixture.whenStable();
     harness.detectChanges();
     expect(createThread).toHaveBeenCalledWith(CATEGORY, 'Tema nuevo', 'Cuerpo nuevo');
-    expect(TestBed.inject(Router).url).toBe(`/comunidad/${CATEGORY}/${NEW_THREAD}`);
+    expect(TestBed.inject(Router).url).toBe(`/foro/${CATEGORY}/${NEW_THREAD}`);
     expect(harness.routeNativeElement?.textContent).toContain('Hilo del foro');
   });
 
@@ -177,7 +177,7 @@ describe('Pantalla de hilos del foro', () => {
     expect(harness.routeNativeElement?.querySelector('[role="alert"]')?.textContent).toContain('No se pudo');
     expect(text()).not.toContain('secreto');
     expect(text()).not.toContain('@');
-    expect(TestBed.inject(Router).url).toBe(`/comunidad/${CATEGORY}`);
+    expect(TestBed.inject(Router).url).toBe(`/foro/${CATEGORY}`);
   });
 
   it('quita un hilo borrado en la sesión sin volver a cargar la lista', async () => {
@@ -196,7 +196,7 @@ describe('Pantalla de hilos del foro', () => {
       authorDisplayName: 'Alumno', authorIsAdmin: false,
     }]);
     isAdmin.set(true);
-    await harness.navigateByUrl(`/comunidad/${CATEGORY}/${THREAD}`, ForumThread);
+    await harness.navigateByUrl(`/foro/${CATEGORY}/${THREAD}`, ForumThread);
     await harness.fixture.whenStable();
     harness.detectChanges();
 
@@ -213,7 +213,7 @@ describe('Pantalla de hilos del foro', () => {
     expect(deleteComment).toHaveBeenCalledWith(POST);
     expect(text()).toContain('Hilo eliminado');
 
-    await harness.navigateByUrl(`/comunidad/${CATEGORY}`, ForumThreads);
+    await harness.navigateByUrl(`/foro/${CATEGORY}`, ForumThreads);
     await harness.fixture.whenStable();
     harness.detectChanges();
     expect(text()).not.toContain('Duda de rasgueo');

@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 
 /**
- * Rutas del foro, listas para integrar como hijas de `/comunidad`.
+ * Rutas del foro, listas para integrar como hijas de `/foro`.
  * El coordinador las introduce en `app.routes.ts` con `loadChildren`;
  * este archivo no modifica el enrutado raíz.
  */

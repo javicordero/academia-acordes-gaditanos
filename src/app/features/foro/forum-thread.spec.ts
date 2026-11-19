@@ -41,13 +41,13 @@ describe('Pantalla de un hilo del foro', () => {
     remove.mockResolvedValue({ threadDeleted: false });
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: 'comunidad/:categoryId/:threadId', component: ForumThread }]),
+        provideRouter([{ path: 'foro/:categoryId/:threadId', component: ForumThread }]),
         { provide: ForumThreadRepository, useValue: { list, create, deleteComment: remove } },
         { provide: AuthService, useValue: { isAdmin } },
       ],
     });
     harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl(`/comunidad/${CATEGORY}/${THREAD}`, ForumThread);
+    await harness.navigateByUrl(`/foro/${CATEGORY}/${THREAD}`, ForumThread);
     await harness.fixture.whenStable();
     harness.detectChanges();
     text = () => harness.routeNativeElement?.textContent ?? '';
@@ -89,7 +89,7 @@ describe('Pantalla de un hilo del foro', () => {
     expect(view().submitText()).toBe('Publicar respuesta');
     expect(list).toHaveBeenCalledWith(THREAD);
     expect(harness.routeNativeElement?.querySelector<HTMLAnchorElement>('a')?.getAttribute('href'))
-      .toBe(`/comunidad/${CATEGORY}`);
+      .toBe(`/foro/${CATEGORY}`);
     expect(text()).toContain('Duda del tema');
   });
 
@@ -215,7 +215,7 @@ describe('Pantalla de un hilo del foro', () => {
     expect(moderation.deletedThreadIds().has(THREAD)).toBe(true);
     expect(text()).toContain('Hilo eliminado');
     expect(harness.routeNativeElement?.querySelector('app-conversation-view')).toBeNull();
-    expect(harness.routeNativeElement?.querySelector<HTMLAnchorElement>(`a[href="/comunidad/${CATEGORY}"]`))
+    expect(harness.routeNativeElement?.querySelector<HTMLAnchorElement>(`a[href="/foro/${CATEGORY}"]`))
       .not.toBeNull();
   });
 

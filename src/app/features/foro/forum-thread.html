@@ -1,11 +1,11 @@
 <article class="page" aria-labelledby="forum-thread-title">
-  <a class="forum-back" [routerLink]="['/comunidad', categoryId]">Volver a los hilos de la categoría</a>
+  <a class="forum-back" [routerLink]="['/foro', categoryId]">Volver a los hilos de la categoría</a>
   <h1 id="forum-thread-title">Hilo del foro</h1>
 
   @if (threadDeleted()) {
     <div class="forum-feedback" role="status">
       <p>Hilo eliminado.</p>
-      <a [routerLink]="['/comunidad', categoryId]">Volver a los hilos de la categoría</a>
+      <a [routerLink]="['/foro', categoryId]">Volver a los hilos de la categoría</a>
     </div>
   } @else {
     <app-conversation-view [scopeId]="threadId" [repository]="repository"

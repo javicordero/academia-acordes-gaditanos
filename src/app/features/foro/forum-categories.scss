@@ -21,10 +21,8 @@
 }
 
 .forum-card {
-  padding: 1rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding-block: 1rem;
+  border-top: 1px solid var(--border);
 }
 
 .forum-card h2 {
@@ -45,6 +43,7 @@
   min-height: 44px;
   padding: 0.5rem 0.9rem;
   border-radius: 8px;
+  text-decoration: none;
 }
 
 .forum-button {

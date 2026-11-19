@@ -40,11 +40,26 @@ export const routes: Routes = [
       import('./features/perfil/perfil').then((m) => m.Perfil),
   },
   {
-    path: 'comunidad',
+    path: 'favoritos',
+    title: 'Mis favoritos · Academia de Guitarra',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/favoritos/favoritos').then((m) => m.FavoritesPage),
+  },
+  {
+    path: 'foro',
     title: 'Comunidad · Academia de Guitarra',
     loadChildren: () =>
       import('./features/foro/foro.routes').then((m) => m.FORO_ROUTES),
   },
+  // Enlaces históricos: las rutas hijas también viven bajo /foro.
+  {
+    path: 'comunidad/:categoryId/:threadId',
+    redirectTo: 'foro/:categoryId/:threadId',
+    pathMatch: 'full',
+  },
+  { path: 'comunidad/:categoryId', redirectTo: 'foro/:categoryId', pathMatch: 'full' },
+  { path: 'comunidad', redirectTo: '/foro', pathMatch: 'full' },
   {
     path: 'legal',
     loadChildren: () =>

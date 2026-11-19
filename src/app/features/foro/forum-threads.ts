@@ -137,7 +137,7 @@ export class ForumThreads {
       this.title.set('');
       this.body.set('');
       // Navegar al tema nuevo evita duplicar la lista y cualquier recarga.
-      await this.router.navigate(['/comunidad', this.categoryId, created.id]);
+      await this.router.navigate(['/foro', this.categoryId, created.id]);
     } catch (error: unknown) {
       if (this.destroyed) return;
       this.formError.set(forumFailureMessage(error));
