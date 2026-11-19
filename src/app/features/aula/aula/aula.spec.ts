@@ -59,6 +59,15 @@ function authoredCss(): string {
   return componentCss().replace(/\[_ngcontent-[^\]]*\]/g, '');
 }
 
+/** Bloque `@media (max-width: 47.999rem)` del componente (móvil, <768px). */
+function mobileCss(): string {
+  const css = authoredCss();
+  const at = css.search(/@media[^{]*max-width:\s*47\.999rem/);
+  if (at < 0) return '';
+  const next = css.slice(at + 1).search(/@media/);
+  return next < 0 ? css.slice(at) : css.slice(at, at + 1 + next);
+}
+
 describe('Aula', () => {
   it('reserva índice y vídeo con esqueletos y un único aviso accesible', async () => {
     let resolve!: (value: AulaData) => void;
@@ -1343,6 +1352,53 @@ describe('Aula', () => {
     expect(cssRule(authoredCss(), '.favorite-toggle')).toMatch(/height:\s*44px/);
     expect(cssRule(authoredCss(), ':focus-visible')).toMatch(/outline:\s*3px solid var\(--focus\)/);
     expect(favorites.list).toHaveBeenCalled();
+  });
+
+  it('en móvil alinea a la derecha estrella, progreso y flecha en una sola fila', async () => {
+    const favorites = { list: vi.fn().mockResolvedValue([]), toggle: vi.fn().mockResolvedValue(true) };
+    setup(vi.fn().mockResolvedValue(twoLessons), undefined, true, () => null, favorites);
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/aula/curso/uno', Aula);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    const actions = root.querySelector<HTMLElement>('.lesson-actions')!;
+    const nav = actions.querySelector<HTMLElement>('.lesson-nav')!;
+    const star = nav.querySelector<HTMLButtonElement>('.favorite-toggle')!;
+    const progress = nav.querySelector<HTMLButtonElement>('.progress-button')!;
+    const next = nav.querySelector<HTMLAnchorElement>('a[aria-label^="Siguiente:"]')!;
+
+    // Los tres controles siguen en la misma banda y en el orden acordado.
+    expect([...nav.children]).toEqual([star, progress, next]);
+    expect(nav.classList.contains('lesson-nav--end')).toBe(true);
+    expect(star.getAttribute('aria-label')).toBe('Añadir lección a favoritos');
+    expect(star.getAttribute('aria-pressed')).toBe('false');
+    expect(next.querySelector('.arrow-circle')).not.toBeNull();
+    expect(next.getAttribute('aria-label')).toBe('Siguiente: Lección');
+    expect(actions.querySelector('.lesson-duration')).toBeNull();
+    expect(actions.querySelector('.icon--clock')).toBeNull();
+
+    const css = authoredCss();
+    const mobile = mobileCss();
+    expect(mobile).not.toBe('');
+    // La banda ocupa todo el ancho y empuja el clúster a la derecha (<768px).
+    expect(mobile).toMatch(/\.lesson-actions[^{]*\{[^}]*width:\s*100%/);
+    expect(mobile).toMatch(/\.lesson-actions[^{]*\{[^}]*justify-content:\s*flex-end/);
+    expect(mobile).toMatch(/\.lesson-actions[^{]*\{[^}]*flex-wrap:\s*nowrap/);
+    // El shell global pone nav { width: 100% } a <=40rem: aquí se neutraliza.
+    expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*width:\s*auto/);
+    expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*max-width:\s*100%/);
+    expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*justify-content:\s*flex-end/);
+    expect(mobile).toMatch(/\.lesson-nav[^{]*\{[^}]*flex-wrap:\s*nowrap/);
+    expect(mobile).toMatch(/\.progress-button[^{]*\{[^}]*min-width:\s*0/);
+    // Ni apilado, ni centrado, ni estrella oculta en móvil.
+    expect(mobile).not.toMatch(/\.lesson-(actions|nav)[^{]*\{[^}]*flex-direction:\s*column/);
+    expect(mobile).not.toMatch(/\.lesson-(actions|nav)[^{]*\{[^}]*justify-content:\s*(flex-start|center|space-between)/);
+    expect(mobile).not.toMatch(/\.favorite-toggle[^{]*\{[^}]*display:\s*none/);
+    // Escritorio intacto: mismos 44px de target y foco visible.
+    expect(cssRule(css, '.lesson-actions')).toMatch(/justify-content:\s*flex-end/);
+    expect(cssRule(css, '.lesson-actions')).toMatch(/width:\s*100%/);
+    expect(css).toMatch(/\.favorite-toggle\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/);
+    expect(cssRule(css, ':focus-visible')).toMatch(/outline:\s*3px solid var\(--focus\)/);
   });
 
   it('alterna el favorito sin guardar progreso ni navegar, actualizando aria sin recargar', async () => {
