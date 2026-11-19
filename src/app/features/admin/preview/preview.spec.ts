@@ -92,6 +92,24 @@ describe('Vista previa administrativa', () => {
     expect(load).toHaveBeenCalledWith(courseId, firstId);
   });
 
+  it('nunca guarda progreso aunque la fuente Bunny ofrezca un ended verificado', async () => {
+    let ended: (() => void) | undefined;
+    source.mockImplementation(() => ({
+      ...fakeSource(),
+      provider: 'bunny',
+      onEnded: (_frameId: string, handler: () => void) => { ended = handler; return () => {}; },
+    }));
+    await harness.navigateByUrl(path(firstId), Preview);
+    await harness.fixture.whenStable(); harness.detectChanges();
+    const root = harness.routeNativeElement!;
+
+    expect(root.querySelector('iframe.video')).not.toBeNull();
+    expect(ended).toBeUndefined(); // la vista previa no se suscribe al evento
+    ended?.();
+    expect(progressSave).not.toHaveBeenCalled();
+    expect(root.textContent).not.toContain('Lección completada');
+  });
+
   it('muestra PDF sin reproductor y mantiene progreso deshabilitado', async () => {
     const pdf = { ...first, content_type: 'pdf' as const };
     load.mockResolvedValueOnce({ course, sections, lessons: [pdf], lesson: pdf });
@@ -511,6 +529,8 @@ describe('Geometría de temas en la vista previa', () => {
   it('usa la escala en los huecos locales y conserva el objetivo de 44px', () => {
     expect(styles).toMatch(/\.preview-action\s*\{[^}]*min-height:\s*44px/);
     expect(styles).toMatch(/\.preview-action\s*\{[^}]*padding-inline:\s*var\(--space-2\)/);
+    expect(styles).toMatch(/\.preview-action\s*\{[^}]*text-decoration:\s*none/);
+    expect(styles).not.toMatch(/text-decoration:\s*underline/i);
     expect(styles).toMatch(/\.progress-control\s*\{[^}]*gap:\s*var\(--space-1\) var\(--space-2\)/);
     expect(styles).not.toMatch(/--grid-gap\s*:/);
     expect(styles).not.toMatch(/padding-inline:\s*\.5rem/);

@@ -1,6 +1,9 @@
 /* Workspace editorial: una sola cabecera de curso y navegación interna.
    La geometría (huecos, padding, radios, grosor y sombra) viene de los tokens
-   geométricos de tema: cambiar de tema recompone el panel sin recargar. */
+   geométricos de tema: cambiar de tema recompone el panel sin recargar.
+   Los paneles que solo agrupan usan línea fina y hueco, no tarjeta. */
+:is(a, button) { text-decoration: none; }
+
 .course-header {
   display: flex;
   flex-wrap: wrap;
@@ -8,11 +11,8 @@
   justify-content: space-between;
   gap: var(--space-2) var(--grid-gap);
   margin-top: var(--space-4);
-  padding: var(--card-pad);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
+  padding-block: var(--space-2);
+  border-top: var(--border-width) solid var(--border);
 }
 
 .course-header__info {
@@ -78,7 +78,6 @@
   background: var(--surface);
   color: var(--ink);
   font-weight: 600;
-  text-decoration: none;
   overflow-wrap: anywhere;
 }
 
@@ -92,10 +91,17 @@
   margin-top: var(--section-gap);
 }
 
-.course-row {
+.admin-workspace li.course-row {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) 0;
+  border: 0;
+  border-top: var(--border-width) solid var(--border);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
 .course-row__head {
@@ -128,16 +134,15 @@
   color: var(--muted);
 }
 
-.lesson-note,
-.status-panel {
+.admin-workspace section:is(.lesson-note, .status-panel) {
   max-width: 100%;
   margin: var(--grid-gap) 0;
-  padding: var(--card-pad);
-  border: var(--border-width) solid var(--border);
-  border-left: calc(var(--border-width) * 3) solid var(--accent);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
+  padding: var(--space-3) 0;
+  border: 0;
+  border-top: var(--border-width) solid var(--border);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
   overflow-wrap: anywhere;
 }
 

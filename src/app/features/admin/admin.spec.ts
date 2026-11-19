@@ -418,13 +418,12 @@ describe('Geometría de temas en el workspace editorial', () => {
     return css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
   }
 
-  it('la cabecera y los paneles declaran la escala de tema, no valores duros', () => {
-    expect(ruleBody(adminStyles, '.course-header')).toMatch(/padding:\s*var\(--card-pad\)/);
-    expect(ruleBody(adminStyles, '.course-header')).toMatch(/border:\s*var\(--border-width\)/);
-    expect(ruleBody(adminStyles, '.course-header')).toMatch(/border-radius:\s*var\(--radius-md\)/);
-    expect(ruleBody(adminStyles, '.course-header')).toMatch(/box-shadow:\s*var\(--shadow-card\)/);
-    expect(ruleBody(adminStyles, '.status-panel')).toMatch(/padding:\s*var\(--card-pad\)/);
-    expect(ruleBody(adminStyles, '.status-panel')).toMatch(/border-left:\s*calc\(var\(--border-width\)/);
+  it('la cabecera y los paneles que solo agrupan usan línea fina, no tarjeta', () => {
+    expect(ruleBody(adminStyles, '.course-header')).toMatch(/padding-block:\s*var\(--space-2\)/);
+    expect(ruleBody(adminStyles, '.course-header')).toMatch(/border-top:\s*var\(--border-width\) solid var\(--border\)/);
+    expect(ruleBody(adminStyles, '.course-header')).not.toMatch(/box-shadow|border-radius|background/);
+    expect(ruleBody(adminStyles, '.admin-workspace li.course-row')).toMatch(/border-top:\s*var\(--border-width\)/);
+    expect(ruleBody(adminStyles, '.admin-workspace section:is(.lesson-note, .status-panel)')).toMatch(/border-top:\s*var\(--border-width\)/);
     expect(adminStyles + editorStyles).not.toMatch(/--space-\d\s*:/);
     expect(adminStyles + editorStyles).not.toMatch(/--card-pad\s*:/);
   });
@@ -432,12 +431,19 @@ describe('Geometría de temas en el workspace editorial', () => {
   it('listados, badges y navegación cambian huecos y radios por tema sin romper 44px', () => {
     expect(ruleBody(adminStyles, '.section-heading')).toMatch(/margin-top:\s*var\(--section-gap\)/);
     expect(ruleBody(adminStyles, '.course-nav__list')).toMatch(/gap:\s*var\(--space-2\)/);
-    expect(ruleBody(adminStyles, '.course-row')).toMatch(/gap:\s*var\(--space-2\)/);
+    expect(ruleBody(adminStyles, '.admin-workspace li.course-row')).toMatch(/gap:\s*var\(--space-2\)/);
     expect(ruleBody(adminStyles, '.status-badge')).toMatch(/padding:\s*var\(--space-1\) var\(--space-2\)/);
     expect(ruleBody(adminStyles, '.course-nav__link')).toMatch(/border-radius:\s*var\(--radius-sm\)/);
     expect(ruleBody(adminStyles, '.course-nav__link')).toMatch(/min-height:\s*44px/);
     expect(adminStyles).not.toMatch(/border-radius:\s*8px/);
     expect(adminStyles).not.toMatch(/border:\s*1px\s+solid/);
+  });
+
+  it('ningún botón o enlace de acción se subraya y el foco no se anula', () => {
+    expect(ruleBody(adminStyles, ':is(a, button)')).toMatch(/text-decoration:\s*none/);
+    expect(ruleBody(editorStyles, '.form-error-summary a')).toMatch(/text-decoration:\s*none/);
+    expect(adminStyles + editorStyles).not.toMatch(/text-decoration:\s*underline/i);
+    expect(adminStyles + editorStyles).not.toMatch(/outline:\s*none/i);
   });
 
   it('el editor usa la misma escala en campos y feedback', () => {
