@@ -50,15 +50,19 @@
 
 .theme-selector__panel {
   position: absolute;
-  z-index: 20;
+  z-index: var(--z-panel, 20);
   top: calc(100% + 0.35rem);
   right: 0;
   min-width: 13rem;
+  max-height: min(70vh, 28rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   padding: 0.35rem;
-  border: 1px solid var(--border, #ddd2c0);
-  border-radius: var(--radius, 12px);
+  border: var(--border-width, 1px) solid var(--border, #ddd2c0);
+  border-radius: var(--radius-md, 12px);
   background: var(--surface, #fffdf8);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  box-shadow: var(--shadow-raised, 0 8px 24px rgb(0 0 0 / 18%));
 }
 
 .theme-selector__option {
@@ -98,5 +102,20 @@
   .theme-selector__panel {
     position: static;
     margin-top: 0.35rem;
+  }
+}
+
+/* En la franja media de escritorio la fila de la cabecera va justa: queda el
+   icono (con aria-label) y se oculta solo la palabra «Tema». */
+@media (min-width: 48rem) and (max-width: 64rem) {
+  .theme-selector__trigger-text {
+    display: none;
+  }
+}
+
+@media (max-width: 20rem) {
+  .theme-selector__panel {
+    min-width: 0;
+    max-width: calc(100vw - 4rem);
   }
 }

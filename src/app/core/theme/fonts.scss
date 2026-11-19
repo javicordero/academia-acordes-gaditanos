@@ -4,10 +4,9 @@
  *   roboto-mono-latin.woff2  · variable 100-700 · OFL-RobotoMono.txt
  *   bodoni-moda-latin.woff2  · 400              · OFL-BodoniModa.txt
  *
- * INTEGRACIÓN FUTURA: incluir esta hoja en `styles` de angular.json, junto a
- * theme-tokens.scss y después de src/styles.scss. No se ha tocado angular.json
- * ni styles.scss: las variables --font-body / --font-display solo se aplicarán
- * a body y h1-h3 cuando se integre el rediseño.
+ * INTEGRACIÓN: `src/styles.scss` carga esta hoja y theme-tokens.scss con
+ * `@use` (sin tocar angular.json) y aplica --font-body / --font-display a body
+ * y h1-h3. Los woff2 se sirven como estáticos desde public/fonts.
  */
 
 @font-face {

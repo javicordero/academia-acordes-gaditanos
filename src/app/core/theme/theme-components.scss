@@ -1,0 +1,828 @@
+/*
+ * Overrides visuales por tema para componentes GLOBALES ya existentes.
+ * Se incluye desde styles.scss con @use, después de theme-tokens.scss.
+ * Sin posicionamiento fijo, sin ocultar navegación y sin tocar el DOM.
+ */
+
+:root[data-theme='creator'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: block;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='flamenco'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: transparent;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: block;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='conservatorio'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='escuela'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: block;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='editorial'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: transparent;
+    color: var(--accent);
+    border: 0;
+    border-bottom: 2px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: block;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='cuaderno'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    color: var(--ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='minimal'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    color: var(--ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='atelier'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: transparent;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: block;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='taller'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    color: var(--ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: block;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='estudio'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: transparent;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='impacto'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: block;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='linea'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: transparent;
+    color: var(--accent);
+    border: 0;
+    border-bottom: 2px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='brutalista'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: transparent;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='energia'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='jugueton'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    color: var(--ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='glass'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    color: var(--ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='serio'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: block;
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}
+
+:root[data-theme='prensa'] {
+  h1, h2, h3 {
+    text-transform: var(--heading-transform);
+    letter-spacing: var(--heading-tracking);
+    font-family: var(--font-display);
+  }
+  .button {
+    background: transparent;
+    color: var(--accent);
+    border: 0;
+    border-bottom: 2px solid var(--accent);
+    border-radius: var(--radius-md);
+    min-height: var(--tap-min);
+    font-weight: var(--weight-bold);
+  }
+  .button:hover:not(:disabled) { filter: brightness(1.06); }
+  .card, .course-card, .auth-card {
+    background: var(--card-surface);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  :is(.cards, .admin-courses) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: var(--card-gap);
+  }
+  :is(.cards > li, .admin-courses > li) { border-bottom: var(--list-divider); }
+  .feedback {
+    border-left-width: calc(var(--border-width) * 3);
+    border-radius: var(--radius-md);
+    background: var(--card-surface);
+    color: var(--ink);
+  }
+  .status-chip { border-radius: var(--radius-lg); border-width: var(--border-width); }
+  .admin-workspace :is(section, form, li) {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--card-pad);
+  }
+  .aula-content { background: var(--bg); color: var(--ink); border-radius: var(--radius-md); }
+  @media (max-width: 40rem) {
+    :is(.cards, .admin-courses) { grid-template-columns: 1fr; }
+  }
+}

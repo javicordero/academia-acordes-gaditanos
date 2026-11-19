@@ -1,3 +1,10 @@
+/* Temas y fuentes se incluyen desde aquí (no desde angular.json): Sass emite
+   su CSS una sola vez y las reglas :root[data-theme=...] ganan por especificidad
+   sobre los tokens provisionales de este archivo. */
+@use './app/core/theme/fonts';
+@use './app/core/theme/theme-tokens';
+@use './app/core/theme/theme-components';
+
 :root {
   color-scheme: light;
   --bg: #f6f1e7;
@@ -52,9 +59,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family:
-    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+  font-family: var(--font-body, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -63,7 +68,7 @@ h1,
 h2,
 h3 {
   margin: 0 0 0.75rem;
-  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  font-family: var(--font-display, Georgia, serif);
   line-height: 1.15;
 }
 

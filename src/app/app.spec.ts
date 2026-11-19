@@ -6,6 +6,11 @@ import { App } from './app';
 import { routes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
 import { CONSENT_STORAGE_KEY } from './core/consent/consent.service';
+import {
+  THEME_META_COLORS,
+  THEME_OPTIONS,
+  THEME_STORAGE_KEY,
+} from './core/theme/theme.service';
 import { SUPABASE_CONFIG } from '../environments/supabase-config';
 
 describe('App shell', () => {
@@ -762,5 +767,176 @@ describe('App shell · cabecera según la ruta', () => {
     expect(element.querySelector('app-cookie-banner section[aria-label="Preferencias de cookies"]')).not.toBeNull();
     expect(getComputedStyle(banner).display).not.toBe('none');
     localStorage.removeItem(CONSENT_STORAGE_KEY);
+  });
+});
+
+describe('App shell · tema integrado', () => {
+  let meta: HTMLMetaElement;
+
+  async function createShell(url?: string): Promise<ComponentFixture<App>> {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    if (url) {
+      await TestBed.inject(Router).navigateByUrl(url);
+    }
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function trigger(root: HTMLElement): HTMLButtonElement {
+    const button = root.querySelector<HTMLButtonElement>(
+      'app-theme-selector .theme-selector__trigger',
+    );
+    expect(button).not.toBeNull();
+    return button!;
+  }
+
+  function option(label: string): HTMLButtonElement {
+    const found = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        'app-theme-selector [role="menuitemradio"]',
+      ),
+    ).find((candidate) => candidate.textContent?.includes(label));
+    expect(found).toBeDefined();
+    return found!;
+  }
+
+  beforeEach(async () => {
+    localStorage.removeItem(THEME_STORAGE_KEY);
+    document.documentElement.removeAttribute('data-theme');
+    meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    document.head.appendChild(meta);
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        provideRouter(shellRoutes),
+        { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '' } },
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(() => {
+    localStorage.removeItem(THEME_STORAGE_KEY);
+    document.documentElement.removeAttribute('data-theme');
+    meta.remove();
+    TestBed.resetTestingModule();
+  });
+
+  it('aplica creator por defecto en data-theme y en el meta theme-color', async () => {
+    const fixture = await createShell('/cursos');
+
+    expect(fixture.componentInstance.theme.theme()).toBe('creator');
+    expect(document.documentElement.dataset['theme']).toBe('creator');
+    expect(meta.content).toBe(THEME_META_COLORS['creator']);
+  });
+
+  it('coloca un único selector en la fila de herramientas de la cabecera', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const tools = element.querySelector<HTMLElement>('.site-header__tools')!;
+
+    expect(tools.querySelectorAll('app-theme-selector')).toHaveLength(1);
+    expect(element.querySelectorAll('app-theme-selector')).toHaveLength(1);
+    expect(trigger(element).getAttribute('aria-label')).toBe('Cambiar tema');
+  });
+
+  it('ofrece los dieciocho temas claros con etiquetas en español y sin «Nocturno AG»', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+
+    trigger(element).click();
+    await fixture.whenStable();
+
+    const texts = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        'app-theme-selector [role="menuitemradio"]',
+      ),
+    ).map((button) => button.textContent ?? '');
+
+    expect(texts).toHaveLength(18);
+    for (const { label } of THEME_OPTIONS) {
+      expect(texts.some((text) => text.includes(label))).toBe(true);
+    }
+    expect(texts.some((text) => text.includes('Nocturno AG'))).toBe(false);
+    expect(texts.some((text) => text.toLowerCase().includes('nocturno'))).toBe(
+      false,
+    );
+  });
+
+  it('cambia de tema desde el selector, persiste y actualiza el meta', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+
+    trigger(element).click();
+    await fixture.whenStable();
+    option('Cristal sereno').click();
+    await fixture.whenStable();
+
+    expect(document.documentElement.dataset['theme']).toBe('glass');
+    expect(meta.content).toBe(THEME_META_COLORS['glass']);
+    expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY)!)).toEqual({
+      version: 1,
+      theme: 'glass',
+    });
+    expect(fixture.componentInstance.menuOpen()).toBe(false);
+  });
+
+  it('cambiar el tema no abre ni cierra el menú móvil', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
+
+    expect(fixture.componentInstance.menuOpen()).toBe(false);
+    trigger(element).click();
+    await fixture.whenStable();
+    option('Flamenco editorial').click();
+    await fixture.whenStable();
+    expect(document.documentElement.dataset['theme']).toBe('flamenco');
+    expect(fixture.componentInstance.menuOpen()).toBe(false);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    toggle.click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.menuOpen()).toBe(true);
+    trigger(element).click();
+    await fixture.whenStable();
+    option('Brutalista AG').click();
+    await fixture.whenStable();
+    expect(document.documentElement.dataset['theme']).toBe('brutalista');
+    expect(fixture.componentInstance.menuOpen()).toBe(true);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('restaura el tema guardado al crear otro shell', async () => {
+    localStorage.setItem(
+      THEME_STORAGE_KEY,
+      JSON.stringify({ version: 1, theme: 'flamenco' }),
+    );
+
+    await createShell('/cursos');
+
+    expect(document.documentElement.dataset['theme']).toBe('flamenco');
+    expect(meta.content).toBe(THEME_META_COLORS['flamenco']);
+  });
+
+  it('mantiene el tema aplicado en el aula aunque no haya selector', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    trigger(element).click();
+    await fixture.whenStable();
+    option('Conservatorio').click();
+    await fixture.whenStable();
+    expect(document.documentElement.dataset['theme']).toBe('conservatorio');
+
+    await TestBed.inject(Router).navigateByUrl(aulaUrl);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.querySelector('header.site-header')).toBeNull();
+    expect(element.querySelector('app-theme-selector')).toBeNull();
+    expect(document.documentElement.dataset['theme']).toBe('conservatorio');
+    expect(meta.content).toBe(THEME_META_COLORS['conservatorio']);
   });
 });

@@ -10,9 +10,9 @@ import {
 import { THEME_OPTIONS, ThemeId, ThemeService } from '../../core/theme/theme.service';
 
 /**
- * Selector de temas listo para colocar en `.site-header__tools`. No se integra
- * todavía en app.html: la integración futura la coordina quien revise menú,
- * cookies y foro. El click no burbujea para no cerrar el menú móvil.
+ * Selector de temas integrado en `.site-header__tools` del shell. El click y
+ * Escape no burbujean para no cerrar el menú móvil al cambiar de tema; comparte
+ * el ThemeService raíz con el shell y con el aula (sin lógica propia de storage).
  */
 @Component({
   selector: 'app-theme-selector',
@@ -51,12 +51,14 @@ export class ThemeSelector {
     }
   }
 
-  /** Escape cierra el desplegable y devuelve el foco al botón que lo abrió. */
+  /** Escape cierra el desplegable y devuelve el foco al botón que lo abrió,
+   *  sin dejar que el disclosure móvil interprete la misma tecla. */
   protected onKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Escape' || !this.open()) {
       return;
     }
     event.preventDefault();
+    event.stopPropagation();
     this.close(true);
   }
 

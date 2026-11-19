@@ -6,14 +6,26 @@ export const THEME_STORAGE_KEY = 'academia-theme-v1';
 export const THEME_STORAGE_VERSION = 1;
 export const DEFAULT_THEME_ID = 'creator';
 
-/** Unión cerrada: seis temas explícitos, sin detección sistema/claro/oscuro. */
+/** Unión cerrada: dieciocho temas claros, sin detección sistema/claro/oscuro. */
 export const THEME_IDS = [
   'creator',
   'flamenco',
   'conservatorio',
-  'nocturno',
-  'contraste',
+  'escuela',
+  'editorial',
+  'cuaderno',
+  'minimal',
+  'atelier',
+  'taller',
+  'estudio',
+  'impacto',
+  'linea',
   'brutalista',
+  'energia',
+  'jugueton',
+  'glass',
+  'serio',
+  'prensa',
 ] as const;
 
 export type ThemeId = (typeof THEME_IDS)[number];
@@ -28,19 +40,43 @@ export const THEME_OPTIONS: readonly ThemeOption[] = [
   { id: 'creator', label: 'Creador' },
   { id: 'flamenco', label: 'Flamenco editorial' },
   { id: 'conservatorio', label: 'Conservatorio' },
-  { id: 'nocturno', label: 'Nocturno AG' },
-  { id: 'contraste', label: 'Alto contraste' },
+  { id: 'escuela', label: 'Escuela clásica' },
+  { id: 'editorial', label: 'Editorial de bolsillo' },
+  { id: 'cuaderno', label: 'Cuaderno del profesor' },
+  { id: 'minimal', label: 'Minimal técnico' },
+  { id: 'atelier', label: 'Atelier boutique' },
+  { id: 'taller', label: 'Taller artesanal' },
+  { id: 'estudio', label: 'Estudio de grabación' },
+  { id: 'impacto', label: 'Impacto AG' },
+  { id: 'linea', label: 'Línea precisa' },
   { id: 'brutalista', label: 'Brutalista AG' },
+  { id: 'energia', label: 'Energía en pista' },
+  { id: 'jugueton', label: 'Juguetón' },
+  { id: 'glass', label: 'Cristal sereno' },
+  { id: 'serio', label: 'Serio corporativo' },
+  { id: 'prensa', label: 'Prensa cultural' },
 ];
 
-/** Color de la barra del navegador, coherente con cada tema. */
+/** Color de la barra del navegador, igual al fondo claro de cada tema. */
 export const THEME_META_COLORS: Record<ThemeId, string> = {
-  creator: '#0f1115',
-  flamenco: '#f6efe3',
+  creator: '#faf6ef',
+  flamenco: '#f7f0e4',
   conservatorio: '#edf2f4',
-  nocturno: '#0a1220',
-  contraste: '#000000',
-  brutalista: '#e9e4d9',
+  escuela: '#f5f1e6',
+  editorial: '#f2f0eb',
+  cuaderno: '#f4f1e8',
+  minimal: '#f7f8fa',
+  atelier: '#f7f2f4',
+  taller: '#efe5d2',
+  estudio: '#eef1f4',
+  impacto: '#fdfbf5',
+  linea: '#eef0f5',
+  brutalista: '#f1efe8',
+  energia: '#fff7ed',
+  jugueton: '#fdf7e8',
+  glass: '#eef6fa',
+  serio: '#f4f5f7',
+  prensa: '#f3efe7',
 };
 
 interface StoredTheme {
