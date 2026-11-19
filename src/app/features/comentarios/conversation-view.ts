@@ -9,6 +9,7 @@ import {
   effect,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 import {
@@ -31,6 +32,8 @@ const MAX_INDENT_DEPTH = 4;
 export interface ConversationNode {
   readonly post: ConversationPost;
   readonly children: readonly ConversationNode[];
+  /** Es raíz solo si el servidor la creó sin padre (no si el árbol la promueve). */
+  readonly isRoot: boolean;
 }
 
 /**
@@ -65,7 +68,7 @@ export function buildConversationTree(rows: readonly ConversationPost[]): readon
     const descendants = (children.get(row.id) ?? [])
       .filter((child) => !visited.has(child.id))
       .map(build);
-    return { post: row, children: descendants };
+    return { post: row, children: descendants, isRoot: row.parentId === null };
   };
 
   const result = roots.filter((row) => !visited.has(row.id)).map(build);
@@ -94,6 +97,9 @@ export class ConversationView {
 
   readonly scopeId = input.required<string>();
   readonly repository = input.required<ConversationRepository>();
+
+  /** Se emite solo cuando la RPC confirma que se borró el hilo completo. */
+  readonly threadDeleted = output<string>();
 
   /**
    * La moderación se muestra solo cuando el contenedor lo autoriza (un admin).
@@ -336,10 +342,11 @@ export class ConversationView {
   /** Texto de la confirmación: avisa de respuestas y, si procede, del hilo raíz. */
   deleteWarningFor(node: ConversationNode): string {
     const parts: string[] = [];
-    if (node.children.length > 0) parts.push(this.deleteRepliesWarningText());
-    if (this.rootDeletesThread() && node.post.parentId === null) {
-      parts.push(this.deleteThreadWarningText());
+    if (node.isRoot) {
+      if (this.rootDeletesThread()) parts.push(this.deleteThreadWarningText());
+      return parts.join('. ');
     }
+    if (node.children.length > 0) parts.push(this.deleteRepliesWarningText());
     return parts.join('. ');
   }
 
@@ -375,6 +382,10 @@ export class ConversationView {
 
   async confirmDelete(id: string): Promise<void> {
     if (this.deletingId() !== null || this.confirmingDeleteId() !== id) return;
+    // El id debe ser un mensaje cargado en esta conversación: nunca scopeId
+    // (id del hilo o de la lección), que borraría el hilo entero por error.
+    const target = this.posts().find((post) => post.id === id);
+    if (!target) return;
     const repository = this.repository();
     if (typeof repository.deleteComment !== 'function') {
       this.failedDeleteId.set(id);
@@ -389,7 +400,9 @@ export class ConversationView {
     try {
       const result = await repository.deleteComment(id);
       if (this.destroyed || request !== this.request) return;
-      const threadDeleted = result?.threadDeleted === true;
+      // Se respeta `thread_deleted` del servidor, pero una respuesta jamás
+      // puede activar el estado de hilo eliminado aunque el flag viniera mal.
+      const threadDeleted = result?.threadDeleted === true && target.parentId === null;
       this.posts.update((rows) => {
         const removed = this.descendantIds(rows, id);
         return rows.filter((row) => !removed.has(row.id));
@@ -398,6 +411,7 @@ export class ConversationView {
       this.failedDeleteId.set(null);
       this.deleteTriggerButton = null;
       this.deleteNotice.set(threadDeleted ? this.threadDeletedText() : this.commentDeletedText());
+      if (threadDeleted) this.threadDeleted.emit(this.scopeId());
       this.focusAfterDelete(nextId);
     } catch {
       if (this.destroyed || request !== this.request) return;

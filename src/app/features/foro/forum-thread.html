@@ -2,14 +2,21 @@
   <a class="forum-back" [routerLink]="['/comunidad', categoryId]">Volver a los hilos de la categoría</a>
   <h1 id="forum-thread-title">Hilo del foro</h1>
 
-  <app-conversation-view [scopeId]="threadId" [repository]="repository"
-    [canModerate]="canModerate()"
-    heading="Respuestas del tema"
-    emptyText="Todavía no hay respuestas en este tema."
-    placeholder="Escribe tu respuesta"
-    rootLabel="Escribe tu respuesta"
-    submitText="Publicar respuesta"
-    replySubmitText="Publicar respuesta"
-    commentSuccessText="Respuesta publicada."
-    errorText="No se pudieron cargar las respuestas. Comprueba tu conexión e inténtalo de nuevo." />
+  @if (threadDeleted()) {
+    <div class="forum-feedback" role="status">
+      <p>Hilo eliminado.</p>
+      <a [routerLink]="['/comunidad', categoryId]">Volver a los hilos de la categoría</a>
+    </div>
+  } @else {
+    <app-conversation-view [scopeId]="threadId" [repository]="repository"
+      [canModerate]="canModerate()" (threadDeleted)="onThreadDeleted($event)"
+      heading="Respuestas del tema"
+      emptyText="Todavía no hay respuestas en este tema."
+      placeholder="Escribe tu respuesta"
+      rootLabel="Escribe tu respuesta"
+      submitText="Publicar respuesta"
+      replySubmitText="Publicar respuesta"
+      commentSuccessText="Respuesta publicada."
+      errorText="No se pudieron cargar las respuestas. Comprueba tu conexión e inténtalo de nuevo." />
+  }
 </article>

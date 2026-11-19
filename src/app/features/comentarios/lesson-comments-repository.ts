@@ -135,6 +135,9 @@ export class LessonCommentsRepository {
     });
     if (error) throw classify(error);
     if (typeof data !== 'boolean') throw new LessonCommentsError('invalid');
+    // El servidor devuelve false para no admin o id inexistente: no se ha
+    // borrado nada y la interfaz no debe quitar el comentario del árbol local.
+    if (!data) throw new LessonCommentsError('failed');
     return { threadDeleted: false };
   }
 }

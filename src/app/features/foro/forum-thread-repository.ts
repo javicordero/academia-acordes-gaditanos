@@ -185,10 +185,11 @@ export class ForumThreadRepository implements ConversationRepository {
   }
 
   /**
-   * Moderación de un mensaje del foro. La RPC devuelve un jsonb con
-   * `{ deleted, thread_deleted, deleted_posts }`: se valida cada campo y solo
-   * se conserva `thread_deleted` para el aviso de la interfaz. Los identificadores
-   * borrados no se exponen; cualquier forma inesperada es un error `invalid`.
+   * Moderación de un mensaje del foro. La RPC real devuelve
+   * `{ deleted, thread_deleted, deleted_posts }` con `deleted_posts` como bigint
+   * (llega como número; se admite también la lista de ids de mocks antiguos).
+   * Solo `thread_deleted` interesa a la interfaz. `deleted: false` —no admin o id
+   * inexistente, indistinguibles a propósito— es un fallo y no quita nada del DOM.
    */
   async deleteComment(id: string): Promise<DeleteCommentResult> {
     if (!isConversationUuid(id)) throw new ConversationError('invalid');
@@ -199,12 +200,12 @@ export class ForumThreadRepository implements ConversationRepository {
     const row = data as Record<string, unknown>;
     if (row['deleted'] !== true) throw new ConversationError('invalid');
     if (typeof row['thread_deleted'] !== 'boolean') throw new ConversationError('invalid');
-    if (
-      !Array.isArray(row['deleted_posts']) ||
-      !row['deleted_posts'].every((item) => isConversationUuid(item))
-    ) {
-      throw new ConversationError('invalid');
-    }
+    const deletedPosts = row['deleted_posts'];
+    const validCount = typeof deletedPosts === 'number' &&
+      Number.isInteger(deletedPosts) && deletedPosts >= 0;
+    const validIds = Array.isArray(deletedPosts) &&
+      deletedPosts.every((item) => isConversationUuid(item));
+    if (!validCount && !validIds) throw new ConversationError('invalid');
     return { threadDeleted: row['thread_deleted'] };
   }
 

@@ -1,7 +1,10 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AuthService } from '../../core/auth/auth.service';
+import { ForumModerationState } from './forum-moderation-state';
 import { ForumThread } from './forum-thread';
 import { ForumThreads } from './forum-threads';
 import { ForumThreadRepository } from './forum-thread-repository';
@@ -9,6 +12,7 @@ import { ForumThreadRepository } from './forum-thread-repository';
 const CATEGORY = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const THREAD = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const NEW_THREAD = '33333333-3333-3333-3333-333333333333';
+const POST = '11111111-1111-1111-1111-111111111111';
 
 function thread(overrides: Record<string, unknown> = {}) {
   return {
@@ -27,14 +31,18 @@ function createdThread() {
 describe('Pantalla de hilos del foro', () => {
   const listThreads = vi.fn();
   const createThread = vi.fn();
+  const deleteComment = vi.fn();
   const list = vi.fn();
+  const isAdmin = signal(false);
   let harness: RouterTestingHarness;
   let text: () => string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    isAdmin.set(false);
     listThreads.mockResolvedValue([thread({ authorIsAdmin: true })]);
     createThread.mockResolvedValue(createdThread());
+    deleteComment.mockResolvedValue({ threadDeleted: true });
     list.mockResolvedValue([]);
     TestBed.configureTestingModule({
       providers: [
@@ -42,7 +50,9 @@ describe('Pantalla de hilos del foro', () => {
           { path: ':categoryId', component: ForumThreads },
           { path: ':categoryId/:threadId', component: ForumThread },
         ] }]),
-        { provide: ForumThreadRepository, useValue: { listThreads, createThread, list, create: vi.fn() } },
+        { provide: ForumThreadRepository,
+          useValue: { listThreads, createThread, deleteComment, list, create: vi.fn() } },
+        { provide: AuthService, useValue: { isAdmin } },
       ],
     });
     harness = await RouterTestingHarness.create();
@@ -154,5 +164,45 @@ describe('Pantalla de hilos del foro', () => {
     expect(text()).not.toContain('secreto');
     expect(text()).not.toContain('@');
     expect(TestBed.inject(Router).url).toBe(`/comunidad/${CATEGORY}`);
+  });
+
+  it('quita un hilo borrado en la sesión sin volver a cargar la lista', async () => {
+    expect(listThreads).toHaveBeenCalledTimes(1);
+    TestBed.inject(ForumModerationState).markThreadDeleted(THREAD);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(text()).not.toContain('Duda de rasgueo');
+    expect(text()).toContain('Todavía no hay hilos en esta categoría.');
+    expect(listThreads).toHaveBeenCalledTimes(1);
+  });
+
+  it('tras borrar la raíz el hilo no reaparece al volver a la categoría', async () => {
+    list.mockResolvedValueOnce([{
+      id: POST, parentId: null, body: 'Mensaje raíz', createdAt: '2026-11-18T10:00:00Z',
+      authorDisplayName: 'Alumno', authorIsAdmin: false,
+    }]);
+    isAdmin.set(true);
+    await harness.navigateByUrl(`/comunidad/${CATEGORY}/${THREAD}`, ForumThread);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    const threadEl = harness.routeNativeElement!;
+    const deleteButton = [...threadEl.querySelectorAll<HTMLButtonElement>('.delete-button')]
+      .find((b) => b.getAttribute('aria-label') === 'Eliminar comentario de Alumno')!;
+    deleteButton.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    [...harness.routeNativeElement!.querySelectorAll<HTMLButtonElement>('button')]
+      .find((b) => b.textContent?.trim() === 'Confirmar eliminación')!.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(deleteComment).toHaveBeenCalledWith(POST);
+    expect(text()).toContain('Hilo eliminado');
+
+    await harness.navigateByUrl(`/comunidad/${CATEGORY}`, ForumThreads);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(text()).not.toContain('Duda de rasgueo');
+    expect(text()).toContain('Todavía no hay hilos en esta categoría.');
   });
 });

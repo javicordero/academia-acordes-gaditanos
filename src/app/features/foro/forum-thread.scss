@@ -19,3 +19,29 @@
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
+
+.forum-feedback {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--admin-success);
+  border-inline-start-width: 4px;
+  border-radius: 8px;
+  background: var(--admin-success-surface);
+  color: var(--admin-success-text);
+}
+
+.forum-feedback p {
+  margin: 0 0 0.5rem;
+}
+
+.forum-feedback a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent);
+}
+
+.forum-feedback a:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}

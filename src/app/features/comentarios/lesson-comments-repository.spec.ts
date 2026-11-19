@@ -167,6 +167,11 @@ describe('Repositorio de comentarios de lección', () => {
     }
   });
 
+  it('no confirma un borrado rechazado por el servidor (false)', async () => {
+    rpc.mockResolvedValueOnce({ data: false, error: null });
+    expect((await failure(repo.deleteComment(ROOT))).kind).toBe('failed');
+  });
+
   it('sanea los errores de borrado sin exponer mensajes, tokens ni correos', async () => {
     const secret = 'https://ejemplo.test/rpc?token=secreto&email=alumno@ejemplo.test';
     rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: secret } });

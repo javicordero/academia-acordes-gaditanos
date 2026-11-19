@@ -189,6 +189,41 @@ describe('Repositorio del foro (puerto de conversación)', () => {
     }
   });
 
+  it('acepta el contrato real: deleted_posts es un conteo numérico', async () => {
+    rpc.mockResolvedValueOnce({
+      data: { deleted: true, thread_deleted: false, deleted_posts: 3 }, error: null,
+    });
+    await expect(repo.deleteComment(POST)).resolves.toEqual({ threadDeleted: false });
+    expect(rpc).toHaveBeenCalledWith('delete_forum_post', { p_post_id: POST });
+
+    rpc.mockResolvedValueOnce({
+      data: { deleted: true, thread_deleted: true, deleted_posts: 4 }, error: null,
+    });
+    await expect(repo.deleteComment(THREAD)).resolves.toEqual({ threadDeleted: true });
+  });
+
+  it('borra una respuesta con su id y respeta thread_deleted=false del servidor', async () => {
+    rpc.mockResolvedValueOnce({
+      data: { deleted: true, thread_deleted: false, deleted_posts: 2 }, error: null,
+    });
+    await expect(repo.deleteComment(REPLY)).resolves.toEqual({ threadDeleted: false });
+    expect(rpc).toHaveBeenCalledWith('delete_forum_post', { p_post_id: REPLY });
+    expect(rpc).not.toHaveBeenCalledWith('delete_forum_post', { p_post_id: THREAD });
+  });
+
+  it('no confirma un borrado rechazado (deleted=false, count=0)', async () => {
+    rpc.mockResolvedValueOnce({
+      data: { deleted: false, thread_deleted: false, deleted_posts: 0 }, error: null,
+    });
+    expect((await failure(repo.deleteComment(POST))).kind).toBe('invalid');
+    for (const deleted_posts of [-1, 1.5, '2', null]) {
+      rpc.mockResolvedValueOnce({
+        data: { deleted: true, thread_deleted: false, deleted_posts }, error: null,
+      });
+      expect((await failure(repo.deleteComment(POST))).kind).toBe('invalid');
+    }
+  });
+
   it('rechaza ids inválidos sin llamar a la RPC y sanea los errores de borrado', async () => {
     for (const id of ['no-uuid', '', 7, null, undefined]) {
       expect((await failure(repo.deleteComment(id as string))).kind).toBe('invalid');

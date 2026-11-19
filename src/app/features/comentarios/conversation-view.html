@@ -28,6 +28,7 @@
           @if (canModerate()) {
             <div class="moderation">
               <button type="button" class="delete-button"
+                [attr.data-comment-id]="node.post.id"
                 [attr.aria-label]="'Eliminar comentario de ' + node.post.authorDisplayName"
                 [disabled]="deletingId() !== null"
                 (click)="requestDelete(node.post.id, $event)">Eliminar</button>
@@ -40,6 +41,7 @@
                   }
                   <div class="delete-confirm__actions">
                     <button type="button" class="delete-button delete-button--confirm"
+                      [attr.data-comment-id]="node.post.id"
                       [attr.data-delete-confirm]="node.post.id"
                       [disabled]="deletingId() !== null"
                       (click)="confirmDelete(node.post.id)">{{ deleteConfirmButtonText() }}</button>

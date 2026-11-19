@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
+import { ForumModerationState } from './forum-moderation-state';
 import {
   ForumThread,
   ForumThreadRepository,
@@ -33,6 +34,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('es-ES', {
 })
 export class ForumThreads {
   private readonly repository = inject(ForumThreadRepository);
+  private readonly moderation = inject(ForumModerationState);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
@@ -50,6 +52,10 @@ export class ForumThreads {
 
   readonly state = signal<'loading' | 'ready' | 'error'>('loading');
   readonly threads = signal<readonly ForumThread[]>([]);
+  /** Un hilo borrado en esta sesión no reaparece al volver a la categoría. */
+  readonly visibleThreads = computed(() =>
+    this.threads().filter((thread) => !this.moderation.deletedThreadIds().has(thread.id)),
+  );
   readonly title = signal('');
   readonly body = signal('');
   readonly titleError = signal('');

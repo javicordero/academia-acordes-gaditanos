@@ -459,8 +459,8 @@ describe('Vista compartida de conversación', () => {
       await settle();
       const panel = root.querySelector<HTMLElement>('.delete-confirm')!;
       expect(panel.textContent).toContain('¿Eliminar este comentario?');
-      expect(panel.textContent).toContain('Se borrarán también sus respuestas');
       expect(panel.textContent).toContain('Se borrará el hilo completo');
+      expect(panel.textContent).not.toContain('Se borrarán también sus respuestas');
       expect(confirmButton()).toBeInstanceOf(HTMLButtonElement);
       expect(document.activeElement).toBe(confirmButton());
       expect(remove).not.toHaveBeenCalled();
@@ -621,6 +621,86 @@ describe('Vista compartida de conversación', () => {
       await Promise.resolve();
       expect(fixture.componentInstance.posts()).toHaveLength(1);
       expect(fixture.componentInstance.confirmingDeleteId()).toBeNull();
+    });
+
+    it('emite threadDeleted solo cuando la RPC confirma el borrado del hilo', async () => {
+      const emitted = vi.fn();
+      fixture.componentInstance.threadDeleted.subscribe(emitted);
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: L2, parentId: ROOT, createdAt: '2026-11-18T10:02:00Z', authorDisplayName: 'Hija' }),
+      ]);
+
+      openDelete('Hija');
+      await settle();
+      confirmButton().click();
+      await settle();
+      expect(emitted).not.toHaveBeenCalled();
+
+      remove.mockResolvedValueOnce({ threadDeleted: true });
+      openDelete('Raíz');
+      await settle();
+      confirmButton().click();
+      await settle();
+      expect(emitted).toHaveBeenCalledTimes(1);
+      expect(emitted).toHaveBeenCalledWith(LESSON);
+    });
+
+    it('nunca envía el scopeId del hilo: confirmDelete solo acepta ids del árbol', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([makeRow({ id: ROOT, authorDisplayName: 'Raíz' })]);
+      fixture.componentInstance.requestDelete(LESSON, { currentTarget: null } as unknown as Event);
+      await settle();
+      await fixture.componentInstance.confirmDelete(LESSON);
+      expect(remove).not.toHaveBeenCalled();
+      expect(fixture.componentInstance.posts().map((post) => post.id)).toEqual([ROOT]);
+    });
+
+    it('el aviso de hilo nunca aparece en una respuesta, con o sin hijos', async () => {
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: L2, parentId: ROOT, createdAt: '2026-11-18T10:02:00Z', authorDisplayName: 'Hija' }),
+        makeRow({ id: L2B, parentId: L2, createdAt: '2026-11-18T10:03:00Z', authorDisplayName: 'Neta' }),
+      ]);
+
+      openDelete('Hija');
+      await settle();
+      const panel = root.querySelector<HTMLElement>('.delete-confirm')!;
+      expect(panel.textContent).toContain('Se borrarán también sus respuestas');
+      expect(panel.textContent).not.toContain('Se borrará el hilo completo');
+      expect(confirmButton().getAttribute('data-delete-confirm')).toBe(L2);
+
+      openDelete('Neta');
+      await settle();
+      const leafPanel = root.querySelector<HTMLElement>('.delete-confirm')!;
+      expect(leafPanel.textContent).not.toContain('Se borrarán también sus respuestas');
+      expect(leafPanel.textContent).not.toContain('Se borrará el hilo completo');
+      expect(confirmButton().getAttribute('data-delete-confirm')).toBe(L2B);
+    });
+
+    it('un thread_deleted erróneo en una respuesta no elimina el hilo ni emite', async () => {
+      const emitted = vi.fn();
+      fixture.componentInstance.threadDeleted.subscribe(emitted);
+      remove.mockResolvedValueOnce({ threadDeleted: true });
+      fixture.componentRef.setInput('canModerate', true);
+      await seed([
+        makeRow({ id: ROOT, authorDisplayName: 'Raíz' }),
+        makeRow({ id: L2, parentId: ROOT, createdAt: '2026-11-18T10:02:00Z', authorDisplayName: 'Hija' }),
+      ]);
+
+      openDelete('Hija');
+      await settle();
+      confirmButton().click();
+      await settle();
+      expect(remove).toHaveBeenCalledWith(L2);
+      expect(remove).not.toHaveBeenCalledWith(LESSON);
+      expect(emitted).not.toHaveBeenCalled();
+      expect(node(ROOT)).toBeInstanceOf(HTMLElement);
+      expect(node(L2)).toBeNull();
+      expect(root.querySelector('[role="status"][aria-live="polite"]')?.textContent)
+        .toContain('Comentario eliminado');
     });
 
     it('permite desactivar el aviso de hilo en las dudas de lección', async () => {

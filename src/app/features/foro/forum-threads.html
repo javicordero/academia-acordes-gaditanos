@@ -13,11 +13,11 @@
       </div>
     }
     @case ('ready') {
-      @if (threads().length === 0) {
+      @if (visibleThreads().length === 0) {
         <p class="forum-status" role="status">Todavía no hay hilos en esta categoría.</p>
       } @else {
         <ul class="forum-list" aria-label="Hilos de la categoría">
-          @for (thread of threads(); track thread.id) {
+          @for (thread of visibleThreads(); track thread.id) {
             <li>
               <article class="forum-card">
                 <h2><a [routerLink]="[thread.id]">{{ thread.title }}</a></h2>
