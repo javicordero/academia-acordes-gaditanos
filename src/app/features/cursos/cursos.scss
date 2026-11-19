@@ -21,15 +21,14 @@
   min-height: var(--catalog-field-min);
 }
 
+/* Filtros sin caja: espacio y una línea fina, como el resto de secciones. */
 .filters {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--grid-gap);
   margin-bottom: var(--section-gap);
-  padding: var(--card-pad);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  padding-block: var(--card-pad);
+  border-top: var(--border-width) solid var(--border);
 }
 
 .filters__field {
@@ -97,6 +96,6 @@
 
 @media (max-width: 20rem) {
   .filters {
-    padding: var(--space-3);
+    padding-block: var(--space-3);
   }
 }

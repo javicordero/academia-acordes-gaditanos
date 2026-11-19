@@ -7,11 +7,15 @@
   --lib-card-width: 375px;
 }
 
-/* Superficie de aviso y resumen comparten base; solo cambia su contenido. */
-.notice, .library__summary {
+/* Solo el aviso es caja; el resumen se integra con espacio y línea fina. */
+:is(.notice, .library__summary) {
   margin: 0 0 var(--section-gap);
+}
+
+.notice {
   padding: var(--space-4);
   border: var(--border-width) solid var(--border);
+  border-left: calc(var(--border-width) * 5) solid var(--accent);
   border-radius: var(--radius-md);
   background: var(--surface);
 }
@@ -23,10 +27,6 @@
 
 .library__header {
   margin-bottom: var(--section-gap);
-}
-
-.notice {
-  border-left: calc(var(--border-width) * 5) solid var(--accent);
 }
 
 .notice--alert {
@@ -47,6 +47,8 @@
 }
 
 .library__summary {
+  padding-block: var(--card-pad);
+  border-top: var(--border-width) solid var(--border);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(8rem, 16rem);
   align-items: center;
@@ -251,11 +253,5 @@
   .course-card {
     width: 100%;
     max-width: 330px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .action {
-    transition: none;
   }
 }

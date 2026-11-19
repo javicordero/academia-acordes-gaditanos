@@ -50,6 +50,15 @@ async function render(fixture: ReturnType<typeof setup>['fixture']) {
 }
 
 describe('MisCursos', () => {
+  it('muestra el antetítulo de biblioteca junto al título Mis cursos', async () => {
+    const { fixture } = setup();
+    await render(fixture);
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.library__header .eyebrow')?.textContent?.trim()).toBe('Tu biblioteca');
+    expect(root.querySelector('h1')?.textContent?.trim()).toBe('Mis cursos');
+  });
+
   it('muestra tarjetas con progreso accesible y enlaces de curso y aula', async () => {
     const { fixture, text } = setup({ load: vi.fn().mockResolvedValue(library([card('c', { summary: 'Resumen' })])) });
     await render(fixture);
@@ -616,5 +625,15 @@ describe('MisCursos — biblioteca en rejilla', () => {
     expect(styles).toMatch(/aspect-ratio:\s*16\s*\/\s*9/);
     expect(styles).toContain('max-width: 330px');
     expect(styles).not.toContain('--lib-gap:');
+  });
+
+  it('el resumen no es una card: espacio y línea fina, sin caja ni radio', () => {
+    const styles = readFileSync('src/app/features/mis-cursos/mis-cursos.scss', 'utf8');
+    const summary = styles.match(/\.library__summary\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(summary).toContain('border-top: var(--border-width) solid var(--border)');
+    expect(summary).not.toContain('background: var(--surface)');
+    expect(summary).not.toContain('border-radius');
+    const notice = styles.match(/\.notice\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(notice).toContain('background: var(--surface)');
   });
 });

@@ -21,37 +21,40 @@
             <time class="comment-date" [attr.datetime]="node.post.createdAt">{{ formatDate(node.post.createdAt) }}</time>
           </header>
           <p class="comment-body">{{ node.post.body }}</p>
-          <button type="button" class="reply-button"
-            [attr.aria-label]="'Responder a ' + node.post.authorDisplayName"
-            (click)="startReply(node.post.id)">Responder</button>
 
-          @if (canModerate()) {
-            <div class="moderation">
+          <!-- Una sola fila de acciones: «Eliminar» queda justo al lado de «Responder». -->
+          <div class="comment-actions-row">
+            <button type="button" class="reply-button"
+              [attr.aria-label]="'Responder a ' + node.post.authorDisplayName"
+              (click)="startReply(node.post.id)">Responder</button>
+            @if (canModerate()) {
               <button type="button" class="delete-button"
                 [attr.data-comment-id]="node.post.id"
                 [attr.aria-label]="'Eliminar comentario de ' + node.post.authorDisplayName"
                 [disabled]="deletingId() !== null"
                 (click)="requestDelete(node.post.id, $event)">Eliminar</button>
+            }
+          </div>
 
-              @if (confirmingDeleteId() === node.post.id) {
-                <div class="delete-confirm" (keydown.escape)="onDeleteEscape($event)">
-                  <p class="delete-confirm__prompt">{{ deleteConfirmText() }}</p>
-                  @if (deleteWarningFor(node)) {
-                    <p class="delete-confirm__warning">{{ deleteWarningFor(node) }}</p>
-                  }
-                  <div class="delete-confirm__actions">
-                    <button type="button" class="delete-button delete-button--confirm"
-                      [attr.data-comment-id]="node.post.id"
-                      [attr.data-delete-confirm]="node.post.id"
-                      [disabled]="deletingId() !== null"
-                      (click)="confirmDelete(node.post.id)">{{ deleteConfirmButtonText() }}</button>
-                    <button type="button" class="comments-button comments-button--quiet"
-                      [disabled]="deletingId() !== null"
-                      (click)="cancelDelete($event)">{{ deleteCancelButtonText() }}</button>
-                  </div>
+          @if (canModerate()) {
+            @if (confirmingDeleteId() === node.post.id) {
+              <div class="delete-confirm" (keydown.escape)="onDeleteEscape($event)">
+                <p class="delete-confirm__prompt">{{ deleteConfirmText() }}</p>
+                @if (deleteWarningFor(node)) {
+                  <p class="delete-confirm__warning">{{ deleteWarningFor(node) }}</p>
+                }
+                <div class="delete-confirm__actions">
+                  <button type="button" class="delete-button delete-button--confirm"
+                    [attr.data-comment-id]="node.post.id"
+                    [attr.data-delete-confirm]="node.post.id"
+                    [disabled]="deletingId() !== null"
+                    (click)="confirmDelete(node.post.id)">{{ deleteConfirmButtonText() }}</button>
+                  <button type="button" class="comments-button comments-button--quiet"
+                    [disabled]="deletingId() !== null"
+                    (click)="cancelDelete($event)">{{ deleteCancelButtonText() }}</button>
                 </div>
-              }
-            </div>
+              </div>
+            }
           }
         </article>
 

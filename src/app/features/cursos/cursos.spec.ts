@@ -230,10 +230,19 @@ describe('Catálogo', () => {
   });
 
   it('gobierna la geometría de filtros y rejilla con tokens de tema', () => {
-    for (const token of ['--section-gap', '--grid-gap', '--card-pad', '--border-width', '--radius-sm', '--radius-md']) {
+    for (const token of ['--section-gap', '--grid-gap', '--card-pad', '--border-width', '--radius-sm']) {
       expect(cursosStyles).toContain(`var(${token}`);
     }
     expect(cursosStyles).not.toContain('--catalog-gap:');
+  });
+
+  it('los filtros no son una card: espacio y línea fina en lugar de caja, fondo y radio', () => {
+    const rules = cursosStyles.match(/\.filters\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(rules).toContain('padding-block: var(--card-pad)');
+    expect(rules).toContain('border-top: var(--border-width) solid var(--border)');
+    expect(rules).not.toContain('background: var(--surface)');
+    expect(rules).not.toContain('border-radius');
+    expect(rules).not.toContain('border: var(--border-width)');
   });
 
   it('no añade precios, profesor ni testimonios al catálogo', async () => {

@@ -440,4 +440,15 @@ describe('Ficha de curso', () => {
     // Accesibilidad táctil: no depende del tema.
     expect(styles).toContain('min-height: 44px');
   });
+
+  it('hechos y temario usan líneas finas en lugar de tarjetas', () => {
+    const styles = readFileSync('src/app/features/cursos/course-detail/course-detail.scss', 'utf8');
+    const facts = styles.match(/\.fact-card\s*\{[^}]*\}/)?.[0] ?? '';
+    const syllabus = styles.match(/\.syllabus__block\s*\{[^}]*\}/)?.[0] ?? '';
+    for (const rules of [facts, syllabus]) {
+      expect(rules).toContain('border-top: var(--border-width) solid var(--border)');
+      expect(rules).not.toContain('background: var(--surface)');
+      expect(rules).not.toContain('border-radius');
+    }
+  });
 });

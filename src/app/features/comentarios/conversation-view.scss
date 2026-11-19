@@ -62,12 +62,6 @@ h2 {
   background: var(--bg);
 }
 
-/* El foco llega aquí de forma programática tras publicar. */
-.comment:focus {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
-
 .comment-meta {
   display: flex;
   flex-wrap: wrap;
@@ -80,17 +74,19 @@ h2 {
   font-weight: 650;
 }
 
-/* Texto + forma (borde, estrella y pastilla): no depende solo del color. */
+/* Texto + forma (estrella, «Administrador» y pastilla): no depende solo del color.
+   Fondo de acento + --accent-ink: legible en el tema claro sin usar --admin-warn-text
+   (off-white sobre surface claro, contraste insuficiente). */
 .comment-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   min-height: 26px;
   padding: 0.1rem 0.55rem;
-  border: 1px dashed var(--accent);
+  border: 1px solid var(--accent);
   border-radius: 999px;
-  background: var(--admin-warn-surface);
-  color: var(--admin-warn-text);
+  background: var(--accent);
+  color: var(--accent-ink);
   font-size: 0.8rem;
   font-weight: 700;
 }
@@ -145,6 +141,13 @@ textarea {
   gap: 0.5rem;
 }
 
+/* Fila única de acciones: flex sin wrap para que «Eliminar» no salte de línea. */
+.comment-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .comments-button,
 .reply-button,
 .delete-button {
@@ -152,25 +155,48 @@ textarea {
   align-items: center;
   justify-content: center;
   min-height: 44px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.comments-button {
   padding: 0.5rem 0.9rem;
   border: 1px solid var(--accent);
   border-radius: 8px;
   background: var(--accent);
   color: var(--accent-ink);
-  font: inherit;
   font-weight: 650;
-  cursor: pointer;
+}
+
+/* «Responder» y «Eliminar» comparten el patrón de enlace de texto: sin caja,
+   borde, radio ni sombra, con tipografía pequeña del cuerpo. Conservan el
+   objetivo táctil de 44px y el foco visible sin parecer botones. */
+.reply-button,
+.delete-button {
+  padding: 0.25rem 0.35rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.9rem;
+  text-decoration: none;
 }
 
 .reply-button {
-  background: transparent;
   color: var(--accent);
 }
 
-/* Moderación en línea: sin diálogos del navegador. */
-.moderation { margin-top: 0.5rem; }
-.delete-button { border-color: var(--admin-danger); background: transparent; color: var(--admin-danger-text); }
-.delete-button--confirm { background: var(--admin-danger); color: var(--surface); }
+/* Rojo --danger (#a53a43): ~6,4:1 sobre #ffffff y ~6,2:1 sobre #fffdf8 (≥4,5:1).
+   --admin-danger-text no sirve: en Línea precisa resuelve a #ffffff (invisible). */
+.delete-button {
+  color: var(--danger, #a53a43);
+}
+
+/* Realce sin subrayado: el foco sigue siendo el anillo --focus de más abajo. */
+.reply-button:hover,
+.delete-button:hover {
+  filter: brightness(0.92);
+}
 
 .delete-confirm {
   margin-top: 0.5rem;
@@ -192,11 +218,6 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-}
-
-.conversation:focus {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
 }
 
 .comments-button--quiet {
@@ -232,6 +253,9 @@ textarea {
   color: var(--admin-success-text);
 }
 
+/* Foco visible: teclado y foco programático tras publicar (mismo anillo). */
+.comment:focus,
+.conversation:focus,
 :is(button, textarea, .comment[tabindex]):focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;

@@ -1,0 +1,49 @@
+<article class="favorites" aria-labelledby="favorites-title"
+  [attr.aria-busy]="state() === 'loading' && !signedOut() ? 'true' : null">
+  <header class="favorites__header">
+    <h1 id="favorites-title">Mis favoritos</h1>
+    <p>Las lecciones que has guardado para volver a ellas.</p>
+  </header>
+
+  @if (signedOut()) {
+    <p class="favorites__notice">Inicia sesión para consultar tus favoritos.</p>
+    <a class="action action--primary" routerLink="/auth/login">Iniciar sesión</a>
+  } @else {
+    @switch (state()) {
+      @case ('loading') {
+        <app-skeleton variant="list" ariaLabel="Cargando tus favoritos…" />
+      }
+      @case ('error') {
+        <div class="favorites__notice favorites__notice--alert">
+          <p role="alert">No se han podido cargar tus favoritos.</p>
+          <button type="button" class="action action--secondary" (click)="retry()" [disabled]="retrying()">
+            {{ retrying() ? 'Reintentando…' : 'Reintentar' }}
+          </button>
+        </div>
+      }
+      @case ('empty') {
+        <p class="favorites__notice">Todavía no has guardado ninguna lección.</p>
+        <a class="action action--primary" routerLink="/cursos">Ver catálogo</a>
+      }
+      @case ('ready') {
+        @for (group of groups(); track group.courseId) {
+          <section class="favorites__course" [attr.aria-labelledby]="'favoritos-' + group.courseId">
+            <h2 [id]="'favoritos-' + group.courseId">{{ group.courseTitle }}</h2>
+            <ul class="favorites__lessons">
+              @for (favorite of group.lessons; track favorite.lessonId) {
+                <li class="favorites__lesson">
+                  <a [routerLink]="['/aula', favorite.courseSlug, favorite.lessonSlug]">
+                    <span class="favorites__lesson-title">{{ favorite.lessonTitle }}</span>
+                    @if (favorite.sectionTitle) {
+                      <span class="favorites__lesson-section">{{ favorite.sectionTitle }}</span>
+                    }
+                  </a>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      }
+    }
+  }
+</article>

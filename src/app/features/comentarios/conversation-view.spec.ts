@@ -55,6 +55,15 @@ describe('Vista compartida de conversación', () => {
     fixture.detectChanges();
   }
 
+  /** CSS emulado inyectado por Angular, normalizado para consultar reglas declaradas. */
+  function styleText(): string {
+    return [...document.querySelectorAll('style')]
+      .map((s) => s.textContent ?? '')
+      .join('\n')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function buttonWith(label: string): HTMLButtonElement {
     return [...root.querySelectorAll('button')].find((b) => b.textContent?.trim() === label)!;
   }
@@ -432,6 +441,191 @@ describe('Vista compartida de conversación', () => {
     expect(root.querySelector('textarea')?.getAttribute('placeholder')).toBe('Escribe tu respuesta');
     expect(buttonWith('Publicar respuesta')).toBeInstanceOf(HTMLButtonElement);
     expect(root.querySelector('section')?.getAttribute('aria-labelledby')).toBe(fixture.componentInstance.headingId);
+  });
+
+  describe('distintivo de administrador', () => {
+    /** Solo las reglas declaradas para .comment-badge (con el sufijo emulado de Angular). */
+    function badgeRules(): string {
+      return (styleText().match(/\.comment-badge\[[^\]]*\][^{]*\{[^}]*\}/g) ?? []).join('\n');
+    }
+
+    async function seedAdmin(): Promise<HTMLElement> {
+      list.mockResolvedValueOnce([makeRow({ authorDisplayName: 'Admin', authorIsAdmin: true })]);
+      await settle();
+      const badge = root.querySelector<HTMLElement>('.comment-badge')!;
+      expect(badge).toBeInstanceOf(HTMLElement);
+      return badge;
+    }
+
+    it('muestra la estrella y el texto «Administrador» con un aria-label accesible', async () => {
+      const badge = await seedAdmin();
+      expect(badge.getAttribute('role')).toBe('img');
+      expect(badge.getAttribute('aria-label')).toBe('Distintivo de administrador');
+      expect(badge.textContent).toContain('Administrador');
+
+      const icon = badge.querySelector<HTMLElement>('.comment-badge__icon')!;
+      expect(icon.textContent?.trim()).toBe('★');
+      expect(icon.getAttribute('aria-hidden')).toBe('true');
+      expect([...badge.querySelectorAll('[aria-hidden="true"]')].map((el) => el.textContent?.trim()))
+        .toEqual(['★', 'Administrador']);
+    });
+
+    it('declara fondo y borde de acento con texto --accent-ink legible', async () => {
+      await seedAdmin();
+      const rules = badgeRules();
+      expect(rules).toContain('border: 1px solid var(--accent);');
+      expect(rules).toContain('background: var(--accent);');
+      expect(rules).toContain('color: var(--accent-ink);');
+      // Forma y peso refuerzan el distintivo sin depender solo del color.
+      expect(rules).toContain('display: inline-flex;');
+      expect(rules).toContain('border-radius: 999px;');
+      expect(rules).toContain('font-weight: 700;');
+      // Se evita la combinación anterior (texto off-white sobre surface claro).
+      expect(rules).not.toContain('--admin-warn-text');
+      expect(rules).not.toContain('--admin-warn-surface');
+      // No se confunde con «Responder» (enlace transparente) ni «Eliminar» (peligro).
+      expect(rules).not.toContain('background: transparent;');
+      expect(rules).not.toContain('var(--admin-danger');
+      // El anillo de foco accesible permanece declarado.
+      expect(styleText()).toContain('outline: 3px solid var(--focus)');
+    });
+  });
+
+  describe('«Responder» con aspecto de enlace de texto', () => {
+    /** Solo las reglas declaradas para .reply-button (no la caja de los botones). */
+    function replyRules(): string {
+      return (styleText().match(/\.reply-button\[[^\]]*\][^{]*\{[^}]*\}/g) ?? []).join('\n');
+    }
+
+    async function seedOne(): Promise<HTMLButtonElement> {
+      list.mockResolvedValueOnce([makeRow({ authorDisplayName: 'Raíz' })]);
+      await settle();
+      const button = replyButtonFor('Raíz');
+      expect(button).toBeInstanceOf(HTMLButtonElement);
+      return button;
+    }
+
+    it('no muestra caja, borde ni sombra; usa el color de acento y mantiene 44px de objetivo', async () => {
+      const button = await seedOne();
+      expect(button.tagName).toBe('BUTTON');
+      expect(button.getAttribute('type')).toBe('button');
+      expect(button.getAttribute('aria-label')).toBe('Responder a Raíz');
+
+      const css = getComputedStyle(button);
+      expect(css.borderStyle).toBe('none');
+      expect(css.borderWidth).toBe('0px');
+      expect(css.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+      expect(css.boxShadow).toBe('none');
+      expect(css.color).toBe('var(--accent)');
+      expect(css.minHeight).toBe('44px');
+    });
+
+    it('declara enlace sin caja ni subrayado, con realce en hover y foco por outline', async () => {
+      await seedOne();
+      const rules = replyRules();
+      expect(rules).toContain('border: 0;');
+      expect(rules).toContain('border-radius: 0;');
+      expect(rules).toContain('background: transparent;');
+      expect(rules).toContain('box-shadow: none;');
+      expect(rules).toContain('color: var(--accent);');
+      expect(rules).toContain('font: inherit;');
+      expect(rules).toContain('text-decoration: none;');
+      expect(rules).not.toContain('border: 1px');
+      expect(rules).not.toMatch(/text-decoration:\s*underline/);
+      expect(rules).toMatch(/:hover[^{]*\{[^}]*filter:\s*brightness\(0\.92\)/);
+      // El foco visible con --focus sigue declarado para todos los botones.
+      expect(styleText()).toContain('outline: 3px solid var(--focus)');
+    });
+
+    it('sigue abriendo el editor con el foco y sin perder el aria-label', async () => {
+      const button = await seedOne();
+      button.click();
+      await settle();
+      const textarea = root.querySelector<HTMLTextAreaElement>(`[id="${fixture.componentInstance.replyInputId}"]`)!;
+      expect(document.activeElement).toBe(textarea);
+      expect(root.querySelector(`label[for="${textarea.id}"]`)?.textContent).toContain('Responder a Raíz');
+      expect(replyButtonFor('Raíz').getAttribute('aria-label')).toBe('Responder a Raíz');
+    });
+  });
+
+  describe('«Eliminar» como enlace rojo junto a «Responder»', () => {
+    async function seedModerator(): Promise<{ reply: HTMLButtonElement; del: HTMLButtonElement }> {
+      fixture.componentRef.setInput('canModerate', true);
+      list.mockResolvedValueOnce([makeRow({ authorDisplayName: 'Raíz' })]);
+      await settle();
+      return { reply: replyButtonFor('Raíz'), del: deleteButtonFor('Raíz') };
+    }
+
+    function deleteRules(): string {
+      return (styleText().match(/\.delete-button\[[^\]]*\][^{]*\{[^}]*\}/g) ?? []).join('\n');
+    }
+
+    it('comparte el contenedor flex con «Responder», sin salto de línea', async () => {
+      const { reply, del } = await seedModerator();
+      expect(del).toBeInstanceOf(HTMLButtonElement);
+      expect(del.parentElement).toBe(reply.parentElement);
+      expect(del.parentElement?.classList.contains('comment-actions-row')).toBe(true);
+      expect(reply.parentElement?.querySelectorAll('button')).toHaveLength(2);
+
+      const row = (styleText().match(/\.comment-actions-row\[[^\]]*\][^{]*\{[^}]*\}/g) ?? []).join('\n');
+      expect(row).toContain('display: flex;');
+      expect(row).toContain('gap: 0.5rem;');
+      expect(row).not.toContain('flex-wrap');
+    });
+
+    it('es un enlace rojo sin caja, borde ni sombra, con 44px y su aria-label', async () => {
+      const { del } = await seedModerator();
+      expect(del.tagName).toBe('BUTTON');
+      expect(del.getAttribute('type')).toBe('button');
+      expect(del.getAttribute('aria-label')).toBe('Eliminar comentario de Raíz');
+      expect(del.getAttribute('data-comment-id')).toBe(ROOT);
+
+      const css = getComputedStyle(del);
+      expect(css.borderStyle).toBe('none');
+      expect(css.borderWidth).toBe('0px');
+      expect(css.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+      expect(css.boxShadow).toBe('none');
+      expect(css.minHeight).toBe('44px');
+      expect(css.color).toBe('var(--danger, #a53a43)');
+
+      const rules = deleteRules();
+      expect(rules).toContain('border: 0;');
+      expect(rules).toContain('border-radius: 0;');
+      expect(rules).toContain('background: transparent;');
+      expect(rules).toContain('box-shadow: none;');
+      expect(rules).toContain('font-size: 0.9rem;');
+      expect(rules).toContain('color: var(--danger, #a53a43);');
+      expect(rules).toContain('font: inherit;');
+      expect(rules).not.toContain('border: 1px');
+      expect(rules).not.toMatch(/text-decoration:\s*underline/);
+      expect(rules).toMatch(/:hover[^{]*\{[^}]*filter:\s*brightness\(0\.92\)/);
+      // El anillo de foco accesible sigue declarado para todos los botones.
+      expect(styleText()).toContain('outline: 3px solid var(--focus)');
+    });
+
+    it('conserva el paso de confirmación como enlace rojo y no borra por error', async () => {
+      const { del } = await seedModerator();
+      expect(remove).not.toHaveBeenCalled();
+      del.click();
+      await settle();
+      const confirm = confirmButton();
+      expect(confirm).toBeInstanceOf(HTMLButtonElement);
+      expect(confirm.classList.contains('delete-button--confirm')).toBe(true);
+      expect(confirm.getAttribute('data-delete-confirm')).toBe(ROOT);
+      expect(remove).not.toHaveBeenCalled();
+
+      const css = getComputedStyle(confirm);
+      expect(css.borderStyle).toBe('none');
+      expect(css.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+      expect(css.color).toBe('var(--danger, #a53a43)');
+      expect(css.minHeight).toBe('44px');
+
+      buttonWith('Cancelar').click();
+      await settle();
+      expect(root.querySelector('.delete-confirm')).toBeNull();
+      expect(document.activeElement).toBe(del);
+      expect(remove).not.toHaveBeenCalled();
+    });
   });
 
   describe('moderación en la vista compartida', () => {
