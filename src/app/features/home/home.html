@@ -40,11 +40,12 @@
     </ul>
   </section>
 
-  <section class="home-section" data-section="cursos" aria-labelledby="home-cursos">
+  <section class="home-section" data-section="cursos" aria-labelledby="home-cursos"
+    [attr.aria-busy]="state() === 'loading' ? 'true' : null">
     <h2 id="home-cursos">Cursos</h2>
     @switch (state()) {
       @case ('loading') {
-        <p role="status">Cargando cursos…</p>
+        <app-skeleton variant="card" ariaLabel="Cargando cursos…" />
       }
       @case ('unavailable') {
         <p>El catálogo necesita configurar la conexión con Supabase.</p>

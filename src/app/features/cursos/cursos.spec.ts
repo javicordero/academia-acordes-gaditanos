@@ -181,6 +181,28 @@ describe('Catálogo', () => {
     expect(document.activeElement).not.toBe(search);
   });
 
+  it('sustituye el texto de carga por un esqueleto con un único aviso accesible', async () => {
+    let resolveList!: (value: PublicCourse[]) => void;
+    const pending = new Promise<PublicCourse[]>((resolve) => { resolveList = resolve; });
+    TestBed.configureTestingModule({ imports: [Cursos], providers: [
+      provideRouter([]),
+      { provide: SUPABASE_CONFIG, useValue: { url: '', publishableKey: '', checkoutTestEnabled: false } },
+      { provide: PublicCoursesRepository, useValue: { list: vi.fn().mockReturnValue(pending) } },
+    ] });
+    const fixture = TestBed.createComponent(Cursos);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('card');
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Cargando cursos');
+    expect(root.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('[autofocus]')).toBeNull();
+    resolveList([]);
+    await pending;
+    await fixture.whenStable();
+    fixture.detectChanges();
+  });
+
   it('mantiene los roles de estado y el objetivo táctil del reintento', async () => {
     let resolveList!: (value: PublicCourse[]) => void;
     const pending = new Promise<PublicCourse[]>((resolve) => { resolveList = resolve; });
@@ -205,6 +227,13 @@ describe('Catálogo', () => {
     expect(cursosStyles).toMatch(/@media\s*\(min-width:\s*48rem\)[\s\S]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
     expect(cursosStyles).toMatch(/@media\s*\(min-width:\s*64rem\)[\s\S]*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
     expect(cursosStyles).toContain('--catalog-field-min: 44px');
+  });
+
+  it('gobierna la geometría de filtros y rejilla con tokens de tema', () => {
+    for (const token of ['--section-gap', '--grid-gap', '--card-pad', '--border-width', '--radius-sm', '--radius-md']) {
+      expect(cursosStyles).toContain(`var(${token}`);
+    }
+    expect(cursosStyles).not.toContain('--catalog-gap:');
   });
 
   it('no añade precios, profesor ni testimonios al catálogo', async () => {

@@ -1,10 +1,12 @@
-/* Estilos locales de la portada: solo tokens globales, sin marcas externas. */
+/* Estilos locales de la portada: solo tokens globales, sin marcas externas.
+   La geometría (espacios, tarjetas, radios y bordes) viene de los tokens de tema;
+   los valores de reserva solo mantienen la maquetación si el tema aún no carga. */
 :host {
   display: block;
 }
 
 .home {
-  width: min(100%, 70rem);
+  width: min(100%, var(--content-max-width));
   margin-inline: auto;
 }
 
@@ -14,10 +16,10 @@
 }
 
 .home-banner {
-  margin: 0 0 clamp(1.25rem, 3vw, 2rem);
-  padding: 0.5rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  margin: 0 0 var(--space-5);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--muted);
   font-size: 0.85rem;
@@ -27,7 +29,7 @@
 .home-hero {
   display: grid;
   grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
-  gap: clamp(1.5rem, 4vw, 3rem);
+  gap: var(--section-gap);
   align-items: center;
 }
 
@@ -37,7 +39,7 @@
 }
 
 .home-eyebrow {
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
   color: var(--accent);
   font-size: 0.75rem;
   font-weight: 700;
@@ -54,8 +56,8 @@
 .home-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 1rem;
-  margin-top: 1.25rem;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
 }
 
 .home-button {
@@ -64,9 +66,9 @@
   justify-content: center;
   min-height: 44px;
   max-width: 100%;
-  padding: 0.6rem 1rem;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-md);
   font-weight: 650;
   text-align: center;
   text-decoration: none;
@@ -93,8 +95,8 @@
 .home-visual {
   position: relative;
   min-height: clamp(12rem, 26vw, 18rem);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
   overflow: hidden;
 }
@@ -114,7 +116,7 @@
   position: absolute;
   inset-inline: 0;
   bottom: 0;
-  padding: 0.75rem;
+  padding: var(--space-3);
   background: var(--surface);
   color: var(--muted);
   font-size: 0.85rem;
@@ -122,7 +124,7 @@
 }
 
 .home-section {
-  margin-block: clamp(2rem, 5vw, 3.25rem);
+  margin-block: var(--section-gap);
 }
 
 .home-section > h2 {
@@ -138,51 +140,51 @@
 .home-prepared {
   max-width: 62ch;
   margin: 0;
-  padding: 1rem 1.15rem;
-  border: 1px dashed var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius);
+  padding: var(--space-4) var(--space-4);
+  border: var(--border-width) dashed var(--border);
+  border-left: calc(var(--border-width) * 3) solid var(--accent);
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--muted);
 }
 
 .home-list,
 .home-steps {
-  margin: 1rem 0 0;
-  padding-left: 1.4rem;
+  margin: var(--space-4) 0 0;
+  padding-left: var(--space-5);
 }
 
 .home-list li,
 .home-steps li {
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
   overflow-wrap: anywhere;
 }
 
 .home-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: 1rem;
-  margin: 1.25rem 0 0;
+  gap: var(--grid-gap);
+  margin: var(--space-4) 0 0;
   padding: 0;
   list-style: none;
 }
 
 .home-card {
   min-width: 0;
-  padding: 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: var(--card-pad);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
   overflow-wrap: anywhere;
 }
 
 .home-card__title {
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }
 
 .home-card__meta,
 .home-card__slug {
-  margin-bottom: 0.35rem;
+  margin-bottom: var(--space-1);
   color: var(--muted);
   font-size: 0.85rem;
 }
@@ -192,9 +194,9 @@
 }
 
 .home-cta {
-  padding: clamp(1.25rem, 3vw, 2rem);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: var(--card-pad);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 

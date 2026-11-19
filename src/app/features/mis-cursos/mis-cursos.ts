@@ -26,10 +26,11 @@ import {
   checkoutDelayMs,
 } from './mis-cursos-checkout';
 import { MisCursosCheckoutRepository } from './mis-cursos-checkout-repository';
+import { SkeletonBlock } from '../../shared/skeleton/skeleton';
 
 @Component({
   selector: 'app-mis-cursos',
-  imports: [RouterLink],
+  imports: [RouterLink, SkeletonBlock],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './mis-cursos.html',
   styleUrl: './mis-cursos.scss',

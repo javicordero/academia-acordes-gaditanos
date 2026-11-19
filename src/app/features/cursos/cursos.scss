@@ -1,12 +1,12 @@
 :host {
-  /* Maquetación provisional del catálogo: geometría y orden, sin decisiones de marca. */
-  --catalog-gap: clamp(1rem, 2.5vw, 1.75rem);
+  /* Maquetación provisional del catálogo: la geometría la fijan los tokens de tema.
+     --catalog-field-min se conserva: es el objetivo táctil mínimo (44px), no estética. */
   --catalog-field-min: 44px;
 }
 
 .catalog-header {
   max-width: 46rem;
-  margin-bottom: var(--catalog-gap);
+  margin-bottom: var(--section-gap);
 }
 
 .checkout-notice {
@@ -24,17 +24,17 @@
 .filters {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--catalog-gap);
-  margin-bottom: var(--catalog-gap);
-  padding: var(--catalog-gap);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  gap: var(--grid-gap);
+  margin-bottom: var(--section-gap);
+  padding: var(--card-pad);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
 .filters__field {
   display: grid;
-  gap: 0.35rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -46,9 +46,9 @@
   width: 100%;
   min-width: 0;
   min-height: var(--catalog-field-min);
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--ink);
   font: inherit;
@@ -61,7 +61,7 @@
 .cards {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--catalog-gap);
+  gap: var(--grid-gap);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -97,6 +97,6 @@
 
 @media (max-width: 20rem) {
   .filters {
-    padding: 0.75rem;
+    padding: var(--space-3);
   }
 }

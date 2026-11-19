@@ -2,13 +2,14 @@ import { Component, ChangeDetectionStrategy, computed, inject, signal } from '@a
 
 import { CHECKOUT_TEST_NOTICE } from '../../core/checkout/checkout';
 import { CourseCard } from '../../shared/course-card/course-card';
+import { SkeletonBlock } from '../../shared/skeleton/skeleton';
 import { SUPABASE_CONFIG } from '../../../environments/supabase-config';
 import { PublicCourse, PublicCoursesRepository, levelLabels } from './public-courses-repository';
 
 @Component({
   selector: 'app-cursos',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CourseCard],
+  imports: [CourseCard, SkeletonBlock],
   templateUrl: './cursos.html',
   styleUrl: './cursos.scss',
 })

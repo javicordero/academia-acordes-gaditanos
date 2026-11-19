@@ -1,4 +1,5 @@
-﻿import { signal } from '@angular/core';
+﻿import { readFileSync } from 'node:fs';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
@@ -86,6 +87,20 @@ describe('MisCursos', () => {
     fixture.detectChanges();
     expect(text()).toContain('Inicia sesión');
     expect(text()).not.toContain('Privado anterior');
+  });
+
+  it('muestra un esqueleto accesible y aria-busy mientras carga la biblioteca', async () => {
+    let resolve!: (value: Library) => void;
+    const load = vi.fn().mockReturnValue(new Promise<Library>(r => { resolve = r; }));
+    const { fixture, text } = setup({ load });
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('card');
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(text()).toContain('Cargando tus cursos');
+    expect(root.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('article.library')?.getAttribute('aria-busy')).toBe('true');
+    resolve(library([]));
   });
 
   it('un TOKEN_REFRESHED con el mismo usuario no repite consultas ni pierde la biblioteca', async () => {
@@ -591,5 +606,15 @@ describe('MisCursos — biblioteca en rejilla', () => {
     }
     expect(root.querySelector('.library__summary-track')?.getAttribute('role')).toBe('progressbar');
     expect(root.querySelector('.library__banner')).toBeNull();
+  });
+
+  it('gobierna la biblioteca con tokens geométricos de tema sin perder 16:9 ni el ancho de tarjeta', () => {
+    const styles = readFileSync('src/app/features/mis-cursos/mis-cursos.scss', 'utf8');
+    for (const token of ['--content-max-width', '--section-gap', '--grid-gap', '--card-pad', '--card-gap', '--border-width', '--radius-md']) {
+      expect(styles).toContain(`var(${token}`);
+    }
+    expect(styles).toMatch(/aspect-ratio:\s*16\s*\/\s*9/);
+    expect(styles).toContain('max-width: 330px');
+    expect(styles).not.toContain('--lib-gap:');
   });
 });

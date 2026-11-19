@@ -1,4 +1,5 @@
-﻿<article class="library" aria-labelledby="mis-cursos-title">
+﻿<article class="library" aria-labelledby="mis-cursos-title"
+  [attr.aria-busy]="state() === 'loading' ? 'true' : null">
   @if (visibleCheckout(); as returnState) {
     <div class="library__banner notice"
       [class.notice--alert]="returnState.kind === 'notavailable' || returnState.kind === 'error'">
@@ -49,7 +50,7 @@
     @case ('authenticated') {
       @switch (state()) {
         @case ('loading') {
-          <p role="status" class="library__status">Cargando tus cursos…</p>
+          <app-skeleton variant="card" ariaLabel="Cargando tus cursos…" />
         }
         @case ('error') {
           <div class="notice notice--alert library__status">

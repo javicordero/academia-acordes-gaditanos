@@ -1,4 +1,5 @@
-﻿import { TestBed } from '@angular/core/testing';
+﻿import { readFileSync } from 'node:fs';
+import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { signal } from '@angular/core';
@@ -75,6 +76,22 @@ describe('Ficha de curso', () => {
       const link = aulaLinks[index];
       expect(link).toBe(['/aula/ejemplo/muestra', '/aula/ejemplo/comprada'][index]);
     }
+  });
+
+  it('muestra un esqueleto accesible mientras carga la ficha', async () => {
+    const { repository } = setup();
+    let resolveDetail!: (value: typeof detail) => void;
+    repository.detail.mockReturnValue(new Promise(r => { resolveDetail = r; }));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/cursos/ejemplo', CourseDetail);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    const root = harness.routeNativeElement!;
+    expect(root.querySelector('app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('card');
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Cargando curso');
+    expect(root.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    resolveDetail(detail);
   });
 
   it('anónimo: sin «Ya tienes acceso» y sin peticiones a entitlements', async () => {
@@ -413,5 +430,14 @@ describe('Ficha de curso', () => {
       expect(root.querySelector(selector), selector).not.toBeNull();
     }
     expect(root.querySelectorAll('.lesson-index li').length).toBeGreaterThan(0);
+  });
+
+  it('gobierna secciones, tarjetas y botones con tokens geométricos de tema', () => {
+    const styles = readFileSync('src/app/features/cursos/course-detail/course-detail.scss', 'utf8');
+    for (const token of ['--content-max-width', '--section-gap', '--grid-gap', '--card-pad', '--card-gap', '--border-width', '--radius-md']) {
+      expect(styles).toContain(`var(${token}`);
+    }
+    // Accesibilidad táctil: no depende del tema.
+    expect(styles).toContain('min-height: 44px');
   });
 });

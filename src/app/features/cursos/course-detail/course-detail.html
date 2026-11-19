@@ -4,7 +4,7 @@
 }
 @switch (state()) {
   @case ('loading') {
-    <p role="status">Cargando curso…</p>
+    <app-skeleton variant="card" ariaLabel="Cargando curso…" />
   }
   @case ('unavailable') {
     <p>La ficha necesita configurar la conexión con Supabase.</p>

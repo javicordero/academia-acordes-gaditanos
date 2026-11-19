@@ -6,6 +6,7 @@ import {
   PublicCoursesRepository,
   levelLabels,
 } from '../cursos/public-courses-repository';
+import { SkeletonBlock } from '../../shared/skeleton/skeleton';
 
 interface PreviewLesson {
   readonly courseSlug: string;
@@ -21,7 +22,7 @@ interface PreviewLesson {
 @Component({
   selector: 'app-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink],
+  imports: [RouterLink, SkeletonBlock],
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })

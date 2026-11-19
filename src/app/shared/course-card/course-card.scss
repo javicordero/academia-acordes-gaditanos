@@ -1,6 +1,6 @@
 :host {
-  /* Maquetación provisional: se ajustará en el rediseño, sin tokens de marca nuevos. */
-  --card-pad: clamp(1rem, 2.5vw, 1.5rem);
+  /* El relleno de tarjeta lo fija el tema (--card-pad): no se redefine aquí para
+     que el cambio de tema se note sin recargar. El valor de reserva es solo eso. */
   --card-visual-height: clamp(7rem, 16vw, 10rem);
 
   display: block;
@@ -12,8 +12,8 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
@@ -21,7 +21,7 @@
   position: relative;
   min-height: var(--card-visual-height);
   overflow: hidden;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
   background: var(--bg);
 
   &::before {
@@ -39,11 +39,11 @@
   &::after {
     content: '';
     position: absolute;
-    inset-block-start: 1.25rem;
-    inset-inline-end: 1.25rem;
+    inset-block-start: var(--space-4);
+    inset-inline-end: var(--space-4);
     width: clamp(2.5rem, 6vw, 3.5rem);
     height: clamp(2.5rem, 6vw, 3.5rem);
-    border: 2px solid var(--accent);
+    border: calc(var(--border-width) * 2) solid var(--accent);
     border-radius: 50%;
     opacity: 0.35;
   }
@@ -53,7 +53,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: var(--card-gap);
   padding: var(--card-pad);
 }
 
@@ -79,7 +79,7 @@
 
 .card__actions {
   margin-top: auto;
-  padding-top: 0.8rem;
+  padding-top: var(--space-3);
 }
 
 .card__view {

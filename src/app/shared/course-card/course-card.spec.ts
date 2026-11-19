@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
@@ -95,5 +96,16 @@ describe('CourseCard', () => {
   it('omite el resumen cuando el curso no lo tiene', async () => {
     const fixture = await render(false, undefined, { ...curso, summary: null });
     expect((fixture.nativeElement as HTMLElement).querySelector('.card__summary')).toBeNull();
+  });
+
+  it('toma el relleno y la separación de la tarjeta de los tokens de tema', () => {
+    const styles = readFileSync('src/app/shared/course-card/course-card.scss', 'utf8');
+    expect(styles).toContain('padding: var(--card-pad');
+    expect(styles).toContain('gap: var(--card-gap');
+    expect(styles).toContain('var(--border-width');
+    expect(styles).toContain('var(--radius-md');
+    // No se redefine el token del tema dentro del componente.
+    expect(styles).not.toContain('--card-pad:');
+    expect(styles).toContain('min-height: 44px');
   });
 });

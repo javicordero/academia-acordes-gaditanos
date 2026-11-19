@@ -15,6 +15,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { SUPABASE_CONFIG } from '../../../../environments/supabase-config';
 import { AuthService } from '../../../core/auth/auth.service';
 import { CheckoutButton } from '../../../core/checkout/checkout-button';
+import { SkeletonBlock } from '../../../shared/skeleton/skeleton';
 import {
   CourseAccess,
   CourseDetail as Detail,
@@ -41,7 +42,7 @@ interface AccessAnswer {
 
 @Component({
   selector: 'app-course-detail',
-  imports: [RouterLink, NgTemplateOutlet, CheckoutButton],
+  imports: [RouterLink, NgTemplateOutlet, CheckoutButton, SkeletonBlock],
   templateUrl: './course-detail.html',
   styleUrl: './course-detail.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

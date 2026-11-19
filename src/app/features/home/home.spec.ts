@@ -47,6 +47,25 @@ describe('Portada', () => {
     expect(root.querySelectorAll('h1')).toHaveLength(1);
   });
 
+  it('muestra un esqueleto accesible mientras carga el catálogo', async () => {
+    let resolve!: (rows: PublicCourse[]) => void;
+    const fixture = setup({
+      list: vi.fn().mockReturnValue(new Promise<PublicCourse[]>(r => { resolve = r; })),
+      detail: noDetail(),
+    });
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('app-skeleton .skeleton')?.getAttribute('data-variant')).toBe('card');
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('Cargando cursos');
+    expect(root.querySelector('.skeleton__shapes')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('[autofocus]')).toBeNull();
+    resolve([]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(root.querySelector('app-skeleton')).toBeNull();
+  });
+
   it('muestra hasta tres cursos del repositorio sin precios inventados', async () => {
     const courses = [
       course('1', 'curso-uno', 'Curso uno'),
@@ -197,6 +216,10 @@ describe('Portada', () => {
     expect(styles).toContain('min-height:44px');
     expect(styles).toContain(':focus-visible');
     expect(styles).toContain('prefers-reduced-motion');
+    // Geometría gobernada por tokens de tema: cambia de tema sin recargar.
+    for (const token of ['--content-max-width', '--section-gap', '--grid-gap', '--card-pad', '--border-width', '--radius-md']) {
+      expect(styles).toContain(`var(${token}`);
+    }
   });
 
   it('distingue el catálogo no configurado de un catálogo vacío', async () => {

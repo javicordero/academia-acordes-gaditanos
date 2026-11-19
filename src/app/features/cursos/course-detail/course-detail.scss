@@ -1,10 +1,10 @@
 /* Maquetación de la ficha: ancho completo centrado, secciones apiladas, sin
-   barra lateral ni migas de pan. Los colores y la tipografía siguen siendo los
-   tokens provisionales del proyecto. */
+   barra lateral ni migas de pan. La geometría de contenedores, tarjetas y botones
+   usa los tokens de tema; los valores de reserva solo evitan saltos sin tema. */
 :host {
   display: block;
   width: 100%;
-  max-width: 75rem; /* ~1200px útiles; el shell ya centra el main. */
+  max-width: var(--content-max-width);
   margin-inline: auto;
   min-width: 0;
 }
@@ -15,32 +15,28 @@
 }
 
 .back-nav {
-  margin: 0 0 clamp(1rem, 3vw, 1.75rem);
-}
-
-.course-detail {
-  min-width: 0;
+  margin: 0 0 var(--section-gap);
 }
 
 .course-hero {
-  padding-block: clamp(1rem, 4vw, 2.5rem);
-  border-bottom: 1px solid var(--border);
+  padding-block: var(--section-gap);
+  border-bottom: var(--border-width) solid var(--border);
   min-width: 0;
 
   &__level {
-    margin: 0 0 .5rem;
+    margin: 0 0 var(--space-2);
     opacity: .85;
   }
 
   &__title {
-    margin: 0 0 .75rem;
+    margin: 0 0 var(--space-3);
     font-size: clamp(1.6rem, 4.5vw, 2.75rem);
     line-height: 1.15;
     overflow-wrap: anywhere;
   }
 
   &__summary {
-    margin: 0 0 1rem;
+    margin: 0 0 var(--space-4);
     font-size: clamp(1rem, 2vw, 1.2rem);
     line-height: 1.5;
     overflow-wrap: anywhere;
@@ -48,26 +44,26 @@
 }
 
 .checkout-return {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
-  padding: .75rem 1rem;
+  padding: var(--space-3) var(--space-4);
   overflow-wrap: anywhere;
 }
 
 .access-panel {
-  padding-block: 1rem;
+  padding-block: var(--space-4);
   min-width: 0;
 }
 
 .access-status {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
-  padding: 1rem;
+  padding: var(--card-pad);
   min-width: 0;
 
-  & + & { margin-top: .75rem; }
+  & + & { margin-top: var(--space-3); }
 
   &--granted { border-color: currentColor; }
   &--error { border-style: dashed; }
@@ -76,30 +72,30 @@
 }
 
 .section {
-  padding-block: clamp(1.25rem, 4vw, 2.25rem);
-  border-bottom: 1px solid var(--border);
+  padding-block: var(--section-gap);
+  border-bottom: var(--border-width) solid var(--border);
   min-width: 0;
 
   h2 {
-    margin: 0 0 .75rem;
+    margin: 0 0 var(--space-3);
     font-size: clamp(1.25rem, 3vw, 1.75rem);
     line-height: 1.2;
     overflow-wrap: anywhere;
   }
 
   h3 {
-    margin: 0 0 .5rem;
+    margin: 0 0 var(--space-2);
     font-size: 1.1rem;
     overflow-wrap: anywhere;
   }
 
-  &__intro { margin: 0 0 1rem; overflow-wrap: anywhere; }
+  &__intro { margin: 0 0 var(--space-4); overflow-wrap: anywhere; }
 }
 
 .placeholder {
-  border: 1px dashed var(--border);
-  border-left: 3px solid var(--accent);
-  padding: .85rem 1rem;
+  border: var(--border-width) dashed var(--border);
+  border-left: calc(var(--border-width) * 3) solid var(--accent);
+  padding: var(--space-3) var(--space-4);
   margin: 0;
   background: var(--surface);
   overflow-wrap: anywhere;
@@ -108,7 +104,7 @@
 .fact-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-  gap: .75rem;
+  gap: var(--grid-gap);
   list-style: none;
   padding: 0;
   margin: 0;
@@ -117,12 +113,12 @@
 .fact-card {
   display: flex;
   flex-direction: column;
-  gap: .25rem;
+  gap: var(--card-gap);
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
-  padding: .85rem;
+  padding: var(--card-pad);
 
   &__label { font-size: .9rem; opacity: .85; overflow-wrap: anywhere; }
   &__value { font-size: 1.25rem; font-weight: 700; overflow-wrap: anywhere; }
@@ -131,22 +127,22 @@
 .preview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  gap: 1rem;
+  gap: var(--grid-gap);
 }
 
 .preview-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1rem;
+  gap: var(--card-gap);
   align-items: stretch;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
-  padding: 1rem;
+  padding: var(--card-pad);
 
   &__text { min-width: 0; }
-  &__tag { margin: 0 0 .5rem; opacity: .85; }
+  &__tag { margin: 0 0 var(--space-2); opacity: .85; }
   &__media {
     display: flex;
     align-items: center;
@@ -154,26 +150,26 @@
     text-align: center;
     min-width: 0;
     min-height: 8rem;
-    padding: .75rem;
-    border: 1px dashed var(--border);
-    border-radius: var(--radius);
+    padding: var(--space-3);
+    border: var(--border-width) dashed var(--border);
+    border-radius: var(--radius-md);
     overflow-wrap: anywhere;
   }
 }
 
 .syllabus__block {
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
-  padding: 1rem;
-  margin-bottom: 1rem;
+  padding: var(--card-pad);
+  margin-bottom: var(--space-4);
 }
 
 .lesson-index {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: .5rem 1.25rem;
+  gap: var(--space-2) var(--space-4);
   list-style: none;
   padding: 0;
   margin: 0;
@@ -182,13 +178,13 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: .35rem;
+    gap: var(--space-1);
     min-width: 0;
   }
 }
 
 .cta {
-  margin-block: 1rem;
+  margin-block: var(--space-4);
 
   &__fallback { margin: 0; overflow-wrap: anywhere; }
 }
@@ -203,7 +199,7 @@
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  padding: .3rem .45rem;
+  padding: var(--space-1) var(--space-2);
 }
 
 :host :is(a, button, summary):focus-visible {
