@@ -1,0 +1,315 @@
+\set ON_ERROR_STOP on
+begin;
+-- Fixtures sintéticos: UUID y correos ficticios de example.invalid, sin PII.
+-- Admin, alumna con derecho, alumno sin derecho y alumna con derecho revocado;
+-- curso A publicado (lección de pago y muestra), curso B publicado sin derecho
+-- concedido y curso C en borrador (solo admin).
+insert into auth.users (id, email) values
+ ('c5000000-0000-0000-0000-000000000001', 'admin.fav@example.invalid'),
+ ('c5000000-0000-0000-0000-000000000002', 'alumna.fav@example.invalid'),
+ ('c5000000-0000-0000-0000-000000000003', 'sin.fav@example.invalid'),
+ ('c5000000-0000-0000-0000-000000000004', 'revocada.fav@example.invalid');
+insert into public.user_roles (user_id, role) values
+ ('c5000000-0000-0000-0000-000000000001', 'admin');
+insert into public.courses (id, slug, title, status, published_at) values
+ ('d5000000-0000-0000-0000-000000000001', 'fav-curso-a', 'Curso A de favoritos', 'published', now()),
+ ('d5000000-0000-0000-0000-000000000002', 'fav-curso-b', 'Curso B de favoritos', 'published', now()),
+ ('d5000000-0000-0000-0000-000000000003', 'fav-curso-c', 'Curso C borrador', 'draft', null);
+insert into public.course_sections (id, course_id, title, position) values
+ ('e5000000-0000-0000-0000-000000000001', 'd5000000-0000-0000-0000-000000000001', 'Bloque A', 0),
+ ('e5000000-0000-0000-0000-000000000002', 'd5000000-0000-0000-0000-000000000002', 'Bloque B', 0),
+ ('e5000000-0000-0000-0000-000000000003', 'd5000000-0000-0000-0000-000000000003', 'Bloque C', 0);
+insert into public.lessons (id, course_id, section_id, slug, title, position, is_published, is_free_preview) values
+ ('f5000000-0000-0000-0000-000000000001', 'd5000000-0000-0000-0000-000000000001', 'e5000000-0000-0000-0000-000000000001', 'fav-leccion-paga', 'Lección con derecho', 1, true, false),
+ ('f5000000-0000-0000-0000-000000000002', 'd5000000-0000-0000-0000-000000000001', 'e5000000-0000-0000-0000-000000000001', 'fav-leccion-muestra', 'Lección muestra', 0, true, true),
+ ('f5000000-0000-0000-0000-000000000003', 'd5000000-0000-0000-0000-000000000002', 'e5000000-0000-0000-0000-000000000002', 'fav-leccion-b', 'Lección curso B', 0, true, false),
+ ('f5000000-0000-0000-0000-000000000004', 'd5000000-0000-0000-0000-000000000003', 'e5000000-0000-0000-0000-000000000003', 'fav-leccion-borrador', 'Lección borrador', 0, false, false);
+insert into public.entitlements (user_id, course_id, revoked_at) values
+ ('c5000000-0000-0000-0000-000000000002', 'd5000000-0000-0000-0000-000000000001', null),
+ ('c5000000-0000-0000-0000-000000000004', 'd5000000-0000-0000-0000-000000000001', null);
+-- Comercio y progreso de relleno: las RPC no deben tocarlos.
+insert into public.orders (id, user_id, status, currency, amount_total_minor) values
+ ('a5000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000002', 'paid', 'EUR', 1000);
+insert into public.lesson_progress (user_id, lesson_id) values
+ ('c5000000-0000-0000-0000-000000000002', 'f5000000-0000-0000-0000-000000000001');
+-- Favoritos previos: sin derecho tiene uno oculto en la lección de pago y uno
+-- visible en la muestra; ningún favorito queda huérfano.
+insert into public.lesson_favorites (user_id, lesson_id) values
+ ('c5000000-0000-0000-0000-000000000001', 'f5000000-0000-0000-0000-000000000001'),
+ ('c5000000-0000-0000-0000-000000000001', 'f5000000-0000-0000-0000-000000000004'),
+ ('c5000000-0000-0000-0000-000000000002', 'f5000000-0000-0000-0000-000000000001'),
+ ('c5000000-0000-0000-0000-000000000002', 'f5000000-0000-0000-0000-000000000002'),
+ ('c5000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000001'),
+ ('c5000000-0000-0000-0000-000000000003', 'f5000000-0000-0000-0000-000000000002'),
+ ('c5000000-0000-0000-0000-000000000004', 'f5000000-0000-0000-0000-000000000001');
+create temp table fav_baseline as
+select
+ (select count(*) from public.orders) as orders,
+ (select count(*) from public.entitlements) as entitlements,
+ (select count(*) from public.lesson_progress) as progress,
+ (select count(*) from public.user_roles) as roles;
+
+-- Seguridad y grants: SECURITY DEFINER con search_path fijado; EXECUTE solo
+-- authenticated; tabla con RLS activo sin políticas y sin grants de cliente.
+do $$
+declare v_func text;
+begin
+ foreach v_func in array array[
+   'public.list_my_lesson_favorites()', 'public.toggle_lesson_favorite(uuid)'
+ ] loop
+  if has_function_privilege('service_role', v_func, 'EXECUTE') then
+   raise exception 'service_role conserva EXECUTE en %', v_func;
+  end if;
+  if has_function_privilege('anon', v_func, 'EXECUTE')
+  or has_function_privilege('public', v_func, 'EXECUTE') then
+   raise exception 'EXECUTE inesperado en %', v_func;
+  end if;
+  if not has_function_privilege('authenticated', v_func, 'EXECUTE') then
+   raise exception 'authenticated sin EXECUTE en %', v_func;
+  end if;
+  if not exists (
+    select 1 from pg_proc pr
+    join pg_namespace ns on ns.oid = pr.pronamespace
+    where pr.oid = to_regprocedure(v_func)
+      and pr.prosecdef
+      and exists (select 1 from unnest(pr.proconfig) cfg where cfg like 'search_path=%')
+  ) then
+   raise exception '% no es security definer con search_path vacío', v_func;
+  end if;
+ end loop;
+ if not has_table_privilege('service_role', 'public.lesson_favorites', 'SELECT')
+ or not has_table_privilege('service_role', 'public.lesson_favorites', 'INSERT')
+ or not has_table_privilege('service_role', 'public.lesson_favorites', 'DELETE') then
+  raise exception 'service_role sin grants en lesson_favorites';
+ end if;
+ if has_table_privilege('anon', 'public.lesson_favorites', 'SELECT')
+ or has_table_privilege('authenticated', 'public.lesson_favorites', 'SELECT')
+ or has_table_privilege('authenticated', 'public.lesson_favorites', 'INSERT')
+ or has_table_privilege('authenticated', 'public.lesson_favorites', 'DELETE') then
+  raise exception 'grant de tabla inesperado en lesson_favorites';
+ end if;
+ if not exists (
+   select 1 from pg_class cl
+   where cl.oid = 'public.lesson_favorites'::regclass and cl.relrowsecurity
+ ) then
+  raise exception 'lesson_favorites sin RLS';
+ end if;
+ if exists (
+   select 1 from pg_policy po
+   where po.polrelid = 'public.lesson_favorites'::regclass
+ ) then
+  raise exception 'lesson_favorites con políticas';
+ end if;
+end $$;
+
+-- anon: ni invoca las RPC ni lee la tabla; nada se escribe.
+set local role anon;
+do $$
+begin
+ begin perform public.list_my_lesson_favorites(); raise exception 'anon listó'; exception when insufficient_privilege then null; end;
+ begin perform public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000002'); raise exception 'anon alternó'; exception when insufficient_privilege then null; end;
+ begin perform 1 from public.lesson_favorites limit 1; raise exception 'anon leyó favoritos'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+-- authenticated sin claim de sesión: listado vacío y toggle denegado.
+set local role authenticated;
+select set_config('request.jwt.claims', '', true);
+do $$
+begin
+ if exists (select 1 from public.list_my_lesson_favorites()) then
+  raise exception 'sin sesión listó favoritos';
+ end if;
+ begin perform public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000002'); raise exception 'sin sesión alternó'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+-- Alumna con derecho: ve solo sus favoritos accesibles, en orden
+-- (course_title, position, lesson_id), alterna dos veces y vuelve al estado
+-- inicial. Sin derecho sobre el curso B obtiene el mismo 42501 que con un id
+-- inexistente, sin revelar existencia ni motivos.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"c5000000-0000-0000-0000-000000000002"}', true);
+do $$
+declare
+ v_ids uuid[] := array[]::uuid[];
+ v_rec record;
+ v_msg1 text; v_msg2 text; v_bool boolean;
+begin
+ for v_rec in
+   select lesson_id, lesson_slug, lesson_title, course_id, course_slug,
+          course_title, section_id, section_title, position, created_at
+   from public.list_my_lesson_favorites()
+ loop
+   v_ids := v_ids || v_rec.lesson_id;
+   if v_rec.created_at is null or v_rec.position is null then
+     raise exception 'favorito con created_at o position nulo';
+   end if;
+   if v_rec.lesson_slug like '%@%' or v_rec.lesson_title like '%@%'
+   or v_rec.course_slug like '%@%' or v_rec.course_title like '%@%'
+   or v_rec.section_title like '%@%' then
+     raise exception 'el listado expone un correo';
+   end if;
+ end loop;
+ if v_ids is distinct from array[
+   'f5000000-0000-0000-0000-000000000002'::uuid,
+   'f5000000-0000-0000-0000-000000000001'::uuid
+ ] then
+   raise exception 'listado de la alumna incorrecto: %', v_ids;
+ end if;
+ select * into v_rec from public.list_my_lesson_favorites()
+  where lesson_id = 'f5000000-0000-0000-0000-000000000001';
+ if v_rec.lesson_slug <> 'fav-leccion-paga'
+ or v_rec.course_id <> 'd5000000-0000-0000-0000-000000000001'::uuid
+ or v_rec.course_slug <> 'fav-curso-a'
+ or v_rec.section_id <> 'e5000000-0000-0000-0000-000000000001'::uuid
+ or v_rec.position <> 1 then
+   raise exception 'metadatos del favorito incorrectos';
+ end if;
+ select public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000001') into v_bool;
+ if v_bool is distinct from false then raise exception 'toggle no borró el favorito'; end if;
+ select public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000001') into v_bool;
+ if v_bool is not true then raise exception 'doble toggle no restauró el favorito'; end if;
+ begin
+   perform public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000003');
+   raise exception 'toggle concedido sin derecho sobre curso B';
+ exception when insufficient_privilege then
+   get stacked diagnostics v_msg1 = message_text;
+ end;
+ begin
+   perform public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000099');
+   raise exception 'toggle concedido con id inexistente';
+ exception when insufficient_privilege then
+   get stacked diagnostics v_msg2 = message_text;
+ end;
+ if v_msg1 is distinct from v_msg2 or v_msg1 is distinct from 'Acceso denegado' then
+   raise exception 'toggle revela existencia o cambia mensaje: % / %', v_msg1, v_msg2;
+ end if;
+end $$;
+reset role;
+
+-- Sin derecho: solo ve la muestra, aunque tiene un favorito oculto en la
+-- lección de pago; puede alternar la muestra, pero no la lección de pago.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"c5000000-0000-0000-0000-000000000003"}', true);
+do $$
+declare v_ids uuid[] := array[]::uuid[]; v_rec record; v_bool boolean; v_msg text;
+begin
+ for v_rec in select lesson_id from public.list_my_lesson_favorites() loop
+   v_ids := v_ids || v_rec.lesson_id;
+ end loop;
+ if v_ids is distinct from array['f5000000-0000-0000-0000-000000000002'::uuid] then
+   raise exception 'sin derecho: listado incorrecto %', v_ids;
+ end if;
+ select public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000002') into v_bool;
+ if v_bool is distinct from false then raise exception 'sin derecho: toggle de muestra'; end if;
+ select public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000002') into v_bool;
+ if v_bool is not true then raise exception 'sin derecho: doble toggle de muestra'; end if;
+ begin
+   perform public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000001');
+   raise exception 'sin derecho: toggle de lección de pago concedido';
+ exception when insufficient_privilege then
+   get stacked diagnostics v_msg = message_text;
+ end;
+ if v_msg is distinct from 'Acceso denegado' then
+   raise exception 'sin derecho: mensaje inesperado %', v_msg;
+ end if;
+end $$;
+reset role;
+
+-- Antes de revocar, la alumna con derecho revocado ve su favorito.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"c5000000-0000-0000-0000-000000000004"}', true);
+do $$
+begin
+ if not exists (
+   select 1 from public.list_my_lesson_favorites()
+   where lesson_id = 'f5000000-0000-0000-0000-000000000001'
+ ) then
+   raise exception 'derecho activo: favorito no visible';
+ end if;
+end $$;
+reset role;
+
+-- La revocación la hace el servidor, no las RPC.
+update public.entitlements
+set revoked_at = now()
+where user_id = 'c5000000-0000-0000-0000-000000000004'
+  and course_id = 'd5000000-0000-0000-0000-000000000001';
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"c5000000-0000-0000-0000-000000000004"}', true);
+do $$
+declare v_msg text;
+begin
+ if exists (select 1 from public.list_my_lesson_favorites()) then
+   raise exception 'derecho revocado: favorito sigue visible';
+ end if;
+ begin
+   perform public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000001');
+   raise exception 'derecho revocado: toggle concedido';
+ exception when insufficient_privilege then
+   get stacked diagnostics v_msg = message_text;
+ end;
+ if v_msg is distinct from 'Acceso denegado' then
+   raise exception 'derecho revocado: mensaje inesperado %', v_msg;
+ end if;
+end $$;
+reset role;
+-- La revocación oculta el favorito del listado, pero no lo borra.
+do $$
+begin
+ if (select count(*) from public.lesson_favorites
+     where user_id = 'c5000000-0000-0000-0000-000000000004'
+       and lesson_id = 'f5000000-0000-0000-0000-000000000001') <> 1 then
+   raise exception 'revocación borró el favorito';
+ end if;
+end $$;
+
+-- Admin real: ve también el favorito en borrador y puede alternarlo.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"c5000000-0000-0000-0000-000000000001"}', true);
+do $$
+declare v_ids uuid[] := array[]::uuid[]; v_rec record; v_bool boolean;
+begin
+ for v_rec in select lesson_id from public.list_my_lesson_favorites() loop
+   v_ids := v_ids || v_rec.lesson_id;
+ end loop;
+ if v_ids is distinct from array[
+   'f5000000-0000-0000-0000-000000000001'::uuid,
+   'f5000000-0000-0000-0000-000000000004'::uuid
+ ] then
+   raise exception 'listado del admin incorrecto: %', v_ids;
+ end if;
+ select public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000004') into v_bool;
+ if v_bool is distinct from false then raise exception 'admin no alternó el borrador'; end if;
+ select public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000004') into v_bool;
+ if v_bool is not true then raise exception 'admin: doble toggle del borrador'; end if;
+ begin
+   perform public.toggle_lesson_favorite('f5000000-0000-0000-0000-000000000099');
+   raise exception 'admin: toggle con id inexistente';
+ exception when insufficient_privilege then null;
+ end;
+end $$;
+reset role;
+
+-- Recuentos finales: los dobles toggle restauraron los 7 favoritos, no se
+-- crearon favoritos ajenos y no se tocaron pedidos, derechos, progreso ni roles.
+do $$
+begin
+ if (select count(*) from public.lesson_favorites) <> 7 then
+   raise exception 'recuento final de favoritos incorrecto';
+ end if;
+ if exists (select 1 from public.lesson_favorites
+            where lesson_id in ('f5000000-0000-0000-0000-000000000003',
+                                'f5000000-0000-0000-0000-000000000099')) then
+   raise exception 'se crearon favoritos sin acceso';
+ end if;
+ if (select count(*) from public.orders) <> (select orders from fav_baseline)
+ or (select count(*) from public.entitlements) <> (select entitlements from fav_baseline)
+ or (select count(*) from public.lesson_progress) <> (select progress from fav_baseline)
+ or (select count(*) from public.user_roles) <> (select roles from fav_baseline) then
+   raise exception 'favoritos afectaron a pedidos, derechos, progreso o roles';
+ end if;
+end $$;
+rollback;

@@ -245,6 +245,32 @@ todavía. La verificación es `npm run test:sql` (PGlite): valida lógica SQL/RL
 **no** Auth, PostgREST ni RLS reales de Supabase. La migración **no se ha
 aplicado a ningún proyecto remoto** ni desplegado.
 
+## Favoritos por lección (backend)
+
+La migración `20261119110000_lesson_favorites.sql` y la prueba
+`supabase/tests/0029_lesson_favorites.psql` añaden favoritos por lección sin
+interfaz Angular, notificaciones ni hilos. `public.lesson_favorites` guarda solo
+`(user_id, lesson_id, created_at)` con clave primaria compuesta y borrado en
+cascada con usuario y lección; RLS activo sin políticas, sin grants para
+`anon`/`authenticated` (`service_role` conserva los suyos) e índice
+`(user_id, created_at desc)`.
+
+| RPC | Comportamiento |
+| --- | --- |
+| `public.list_my_lesson_favorites()` | SQL `stable security definer`, `search_path=''`: devuelve solo los favoritos del usuario resuelto por `auth.uid()` unidos al catálogo (`lesson_slug`, `lesson_title`, `course_id`, `course_slug`, `course_title`, `section_id`, `section_title`, `position`, `created_at`), ordenados por `course_title`, `position`, `lesson_id`. |
+| `public.toggle_lesson_favorite(p_lesson_id uuid) returns boolean` | PL/pgSQL `security definer`, `search_path=''`: alterna el favorito del actor; `true` al insertar, `false` al borrar. Sin parámetro de usuario. |
+
+Ambas comprueban en servidor el mismo acceso que el catálogo: admin real en
+`public.user_roles` o lección publicada de curso publicado con muestra gratuita
+o derecho activo (`revoked_at is null`). Sin acceso, el listado devuelve 0 filas
+y el toggle lanza `42501` con mensaje genérico, sin revelar si la lección
+existe. No se exponen correos, roles completos ni IDs de otros usuarios; las
+RPC no crean derechos, pedidos, progreso ni roles. Solo `authenticated` recibe
+`EXECUTE` (no PUBLIC, anon ni service_role). La verificación fue
+`npm run test:sql` (PGlite): valida lógica SQL/RLS, **no** Auth, PostgREST ni
+RLS reales de Supabase. La migración **no se ha aplicado a ningún proyecto
+remoto** ni desplegado.
+
 ## Principios
 
 1. **La base de datos decide.** Angular puede ocultar botones, pero la
