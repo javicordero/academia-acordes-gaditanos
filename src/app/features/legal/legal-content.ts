@@ -274,6 +274,9 @@ export const LEGAL_PAGES: Record<LegalPageKey, LegalPageContent> = {
               p(
                 'Esta página no carga analítica ni servicios de medición por sí sola. El GA4 propio de Acordes Gaditanos, si se utiliza, se activa solo con consentimiento previo y con un ID configurado; sin consentimiento no se activa.',
               ),
+              p(
+                'Si se activa, se usan señales de Consent Mode v2 con finalidades publicitarias denegadas: no se habilitan publicidad ni personalización.',
+              ),
             ],
           },
         ],
@@ -286,7 +289,7 @@ export const LEGAL_PAGES: Record<LegalPageKey, LegalPageContent> = {
             'El sitio incorpora un banner de consentimiento con opciones para aceptar o rechazar las categorías opcionales.',
           ),
           p(
-            'También puedes cambiar tu elección desde el propio banner o configurar tu navegador para bloquear o eliminar cookies.',
+            'También puedes cambiar tu elección con el botón «Cambiar preferencias» de esta página o configurar tu navegador para bloquear o eliminar cookies.',
           ),
           p(
             'Las instrucciones concretas están en el banner de preferencias, ya disponible; desde él puedes revisar tus opciones en cualquier momento.',

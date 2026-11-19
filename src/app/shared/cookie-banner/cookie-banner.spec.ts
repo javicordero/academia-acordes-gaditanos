@@ -81,7 +81,7 @@ describe('CookieBanner', () => {
     expect(root.textContent).toContain('Aceptar todo');
   });
 
-  it('aceptar todo concede analítica y deja una entrada para cambiarla', async () => {
+  it('aceptar todo concede analítica y no deja ninguna barra persistente', async () => {
     await createBanner();
 
     await click('Aceptar todo');
@@ -89,11 +89,13 @@ describe('CookieBanner', () => {
     expect(consent.preferences().analytics).toBe(true);
     expect(consent.hasDecision()).toBe(true);
     expect(consent.bannerVisible()).toBe(false);
-    expect(root.textContent).toContain('Preferencias de cookies guardadas.');
-    expect(root.textContent).toContain('Cambiar preferencias');
+    expect(root.textContent).not.toContain('Preferencias de cookies guardadas.');
+    expect(root.textContent).not.toContain('Cambiar preferencias');
+    expect(root.querySelector('section[aria-label="Preferencias de cookies"]')).toBeNull();
+    expect(getComputedStyle(root).display).toBe('none');
   });
 
-  it('rechazar opcional no concede analítica', async () => {
+  it('rechazar opcional no concede analítica ni muestra el aviso guardado', async () => {
     await createBanner();
 
     await click('Rechazar opcional');
@@ -104,6 +106,27 @@ describe('CookieBanner', () => {
       version: 1,
       analytics: false,
     });
+    expect(root.textContent).not.toContain('Preferencias de cookies guardadas.');
+    expect(root.textContent).not.toContain('Cambiar preferencias');
+    expect(getComputedStyle(root).display).toBe('none');
+  });
+
+  it('el panel se reabre manualmente sin cambiar la decisión', async () => {
+    await createBanner();
+    await click('Rechazar opcional');
+
+    consent.openPreferences();
+    await fixture.whenStable();
+
+    expect(consent.bannerVisible()).toBe(true);
+    expect(root.querySelector('section[aria-label="Preferencias de cookies"]')).not.toBeNull();
+    expect(root.textContent).toContain('Guardar preferencias');
+    expect(root.textContent).toContain('Cancelar');
+    expect(consent.preferences().analytics).toBe(false);
+
+    await click('Cancelar');
+    expect(consent.preferencesOpen()).toBe(false);
+    expect(getComputedStyle(root).display).toBe('none');
   });
 
   it('personalizar guarda la casilla elegida y cierra el panel', async () => {

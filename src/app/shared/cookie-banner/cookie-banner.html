@@ -1,5 +1,5 @@
-<section class="cookie-banner" role="region" aria-label="Preferencias de cookies">
-  @if (consent.bannerVisible()) {
+@if (consent.bannerVisible()) {
+  <section class="cookie-banner" role="region" aria-label="Preferencias de cookies">
     <div class="cookie-banner__body">
       <h2 class="cookie-banner__title">Preferencias de cookies</h2>
       <p class="cookie-banner__text">
@@ -61,12 +61,5 @@
         </button>
       }
     </div>
-  } @else {
-    <div class="cookie-banner__compact">
-      <span>Preferencias de cookies guardadas.</span>
-      <button type="button" class="cookie-banner__button" (click)="consent.openPreferences()">
-        Cambiar preferencias
-      </button>
-    </div>
-  }
-</section>
+  </section>
+}

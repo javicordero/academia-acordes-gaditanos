@@ -8,6 +8,8 @@ export interface AnalyticsAdapter {
   load(measurementId: string, cookieDomain?: string): void;
   /** Envía la visita de una ruta pública ya resuelta por el router. */
   pageView(measurementId: string, path: string, cookieDomain?: string): void;
+  /** Actualiza el consentimiento de analítica en el proveedor ya cargado. */
+  updateConsent(analyticsGranted: boolean): void;
   /** Activa (`true`) o levanta (`false`) el opt-out de GA para esa propiedad. */
   optOut(measurementId: string, disabled: boolean): void;
 }

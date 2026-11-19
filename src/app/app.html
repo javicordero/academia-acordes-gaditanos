@@ -12,39 +12,81 @@
     <p class="config-banner config-banner--error" role="alert">{{ errorText }}</p>
   }
 
-  <header class="site-header">
+  <header
+    class="site-header"
+    [class.site-header--menu-open]="menuOpen()"
+    (keydown.escape)="onEscape($event)"
+    (keydown)="onMenuKeydown($event)"
+  >
     <div class="site-header__inner">
       <a class="brand" routerLink="/" aria-label="Academia Acordes Gaditanos, ir al inicio">
         <span class="brand__name">Academia</span>
         <span class="brand__sub">Acordes Gaditanos</span>
       </a>
 
-      <!-- El estado del menú vive en el propio template: app.ts queda intacto.
-           aria-expanded se deriva de la clase del panel, así que nunca se
-           desincronizan el atributo y lo que ve el usuario. -->
+      <!-- Un único disclosure: en escritorio el botón no existe y estas mismas
+           herramientas van en la fila; en móvil se convierten en el diálogo. -->
       <button
         #menuToggle
         type="button"
         class="nav-toggle"
-        aria-label="Menú de navegación"
+        [attr.aria-label]="menuOpen() ? 'Cerrar menú' : 'Abrir menú'"
         aria-controls="site-navigation"
-        [attr.aria-expanded]="siteNav.classList.contains('is-open')"
-        (click)="siteNav.classList.toggle('is-open')"
-        (keydown.escape)="siteNav.classList.remove('is-open'); menuToggle.focus()"
+        [attr.aria-expanded]="menuOpen()"
+        [attr.aria-haspopup]="'true'"
+        (click)="toggleMenu()"
       >
-        <svg class="nav-toggle__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <svg
+          class="nav-toggle__icon nav-toggle__icon--menu"
+          viewBox="0 0 20 20"
+          aria-hidden="true"
+          focusable="false"
+        >
           <path d="M3 5.5h14M3 10h14M3 14.5h14" />
         </svg>
-        <span class="nav-toggle__label" aria-hidden="true">Menú</span>
+        <svg
+          class="nav-toggle__icon nav-toggle__icon--close"
+          viewBox="0 0 20 20"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M5 5l10 10M15 5L5 15" />
+        </svg>
+        <span class="nav-toggle__label" aria-hidden="true">
+          {{ menuOpen() ? 'Cerrar' : 'Menú' }}
+        </span>
       </button>
 
       <div
         #siteNav
         id="site-navigation"
         class="site-header__tools"
-        (keydown.escape)="siteNav.classList.remove('is-open'); menuToggle.focus()"
-        (click)="siteNav.classList.remove('is-open')"
+        [class.is-open]="menuOpen()"
+        [attr.role]="menuOpen() ? 'dialog' : null"
+        [attr.aria-modal]="menuOpen() ? 'true' : null"
+        [attr.aria-label]="menuOpen() ? 'Menú de navegación' : null"
+        (click)="onPanelClick()"
       >
+        <!-- Cierre adicional dentro del overlay; el toggle de la cabecera sigue
+             alternando estado y la X comparte el mismo closeMenu(). -->
+        <button
+          type="button"
+          class="menu-close"
+          [class.is-visible]="menuOpen()"
+          aria-label="Cerrar menú"
+          [attr.title]="menuOpen() ? 'Cerrar menú' : null"
+          (click)="closeMenu(true); $event.stopPropagation()"
+        >
+          <svg
+            class="menu-close__icon"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M5 5l10 10M15 5L5 15" />
+          </svg>
+        </button>
+
         <nav aria-label="Navegación principal">
           <ul class="nav-list">
             <li>

@@ -60,6 +60,8 @@ export class AnalyticsService {
       this.active = true;
       // Si antes se retiró el consentimiento, se levanta el opt-out al darlo de nuevo.
       this.adapter.optOut(id, false);
+      // Con script ya cargado se reenvía el estado; si no, lo hace load().
+      this.adapter.updateConsent(true);
       if (!wasActive) this.adapter.load(id, this.cookieDomain);
       return;
     }
@@ -67,6 +69,7 @@ export class AnalyticsService {
     if (this.active) {
       this.active = false;
       this.adapter.optOut(id, true);
+      this.adapter.updateConsent(false);
     }
   }
 

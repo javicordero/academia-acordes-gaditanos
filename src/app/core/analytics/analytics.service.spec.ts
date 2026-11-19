@@ -38,6 +38,7 @@ function setup(options: SetupOptions = {}) {
   const adapter = {
     load: vi.fn(),
     pageView: vi.fn(),
+    updateConsent: vi.fn(),
     optOut: vi.fn(),
   };
   const documentStub = {
@@ -87,6 +88,7 @@ describe('AnalyticsService', () => {
     expect(adapter.load).not.toHaveBeenCalled();
     expect(adapter.pageView).not.toHaveBeenCalled();
     expect(adapter.optOut).not.toHaveBeenCalled();
+    expect(adapter.updateConsent).not.toHaveBeenCalled();
   });
 
   it('con consentimiento pero sin ID configurado no carga nada', () => {
@@ -96,6 +98,7 @@ describe('AnalyticsService', () => {
 
     expect(adapter.load).not.toHaveBeenCalled();
     expect(adapter.pageView).not.toHaveBeenCalled();
+    expect(adapter.updateConsent).not.toHaveBeenCalled();
   });
 
   it('con ID y consentimiento carga una sola vez y levanta el opt-out', () => {
@@ -104,6 +107,7 @@ describe('AnalyticsService', () => {
     expect(adapter.load).toHaveBeenCalledTimes(1);
     expect(adapter.load).toHaveBeenCalledWith('G-ACADEMIA', '');
     expect(adapter.optOut).toHaveBeenCalledWith('G-ACADEMIA', false);
+    expect(adapter.updateConsent).toHaveBeenCalledWith(true);
 
     consent.setAnalytics(true);
     expect(adapter.load).toHaveBeenCalledTimes(1);
@@ -120,6 +124,7 @@ describe('AnalyticsService', () => {
 
     expect(adapter.load).not.toHaveBeenCalled();
     expect(adapter.pageView).not.toHaveBeenCalled();
+    expect(adapter.updateConsent).not.toHaveBeenCalled();
   });
 
   it('solo cuenta NavigationEnd tras el consentimiento, sin query ni fragmento', () => {
@@ -148,12 +153,14 @@ describe('AnalyticsService', () => {
 
     consent.setAnalytics(false);
     expect(adapter.optOut).toHaveBeenLastCalledWith('G-ACADEMIA', true);
+    expect(adapter.updateConsent).toHaveBeenLastCalledWith(false);
 
     navigate('/cursos');
     expect(adapter.pageView).not.toHaveBeenCalled();
 
     consent.setAnalytics(true);
     expect(adapter.optOut).toHaveBeenLastCalledWith('G-ACADEMIA', false);
+    expect(adapter.updateConsent).toHaveBeenLastCalledWith(true);
     navigate('/cursos');
     expect(adapter.pageView).toHaveBeenCalledWith('G-ACADEMIA', '/cursos', '');
   });

@@ -4,8 +4,11 @@ import { ConsentService } from '../../core/consent/consent.service';
 
 /**
  * Aviso no modal: no fija el foco al entrar, no atrapa el tabulador y Escape no
- * lo cierra (así no se consentiría por accidente). Siempre queda una entrada
- * compacta para poder retirar o cambiar el consentimiento después.
+ * lo cierra (así no se consentiría por accidente). Solo se renderiza mientras
+ * hay una decisión pendiente o se están editando preferencias; una vez guardado
+ * no deja ninguna barra persistente. Para cambiar la elección se abre de nuevo
+ * desde el botón de `/legal/cookies` mediante `ConsentService.openPreferences()`,
+ * que no altera la persistencia ni las categorías.
  */
 @Component({
   selector: 'app-cookie-banner',
@@ -14,6 +17,7 @@ import { ConsentService } from '../../core/consent/consent.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[class.cookie-banner--in-classroom]': 'classroom()',
+    '[class.cookie-banner--hidden]': '!consent.bannerVisible()',
   },
 })
 export class CookieBanner {

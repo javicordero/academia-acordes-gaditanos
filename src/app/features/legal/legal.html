@@ -4,6 +4,18 @@
   <p class="legal__notice" role="note">{{ notice }}</p>
   <p class="legal__intro">{{ page.intro }}</p>
 
+  @if (isCookiesPage) {
+    <div class="legal__consent-actions">
+      <button
+        type="button"
+        class="legal__consent-button"
+        (click)="changeCookiePreferences()"
+      >
+        Cambiar preferencias
+      </button>
+    </div>
+  }
+
   <nav class="legal__index" aria-labelledby="legal-index-title">
     <h2 class="legal__index-title" id="legal-index-title">Índice de esta página</h2>
     <ul class="legal__index-list">

@@ -47,6 +47,26 @@
   color: var(--legal-muted);
 }
 
+.legal__consent-actions {
+  margin: 0 0 1.5rem;
+}
+
+.legal__consent-button {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--legal-accent);
+  border-radius: 8px;
+  background: var(--legal-accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.legal__consent-button:hover {
+  filter: brightness(0.92);
+}
+
 .legal__index {
   margin: 0 0 2rem;
   padding: 1rem 1.15rem;

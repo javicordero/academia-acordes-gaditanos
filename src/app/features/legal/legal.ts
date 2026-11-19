@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import { ConsentService } from '../../core/consent/consent.service';
 import {
   LEGAL_NOTICE,
   LEGAL_PAGES,
@@ -22,11 +23,15 @@ interface LegalHeading {
 })
 export class Legal {
   private readonly route = inject(ActivatedRoute);
+  private readonly consent = inject(ConsentService);
 
   protected readonly notice = LEGAL_NOTICE;
   protected readonly page =
     LEGAL_PAGES[this.route.snapshot.data['page'] as LegalPageKey] ??
     LEGAL_PAGES['aviso-legal'];
+
+  /** El control de preferencias solo existe en la página de cookies. */
+  protected readonly isCookiesPage = this.page.key === 'cookies';
 
   protected readonly headings: readonly LegalHeading[] = this.page.sections.flatMap(
     (section) => [
@@ -44,4 +49,9 @@ export class Legal {
       })),
     ],
   );
+
+  /** Reabre el panel sin guardar ni cambiar la decisión existente. */
+  protected changeCookiePreferences(): void {
+    this.consent.openPreferences();
+  }
 }

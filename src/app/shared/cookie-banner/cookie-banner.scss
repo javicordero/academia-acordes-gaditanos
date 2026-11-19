@@ -10,6 +10,11 @@
   position: static;
 }
 
+/* Sin decision pendiente no queda ni la region ni un hueco sticky abajo. */
+:host(.cookie-banner--hidden) {
+  display: none;
+}
+
 .cookie-banner {
   display: flex;
   flex-wrap: wrap;
@@ -69,20 +74,12 @@
   accent-color: var(--accent);
 }
 
-.cookie-banner__actions,
-.cookie-banner__compact {
+.cookie-banner__actions {
   display: flex;
   flex: 0 1 auto;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-}
-
-.cookie-banner__compact {
-  justify-content: space-between;
-  width: 100%;
-  color: var(--muted);
-  font-size: 0.9rem;
 }
 
 .cookie-banner__button {
@@ -130,8 +127,7 @@
     padding-inline: 1rem;
   }
 
-  .cookie-banner__actions,
-  .cookie-banner__compact {
+  .cookie-banner__actions {
     width: 100%;
   }
 

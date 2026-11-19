@@ -9,39 +9,68 @@ interface GtagWindow extends Window {
 }
 
 /**
- * Adaptador GA4: inyecta `gtag.js` en cuanto se le pide, nunca desde el HTML y
- * nunca antes del consentimiento. No usa GTM ni AdSense y no escribe cookies
- * propias: solo el stub estándar de `gtag` y la marca de opt-out de GA.
+ * Estado inicial de Consent Mode v2: todo denegado, incluidas las señales
+ * publicitarias, que la academia nunca activa. Se encola en `dataLayer` antes
+ * de cargar `gtag.js`: es solo un array en memoria, sin petición de red.
+ */
+const DEFAULT_CONSENT = {
+  analytics_storage: 'denied',
+  ad_storage: 'denied',
+  ad_user_data: 'denied',
+  ad_personalization: 'denied',
+  wait_for_update: 500,
+} as const;
+
+/**
+ * Adaptador GA4: encola el consentimiento por defecto al arrancar y solo
+ * inyecta `gtag.js` cuando el servicio ha verificado ID + consentimiento + DNT.
+ * No usa GTM ni AdSense y no activa señales publicitarias. Es más estricto que
+ * un Consent Mode completo: sin consentimiento no se carga el script, así que
+ * no hay pings `denied` hacia Google.
  */
 @Injectable({ providedIn: 'root' })
 export class Ga4Adapter implements AnalyticsAdapter {
   private readonly document = inject(DOCUMENT);
   private loadedId: string | null = null;
+  private consentGranted = false;
+
+  constructor() {
+    this.gtag()('consent', 'default', { ...DEFAULT_CONSENT });
+  }
 
   load(measurementId: string, cookieDomain = ''): void {
     const win = this.window();
     if (!win || this.loadedId === measurementId) return;
     this.loadedId = measurementId;
 
-    win.dataLayer ??= [];
-    win.gtag ??= (...args: unknown[]) => {
-      win.dataLayer?.push(args);
-    };
-
+    const gtag = this.gtag();
     const script = this.document.createElement('script');
     script.async = true;
     script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`;
     this.document.head.appendChild(script);
 
-    win.gtag('js', new Date());
-    win.gtag('config', measurementId, this.configParameters(cookieDomain));
+    gtag('js', new Date());
+    this.updateConsent(true);
+    gtag('config', measurementId, this.configParameters(cookieDomain));
   }
 
   pageView(measurementId: string, path: string, cookieDomain = ''): void {
-    if (this.loadedId !== measurementId) return;
+    if (this.loadedId !== measurementId || !this.consentGranted) return;
     this.window()?.gtag?.('config', measurementId, {
       page_path: path,
       ...this.configParameters(cookieDomain),
+    });
+  }
+
+  /** Refleja la analítica; las señales `ad_*` permanecen siempre denegadas. */
+  updateConsent(analyticsGranted: boolean): void {
+    this.consentGranted = analyticsGranted;
+    if (!this.loadedId) return; // sin script cargado no se envía nada a Google
+    this.gtag()('consent', 'update', {
+      analytics_storage: analyticsGranted ? 'granted' : 'denied',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
     });
   }
 
@@ -57,6 +86,17 @@ export class Ga4Adapter implements AnalyticsAdapter {
     return cookieDomain
       ? { cookie_domain: cookieDomain, anonymize_ip: true }
       : { anonymize_ip: true };
+  }
+
+  /** Crea el dataLayer y el stub de gtag una sola vez, sin cargar el script. */
+  private gtag(): (...args: unknown[]) => void {
+    const win = this.window();
+    if (!win) return () => {};
+    win.dataLayer ??= [];
+    win.gtag ??= (...args: unknown[]) => {
+      win.dataLayer?.push(args);
+    };
+    return win.gtag;
   }
 
   private window(): GtagWindow | undefined {

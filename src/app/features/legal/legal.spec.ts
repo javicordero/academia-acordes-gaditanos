@@ -3,6 +3,7 @@ import { Title } from '@angular/platform-browser';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from '../../app.routes';
+import { ConsentService } from '../../core/consent/consent.service';
 import { LEGAL_PAGES, LegalPageKey } from './legal-content';
 
 interface LegalCase {
@@ -151,11 +152,43 @@ describe('Páginas legales', () => {
     );
     expect(cookies).toContain('GA4 propio de Acordes Gaditanos');
     expect(cookies).toContain('sin consentimiento no se activa');
+    expect(cookies).toContain(
+      'señales de Consent Mode v2 con finalidades publicitarias denegadas',
+    );
+    expect(cookies).not.toContain('googlefc');
+    expect(cookies).not.toContain('AdSense');
     expect(cookies).toContain('banner de preferencias, ya disponible');
     expect(cookies).not.toContain(
       'cuando se implemente el mecanismo de consentimiento',
     );
     expect(cookies).not.toContain('no se activa ninguna analítica');
+  });
+
+  it('ofrece solo en /legal/cookies el botón que reabre el panel de preferencias', async () => {
+    const cookies = await open('/legal/cookies');
+    const buttons = Array.from(
+      cookies.querySelectorAll<HTMLButtonElement>('button'),
+    );
+    const changeButton = buttons.find(
+      (button) => button.textContent?.trim() === 'Cambiar preferencias',
+    );
+
+    expect(changeButton).toBeDefined();
+
+    const consent = TestBed.inject(ConsentService);
+    expect(consent.preferencesOpen()).toBe(false);
+    changeButton!.click();
+    await harness.fixture.whenStable();
+
+    expect(consent.preferencesOpen()).toBe(true);
+    expect(consent.bannerVisible()).toBe(true);
+    consent.closePreferences();
+
+    for (const { url } of CASES) {
+      if (url === '/legal/cookies') continue;
+      const element = await open(url);
+      expect(element.textContent).not.toContain('Cambiar preferencias');
+    }
   });
 
   it.each(CASES)(

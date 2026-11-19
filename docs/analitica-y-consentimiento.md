@@ -13,8 +13,10 @@ ignorado.
   Guardar preferencias**. Es una región no modal (`role="region"`,
   `aria-label="Preferencias de cookies"`): no roba el foco, no atrapa el
   tabulador y Escape no lo cierra, para no consentir por accidente.
-- Tras decidir queda una entrada compacta («Cambiar preferencias») para poder
-  retirar o modificar el consentimiento en cualquier momento.
+- Tras decidir no queda ninguna barra ni aviso persistente: el banner se oculta
+  por completo. Para retirar o modificar el consentimiento se abre de nuevo con
+  el botón «Cambiar preferencias» de `/legal/cookies`, que no cambia la
+  persistencia ni las categorías.
 - La persistencia usa `localStorage` con la clave `academia-cookie-consent` y
   `{ version: 1, analytics: boolean }`. No se guardan correos, identificadores,
   tokens, datos de cursos ni ningún otro dato personal. Una versión distinta o
@@ -51,6 +53,22 @@ cuando el navegador lo expone.
   identificadores de usuario, progreso ni datos de lecciones privadas.
 - El adaptador (`ga4-adapter.ts`) es el único que toca `gtag`; el servicio no
   depende del proveedor.
+
+## Consent Mode v2 con UI propia
+
+Antes de cargar `gtag.js` se encola en `dataLayer` un `consent default` con
+`analytics_storage`, `ad_storage`, `ad_user_data` y `ad_personalization` a
+`denied` y `wait_for_update: 500`. Solo con ID + consentimiento de analítica +
+ausencia de DNT se envía `consent update` con `analytics_storage: granted` (las
+señales `ad_*` siguen `denied`) y después `config` con el ID. Al retirar el
+consentimiento se persiste el estado, se activa `ga-disable-<ID>` y, si el script
+ya estaba cargado, se envía `update` con `analytics_storage: denied`; no se
+envían page views posteriores.
+
+Es **más estricto que un Consent Mode completo**: sin consentimiento no se carga
+el script de Google, por lo que no hay pings `denied` hacia Google; el comando
+por defecto solo queda en el array `dataLayer` del navegador. No se usa GTM,
+AdSense ni la CMP `googlefc` de la web principal.
 
 ## Retirada del consentimiento
 
