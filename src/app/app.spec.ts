@@ -207,10 +207,8 @@ describe('App shell · cabecera según la ruta', () => {
     const cursos = element.querySelector<HTMLAnchorElement>('nav a[href="/cursos"]')!;
 
     expect(brand.getAttribute('href')).toBe('/');
-    expect(brand.getAttribute('aria-label')).toContain('Academia de Guitarra');
-    expect(brand.getAttribute('aria-label')).toContain('De Acordes Gaditanos');
-    expect(brand.textContent).toContain('Academia de Guitarra');
-    expect(brand.textContent).toContain('De Acordes Gaditanos');
+    expect(brand.getAttribute('aria-label')).toBe('Academia de Guitarra, ir al inicio');
+    expect(brand.textContent?.trim()).toBe('Academia de Guitarra');
     expect(cursos.textContent?.trim()).toBe('Cursos');
 
     brand.click();
@@ -220,6 +218,21 @@ describe('App shell · cabecera según la ruta', () => {
     cursos.click();
     await fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/cursos');
+  });
+
+  it('la cabecera solo nombra «Academia de Guitarra»', async () => {
+    const fixture = await createShell('/cursos');
+    const element = fixture.nativeElement as HTMLElement;
+    const header = element.querySelector<HTMLElement>('header.site-header')!;
+    const brand = element.querySelector<HTMLElement>('.brand')!;
+
+    expect(header.textContent).toContain('Academia de Guitarra');
+    expect(header.textContent).not.toContain('De Acordes Gaditanos');
+    expect(brand.getAttribute('aria-label')).not.toContain('De Acordes Gaditanos');
+    expect(brand.querySelectorAll('span')).toHaveLength(1);
+    expect(brand.querySelector('.brand__text')?.textContent?.trim()).toBe('Academia de Guitarra');
+    expect(brand.querySelector('.brand__name')).toBeNull();
+    expect(brand.querySelector('.brand__sub')).toBeNull();
   });
 
   it('expone la navegación y el salto con nombres accesibles', async () => {
@@ -1090,6 +1103,29 @@ describe('App shell · menú de usuario', () => {
     expect(element.querySelector('a[href="/favoritos"]')).toBeNull();
     expect(element.querySelector('a[href="/perfil"]')).toBeNull();
     expect(element.querySelector('a[href="/auth/login"]')).not.toBeNull();
+  });
+
+  it('burger y perfil van sin borde y conservan el aro de foco', async () => {
+    const fixture = await createShell({ user: { id: 'user-1' } });
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector<HTMLButtonElement>('.nav-toggle')!;
+    const trigger = triggerOf(element);
+    const shell = readFileSync('src/app/app.scss', 'utf8');
+    const controls =
+      shell.match(/:is\(\.nav-toggle, \.menu-close, \.user-menu__trigger\) \{[^}]*\}/)?.[0] ?? '';
+    const panel = shell.match(/\.user-menu__panel \{[^}]*\}/)?.[0] ?? '';
+
+    expect(controls).toContain('border: 0');
+    expect(controls).toContain('background: transparent');
+    expect(controls).not.toMatch(/border:\s*1px/);
+    // El borde decorativo sigue solo en el desplegable, no en los iconos.
+    expect(panel).toContain('border: 1px solid var(--border)');
+    expect(shell).toContain(':focus-visible');
+    expect(shell).toContain('outline: 3px solid var(--focus)');
+    expect(getComputedStyle(toggle).borderTopWidth).toBe('0px');
+    expect(getComputedStyle(trigger).borderTopWidth).toBe('0px');
+    expect(getComputedStyle(toggle).minHeight).toBe('44px');
+    expect(getComputedStyle(trigger).minHeight).toBe('44px');
   });
 
   it('el burger de móvil es solo icono y conserva su nombre accesible', async () => {
