@@ -263,17 +263,17 @@ describe('Portada', () => {
     const styles = cssText();
     expect(styles).toContain('grid-template-columns:repeat(3,minmax(0,1fr))');
     expect(ruleFor(styles, 'home-card__image')).toContain('object-fit:cover');
-    // La miniatura se mide con la escala tipográfica, no con rem sueltos.
-    expect(ruleFor(styles, 'home-card__image')).toMatch(/height:calc\(var\(--font-size-md\)\*\d+\)/);
+    // La miniatura es proporcional al ancho, no una altura fija de 80 px.
+    expect(ruleFor(styles, 'home-card__image')).toContain('height:clamp(3.5rem,8vw,6rem)');
     expect(ruleFor(styles, 'home-card__course')).toContain('font-size:var(--font-size-lg)');
     expect(styles).toContain('font-size:var(--font-size-md)');
     expect(ruleFor(styles, 'home-divider')).toMatch(/margin-block:var\(--[a-z-]+\)/);
     expect(styles).not.toContain('margin-top:calc(var(--space-5)+var(--space-4))');
-    expect(styles).toMatch(/h2\[_ngcontent[^\]]+\]\{margin-top:0;?\}/);
+    expect(styles).toMatch(/\.home-section\[_ngcontent[^\]]+\]h2\[_ngcontent[^\]]+\]\{margin:0\s*0\s*var\(--space-4\)/);
     expect(styles).not.toContain('margin-top:2.25rem');
 
     const inicio = styles.indexOf('@media(max-width:48rem)');
-    const fin = styles.indexOf('@media(max-width:20rem)');
+    const fin = styles.indexOf('@media(prefers-reduced-motion');
     expect(inicio).toBeGreaterThan(-1);
     expect(fin).toBeGreaterThan(inicio);
     const movil = styles.slice(inicio, fin);
@@ -282,7 +282,7 @@ describe('Portada', () => {
     expect(movil).toContain('justify-self:center');
     expect(movil).not.toContain('font-size:var(--font-size-sm)');
     // Tamaño de imagen en escritorio y una reducción en el media estrecho.
-    expect(styles.match(/height:calc\(var\(--font-size-md\)\*\d+\)/g) ?? []).toHaveLength(2);
+    expect(styles.match(/height:clamp\(3\.5rem,8vw,/g) ?? []).toHaveLength(1);
   });
 
   it('no muestra etiquetas de muestra ni nivel en las tarjetas, pero conserva la nota del profesor', async () => {
@@ -369,7 +369,7 @@ describe('Portada', () => {
     const dividerRule = styles.match(/\.home-divider\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
     const cardsRule = styles.match(/\.home-cards\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
     const cardRule = styles.match(/\.home-card\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    const titleRule = styles.match(/\.home-courses__title\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    const titleRule = styles.match(/\.home-section\[_ngcontent[^\]]+\]h2\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
     const linkRule = styles.match(/\.home-card__link\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
     const courseRule = styles.match(/\.home-card__course\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
 
@@ -397,7 +397,8 @@ describe('Portada', () => {
     expect(cardsRule).toContain('padding:0');
     expect(cardsRule).toContain('list-style:none');
     expect(cardRule).toContain('margin:0');
-    expect(titleRule).toContain('margin-bottom:var(--space-2)');
+    expect(titleRule).toMatch(/^margin:0\s*0\s*var\(--space-4\)/);
+    expect(titleRule).toContain('font-size:var(--font-size-2xl)');
 
     // Enlace estirado, título en tinta y botón compacto de tarjeta.
     expect(linkRule).toContain('position:absolute');
@@ -409,9 +410,10 @@ describe('Portada', () => {
     expect(styles).not.toMatch(/\.home-card\[_ngcontent[^\]]+\]\.home-button/);
     expect(ruleFor(styles, 'home-button')).toContain('margin:auto');
 
-    // Hover de tarjeta y primary estable en reposo y hover.
-    expect(styles).toMatch(/\.home-card\[_ngcontent[^\]]+\]:is\(:hover,:focus-within\)\{[^}]*transform:translateY\(-2px\)/);
+    // Hover solo en la card: borde y sombra suave, sin mover ni teñir el primary.
+    expect(styles).toMatch(/\.home-card\[_ngcontent[^\]]+\]:is\(:hover,:focus-within\)\{[^}]*box-shadow:var\(--shadow-card\)/);
     expect(styles).toContain('border-color:var(--accent)');
+    expect(styles).not.toContain('transform:translateY');
     expect(styles).toMatch(/\.home-button--primary\[_ngcontent[^\]]+\](?:,\.home-button--primary\[_ngcontent[^\]]+\]:hover)?\{background:var\(--accent\);color:var\(--accent-ink\);?\}/);
 
     // Los CTAs del hero comparten medidas; solo cambia el color.
@@ -473,7 +475,7 @@ describe('Portada', () => {
     expect(coverRule).not.toContain('padding');
     expect(imageRule).not.toContain('padding');
     expect(imageRule).toContain('object-fit:cover');
-    expect(imageRule).toMatch(/height:calc\(var\(--font-size-md\)\*\d+\)/);
+    expect(imageRule).toContain('height:clamp(3.5rem,8vw,6rem)');
     expect(courseRule).toContain('min-height:');
     expect(courseRule).toContain('line-height:var(--line-height-tight)');
     expect(courseRule).toContain('font-size:var(--font-size-lg)');
@@ -839,7 +841,7 @@ describe('Portada', () => {
       .join('\n')
       .replace(/\s+/g, '');
     expect(styles).toContain('@media(max-width:48rem)');
-    expect(styles).toContain('@media(max-width:20rem)');
+    expect(styles).toContain('clamp(3.5rem,8vw,6rem)');
     expect(styles).toContain('min-height:var(--tap-min)');
     expect(styles).toContain('outline:var(--focus-ring)solidvar(--focus)');
     expect(styles).toContain(':focus-visible');
@@ -849,6 +851,43 @@ describe('Portada', () => {
     for (const token of ['--content-max-width', '--section-gap', '--grid-gap', '--card-pad', '--border-width', '--radius-md', '--tap-min', '--focus-ring']) {
       expect(styles).toContain(`var(${token}`);
     }
+  });
+
+  it('aplica la escala tipográfica con tokens: h1 3xl, h2 2xl, h3 lg, cuerpo md y small sm', async () => {
+    const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
+    await fixture.whenStable();
+    const styles = cssText();
+
+    const h1 = styles.match(/\.home-hero\[_ngcontent[^\]]+\]h1\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    const h2 = styles.match(/\.home-section\[_ngcontent[^\]]+\]h2\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
+    expect(h1).toContain('font-size:var(--font-size-3xl)');
+    expect(h1).toContain('line-height:var(--line-height-tight)');
+    expect(h2).toContain('font-size:var(--font-size-2xl)');
+    expect(h2).toContain('line-height:var(--line-height-tight)');
+    expect(h2).toMatch(/^margin:0\s*0\s*var\(--space-4\)/);
+    expect(ruleFor(styles, 'home-card__course')).toContain('font-size:var(--font-size-lg)');
+    expect(ruleFor(styles, 'home-card__course')).not.toContain('font-size:var(--font-size-md)');
+    expect(ruleFor(styles, 'home')).toContain('font-size:var(--font-size-md)');
+    expect(ruleFor(styles, 'home-lead')).toContain('line-height:var(--line-height-relaxed)');
+    expect(ruleFor(styles, 'home-teacher__caption')).toContain('font-size:var(--font-size-sm)');
+  });
+
+  it('usa cubierta proporcional y unidad de espacio en secciones sin desbordar a 320px', async () => {
+    const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
+    await fixture.whenStable();
+    const styles = cssText();
+
+    expect(ruleFor(styles, 'home-card__image')).toContain('height:clamp(3.5rem,8vw,6rem)');
+    expect(styles).not.toContain('height:80px');
+    expect(styles).toMatch(/\.home-hero\[_ngcontent[^\]]+\],\.home-section\[_ngcontent[^\]]+\]\{padding-block:var\(--section-gap\);?\}/);
+    expect(styles).not.toMatch(/\.home-cta\[_ngcontent/);
+    expect(styles).not.toContain('padding-block:var(--card-pad)');
+    expect(ruleFor(styles, 'home')).toContain('overflow-x:clip');
+    expect(ruleFor(styles, 'home-inner')).toContain('padding-inline:clamp(1.25rem,5vw,3rem)');
+    const button = ruleFor(styles, 'home-button');
+    expect(button).toContain('min-width:0');
+    expect(button).toContain('max-width:100%');
+    expect(button).toContain('flex-wrap:wrap');
   });
 
   it('distingue el catálogo no configurado de un catálogo vacío', async () => {

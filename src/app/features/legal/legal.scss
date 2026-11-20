@@ -13,7 +13,7 @@
 .legal {
   max-width: 46rem;
   margin-inline: auto;
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
   padding-inline: var(--space-4);
   color: var(--legal-ink);
   overflow-wrap: break-word;
@@ -22,7 +22,7 @@
 .legal__eyebrow {
   margin: 0 0 0.4rem;
   color: var(--legal-accent);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -75,7 +75,7 @@
 
 .legal__index-title {
   margin: 0 0 .75rem;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
 }
 
 .legal__index-list {
@@ -112,12 +112,12 @@
 
 .legal__heading {
   margin-top: 0.5rem;
-  font-size: 1.35rem;
+  font-size: var(--font-size-xl);
 }
 
 .legal__subheading {
   margin-top: 0.75rem;
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
 }
 
 .legal__list {
@@ -130,8 +130,8 @@
 }
 
 :focus-visible {
-  outline: 3px solid var(--focus, #145a9e);
-  outline-offset: 3px;
+  outline: var(--focus-ring) solid var(--focus, #145a9e);
+  outline-offset: var(--focus-ring);
 }
 
 @media (max-width: 20rem) {

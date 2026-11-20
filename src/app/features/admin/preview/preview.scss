@@ -12,7 +12,7 @@
 /* Explicación del botón deshabilitado junto al control, sin aria-describedby
    apuntando a un nodo que un botón no enfocable no puede alcanzar. */
 .progress-control { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
-.progress-note { margin: 0; color: var(--muted); font-size: .875rem; }
+.progress-note { margin: 0; color: var(--muted); font-size: var(--font-size-sm); }
 
 .video-notice { overflow-wrap: anywhere; }
 

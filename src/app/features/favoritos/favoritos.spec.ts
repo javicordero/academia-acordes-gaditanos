@@ -158,7 +158,7 @@ describe('Mis favoritos', () => {
   it('agrupa cada curso con espacio y línea fina, sin caja de panel', () => {
     const styles = readFileSync('src/app/features/favoritos/favoritos.scss', 'utf8');
     const course = styles.match(/\.favorites__course\s*\{[^}]*\}/)?.[0] ?? '';
-    expect(course).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(course).toContain('padding-block: var(--section-gap)');
     expect(course).toContain('border-top: var(--border-width) solid var(--border)');
     expect(course).not.toContain('background: var(--surface)');
     expect(course).not.toContain('border-radius');

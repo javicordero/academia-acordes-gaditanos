@@ -138,7 +138,7 @@ describe('Perfil', () => {
   it('separa las secciones del perfil con padding y línea fina, sin caja', () => {
     const styles = readFileSync('src/app/features/perfil/perfil.scss', 'utf8');
     const card = styles.match(/\.card\s*\{[^}]*\}/)?.[0] ?? '';
-    expect(card).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(card).toContain('padding-block: var(--section-gap)');
     expect(card).toContain('border-top: var(--border-width) solid var(--border)');
     expect(card).not.toContain('background');
     expect(card).not.toContain('border-radius');

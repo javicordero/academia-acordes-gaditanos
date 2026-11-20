@@ -3,7 +3,7 @@
 .page {
   max-width: var(--content-max-width);
   margin-inline: auto;
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
 }
 
 .forum-back {

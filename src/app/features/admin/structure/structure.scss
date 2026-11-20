@@ -2,8 +2,8 @@
    panel. Lo que ya declara la base global de .admin-workspace no se repite;
    se conservan DnD, pestañas, foco, 44px, dos paneles y responsive. */
 :host { display: block; min-width: 0; }
-.structure-intro, .structure-hint, .inspector-empty, .outline-position, .inspector-legacy summary { color: var(--admin-text-muted); }
-.structure-intro, .structure-hint { font-size: .9rem; }
+.structure-intro, .structure-hint { color: var(--admin-text-muted); font-size: var(--font-size-md); }
+.inspector-empty, .outline-position, .inspector-legacy summary { color: var(--admin-text-muted); }
 .structure-hint { margin: var(--space-1) 0 var(--space-2); }
 .structure-toolbar, .inspector-actions, .inspector-links, .inspector-tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-3); }
 .structure-toolbar { align-items: center; gap: var(--space-1) var(--space-3); margin-bottom: var(--space-3); }
@@ -21,13 +21,13 @@
 .outline-lessons { gap: var(--space-2); margin: var(--space-2) 0 var(--space-2) var(--space-3); }
 .outline-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
 .outline-select, .outline-fold, .outline-order__button, .structure-drag, .outline-add, .structure-link { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border-radius: var(--radius-sm); color: var(--admin-text); }
-.outline-select, .structure-drag { padding: var(--space-1) var(--space-2); }
+.outline-select, .structure-drag, .status-chip { padding: var(--space-1) var(--space-2); }
 .outline-select { flex: 1 1 10rem; gap: var(--space-2); border: var(--border-width) solid transparent; background: none; text-align: left; }
 .outline-select[aria-current='true'] { border-color: var(--admin-accent); background: var(--admin-surface-hover); }
 .outline-name { min-width: 0; }
 .outline-fold, .outline-order__button { padding: var(--space-1); border: var(--border-width) solid var(--admin-border); }
-.outline-position { font-size: .85rem; text-align: center; }
-.status-chip { padding: var(--space-1) var(--space-2); border: var(--border-width) solid var(--admin-success); border-radius: var(--radius-lg); background: var(--admin-success-surface); color: var(--admin-success-text); font-size: .75rem; }
+.outline-position { font-size: var(--font-size-sm); text-align: center; }
+.status-chip { border: var(--border-width) solid var(--admin-success); border-radius: var(--radius-lg); background: var(--admin-success-surface); color: var(--admin-success-text); font-size: var(--font-size-xs); }
 .status-chip--draft { border-color: var(--admin-warn); background: var(--admin-warn-surface); color: var(--admin-warn-text); }
 /* Misma geometría para el chip de muestra y los enlaces secundarios. */
 .status-chip--preview, .inspector-legacy .structure-link { border-color: var(--admin-border-strong); color: var(--admin-text-muted); }

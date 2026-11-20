@@ -31,7 +31,29 @@ describe('Acciones sin subrayado en estilos globales', () => {
     );
   });
 
-  it('mantiene el foco visible por outline con el token --focus', () => {
-    expect(ruleBody(':focus-visible')).toMatch(/outline:\s*3px solid var\(--focus\)/);
+  it('mantiene el foco visible por outline con los tokens --focus-ring y --focus', () => {
+    expect(ruleBody(':focus-visible')).toMatch(
+      /outline:\s*var\(--focus-ring\)\s+solid\s+var\(--focus\)/,
+    );
+  });
+});
+
+describe('Base de espaciado y jerarquía tipográfica global', () => {
+  it('usa tokens en el ritmo vertical y las alturas de línea', () => {
+    expect(ruleBody('body')).toMatch(/font-size:\s*var\(--font-size-md\)/);
+    expect(ruleBody('body')).toMatch(/line-height:\s*var\(--line-height-relaxed\)/);
+    expect(ruleBody('h1,\nh2,\nh3')).toMatch(/margin:\s*0 0 var\(--space-3\)/);
+    expect(ruleBody('h1,\nh2,\nh3')).toMatch(/line-height:\s*var\(--line-height-tight\)/);
+    expect(ruleBody('p')).toMatch(/margin:\s*0 0 var\(--space-4\)/);
+  });
+
+  it('aplica clamp() a h1 y h2 con máximo 3rem y 2rem respectivamente', () => {
+    expect(ruleBody('h1')).toMatch(/font-size:\s*clamp\(2rem,\s*1\.5rem \+ 2\.5vw,\s*3rem\)/);
+    expect(ruleBody('h2')).toMatch(/font-size:\s*clamp\(1\.5rem,\s*1\.35rem \+ 1vw,\s*2rem\)/);
+    expect(ruleBody('h2')).toMatch(/margin-top:\s*var\(--space-6\)/);
+  });
+
+  it('limita el ancho de lectura de .lead a 66ch', () => {
+    expect(ruleBody('.lead')).toMatch(/max-inline-size:\s*66ch/);
   });
 });

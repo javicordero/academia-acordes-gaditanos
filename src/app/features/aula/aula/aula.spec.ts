@@ -105,7 +105,7 @@ describe('Aula', () => {
     expect(cssRule(css, '.aula-sidebar')).not.toMatch(/padding(-inline|-left|-right)?\s*:/);
     expect(css).toMatch(/grid-template-columns:\s*330px\s+minmax\(0,\s*1fr\)/);
     expect(cssRule(css, '.aula-layout')).toMatch(/gap:\s*0\s*;/);
-    expect(css).toMatch(/height:\s*calc\(100dvh\s*-\s*var\(--aula-shell-offset\)\)/);
+    expect(css).toMatch(/--aula-h:\s*calc\(100dvh\s*-\s*var\(--aula-shell-offset\)\)/);
     expect(cssRule(css, '.aula-sidebar')).toMatch(/min-height:\s*0\s*;/);
     expect(cssRule(css, '.aula-content')).toMatch(/min-height:\s*0\s*;/);
     expect(css).toMatch(/\.aula-content[^{]*\{[^}]*overflow-y:\s*auto/);
@@ -125,11 +125,11 @@ describe('Aula', () => {
     expect(declared).toMatch(/^-?[\d.]+(px|rem|em|vh|dvh|%)$/);
     expect(css).not.toMatch(/--aula-shell-offset:\s*0\s*;/);
 
-    // Ambas columnas comparten el mismo calc con unidades compatibles y fallback 100vh.
-    expect(css).toMatch(/\.aula-sidebar[^{]*\{[^}]*height:\s*calc\(100vh\s*-\s*var\(--aula-shell-offset\)\)/);
-    expect(css).toMatch(/\.aula-sidebar[^{]*\{[^}]*height:\s*calc\(100dvh\s*-\s*var\(--aula-shell-offset\)\)/);
-    expect(css).toMatch(/\.aula-content[^{]*\{[^}]*max-height:\s*calc\(100vh\s*-\s*var\(--aula-shell-offset\)\)/);
-    expect(css).toMatch(/\.aula-content[^{]*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*var\(--aula-shell-offset\)\)/);
+    // Ambas columnas comparten un custom property con fallback 100vh antes de 100dvh.
+    expect(css).toMatch(/--aula-h:\s*calc\(100vh\s*-\s*var\(--aula-shell-offset\)\)/);
+    expect(css).toMatch(/--aula-h:\s*calc\(100dvh\s*-\s*var\(--aula-shell-offset\)\)/);
+    expect(css).toMatch(/\.aula-sidebar[^{]*\{[^}]*height:\s*var\(--aula-h\)/);
+    expect(css).toMatch(/\.aula-content[^{]*\{[^}]*max-height:\s*var\(--aula-h\)/);
     expect(css).toMatch(/\.aula-content[^{]*\{[^}]*overflow-y:\s*auto/);
     expect(css).toMatch(/\.aula-content[^{]*\{[^}]*overscroll-behavior:\s*contain/);
   });
@@ -197,9 +197,9 @@ describe('Aula', () => {
     const css = componentCss();
 
     expect(cssRule(css, '.aula-layout')).toMatch(/--aula-indent:/);
-    expect(cssRule(css, '.lesson-title')).toMatch(/margin:\s*20px\s+0/);
+    expect(cssRule(css, '.lesson-title')).toMatch(/margin:\s*var\(--space-5\)\s+0/);
     expect(cssRule(css, '.aula-separator')).toMatch(/margin:\s*40px\s+0\s+16px/);
-    expect(authoredCss()).toMatch(/\.video-stage\s*\+\s*\.lesson-title\s*\{[^}]*margin-top:\s*48px/);
+    expect(authoredCss()).toMatch(/\.video-stage\s*\+\s*\.lesson-title\s*\{[^}]*margin-top:\s*var\(--space-7\)/);
   });
 
   function setup(
@@ -1404,7 +1404,7 @@ describe('Aula', () => {
     // Botón: relleno de ~10px a ~6px, fuente menor y 44px táctiles intactos.
     const progressMobile = mobile.match(/\.progress-button[^{]*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
     expect(progressMobile).toMatch(/padding:\s*0\s+var\(--space-2\)/);
-    expect(progressMobile).toMatch(/font-size:\s*0?\.9rem/);
+    expect(progressMobile).toMatch(/font-size:\s*var\(--font-size-md\)/);
     expect(progressMobile).toMatch(/min-width:\s*0/);
     expect(css).toMatch(/:is\(\.progress-button[^{]*\{[^}]*min-height:\s*44px/);
     // Ni apilado, ni centrado, ni estrella oculta en móvil.
@@ -1511,7 +1511,7 @@ describe('Aula', () => {
     expect(css).toMatch(/\.favorite-toggle\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/);
     expect(css).toMatch(/\.favorite-toggle\s*\{[^}]*border:\s*0/);
     expect(mobile).toMatch(/\.progress-button[^{]*\{[^}]*padding:\s*0\s+var\(--space-2\)/);
-    expect(mobile).toMatch(/\.progress-button[^{]*\{[^}]*font-size:\s*0?\.9rem/);
+    expect(mobile).toMatch(/\.progress-button[^{]*\{[^}]*font-size:\s*var\(--font-size-md\)/);
     expect(mobile).toMatch(/\.aula-layout[^{]*\{[^}]*--aula-indent:\s*0?\.75rem/);
     expect(cssRule(css, '.video')).toMatch(/aspect-ratio:\s*16\s*\/\s*9/);
     expect(cssRule(css, ':focus-visible')).toMatch(/outline:\s*3px solid var\(--focus\)/);

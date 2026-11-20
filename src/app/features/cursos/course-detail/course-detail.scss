@@ -19,7 +19,7 @@
 }
 
 .course-hero {
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
   border-bottom: var(--border-width) solid var(--border);
   min-width: 0;
 
@@ -30,15 +30,16 @@
 
   &__title {
     margin: 0 0 var(--space-3);
-    font-size: clamp(1.6rem, 4.5vw, 2.75rem);
-    line-height: 1.15;
+    font-size: clamp(2rem, 1.5rem + 2.5vw, 3rem);
+    line-height: var(--line-height-tight);
     overflow-wrap: anywhere;
   }
 
   &__summary {
     margin: 0 0 var(--space-4);
-    font-size: clamp(1rem, 2vw, 1.2rem);
-    line-height: 1.5;
+    max-inline-size: 66ch;
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-relaxed);
     overflow-wrap: anywhere;
   }
 }
@@ -50,7 +51,7 @@
 }
 
 .access-panel {
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
   min-width: 0;
 }
 
@@ -66,24 +67,24 @@
   &--granted { border-color: currentColor; }
   &--error { border-style: dashed; }
   &__message { margin: 0; overflow-wrap: anywhere; }
-  h2 { margin-top: 0; font-size: 1.2rem; }
+  h2 { margin-top: 0; font-size: var(--font-size-xl); }
 }
 
 .section {
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
   border-bottom: var(--border-width) solid var(--border);
   min-width: 0;
 
   h2 {
     margin: 0 0 var(--space-3);
-    font-size: clamp(1.25rem, 3vw, 1.75rem);
-    line-height: 1.2;
+    font-size: clamp(1.5rem, 1.35rem + 1vw, 2rem);
+    line-height: var(--line-height-tight);
     overflow-wrap: anywhere;
   }
 
   h3 {
     margin: 0 0 var(--space-2);
-    font-size: 1.1rem;
+    font-size: var(--font-size-xl);
     overflow-wrap: anywhere;
   }
 
@@ -116,8 +117,8 @@
   padding-top: var(--space-2);
   border-top: var(--border-width) solid var(--border);
 
-  &__label { font-size: .9rem; opacity: .85; overflow-wrap: anywhere; }
-  &__value { font-size: 1.25rem; font-weight: 700; overflow-wrap: anywhere; }
+  &__label { font-size: var(--font-size-md); opacity: .85; overflow-wrap: anywhere; }
+  &__value { font-size: var(--font-size-xl); font-weight: 700; overflow-wrap: anywhere; }
 }
 
 .preview-grid {
@@ -197,8 +198,8 @@
 }
 
 :host :is(a, button, summary):focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+  outline: var(--focus-ring) solid currentColor;
+  outline-offset: var(--space-2);
 }
 
 button { font: inherit; }

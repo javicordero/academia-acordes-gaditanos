@@ -14,7 +14,6 @@
 
   <header
     class="site-header"
-    [class.site-header--menu-open]="menuOpen()"
     (keydown.escape)="onEscape($event)"
     (keydown)="onMenuKeydown($event)"
   >
@@ -81,18 +80,19 @@
         </div>
       }
 
-      <!-- Un único disclosure: solo el icono hamburger; el nombre accesible vive
-           en aria-label y la X de cierre es su propio botón en esta misma fila.
-           En escritorio el botón no existe y las herramientas van en la fila. -->
+      <!-- Un único botón: hamburguesa al cerrar, X al abrir, sin insertar ni
+           quitar controles de la fila (eso cambiaría la altura del header).
+           El nombre accesible vive en aria-label; no hay texto «Menú». -->
       <button
         #menuToggle
         type="button"
         class="nav-toggle"
+        [class.is-open]="menuOpen()"
         [attr.aria-label]="menuOpen() ? 'Cerrar menú' : 'Abrir menú'"
         aria-controls="site-navigation"
         [attr.aria-expanded]="menuOpen()"
         [attr.aria-haspopup]="'true'"
-        (click)="toggleMenu()"
+        (click)="menuOpen() ? closeMenu(true) : toggleMenu()"
       >
         <svg
           class="nav-toggle__icon nav-toggle__icon--menu"
@@ -111,27 +111,6 @@
           <path d="M5 5l10 10M15 5L5 15" />
         </svg>
       </button>
-
-      <!-- X de cierre en la MISMA fila y eje vertical que el burger: solo existe
-           con el menú abierto, comparte los 44px y no hay otra X en el overlay. -->
-      @if (menuOpen()) {
-        <button
-          type="button"
-          class="menu-close is-visible"
-          aria-label="Cerrar menú"
-          title="Cerrar menú"
-          (click)="closeMenu(true)"
-        >
-          <svg
-            class="menu-close__icon"
-            viewBox="0 0 20 20"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path d="M5 5l10 10M15 5L5 15" />
-          </svg>
-        </button>
-      }
 
       <div
         #siteNav

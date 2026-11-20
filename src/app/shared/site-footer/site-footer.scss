@@ -7,7 +7,7 @@
   border-top: 1px solid var(--border, #ddd2c0);
   background: var(--surface, #fffdf8);
   color: var(--muted, #5b5348);
-  font-size: 0.9rem;
+  font-size: var(--font-size-md);
 }
 
 .site-footer__inner {
@@ -27,7 +27,7 @@
   margin: 0 0 0.35rem;
   color: var(--ink, #241f1a);
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -36,7 +36,7 @@
 .site-footer__list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
+  gap: var(--space-1) var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;

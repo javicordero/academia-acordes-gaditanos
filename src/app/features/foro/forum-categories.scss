@@ -5,7 +5,7 @@
 .page {
   max-width: var(--content-max-width);
   margin-inline: auto;
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
 }
 
 .lead { max-width: 46rem; }
@@ -19,11 +19,11 @@
 }
 
 .forum-card {
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
   border-top: var(--border-width) solid var(--border);
 }
 
-.forum-card h2 { margin-top: 0; font-size: 1.25rem; }
+.forum-card h2 { margin-top: 0; font-size: var(--font-size-xl); }
 .forum-card__description { color: var(--muted); overflow-wrap: anywhere; }
 
 .forum-link,

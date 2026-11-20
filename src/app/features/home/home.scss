@@ -1,100 +1,42 @@
-:host { display: block; }
-
-.home-surface {
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-
-/* Sangrado sin `vw`: esa unidad incluye la barra vertical y generaba scroll. */
-.home { width: auto; margin: calc(-1 * clamp(2rem, 6vw, 4rem)) -1.25rem -4rem; overflow-x: clip; }
-.home-inner { max-width: var(--content-max-width); margin-inline: auto; padding-inline: clamp(1.25rem, 5vw, 3rem); }
-.home :is(a):focus-visible { outline: var(--focus-ring) solid var(--focus); }
-
-/* Un solo ritmo vertical para todas las secciones, incluido el CTA final. */
-.home-hero, .home-section { padding-block: var(--section-gap); }
-.home-hero {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  border-bottom: var(--border-width) solid var(--border);
-}
-.home-hero__grid { display: grid; grid-template-columns: minmax(0,45fr) minmax(0,55fr); gap: var(--section-gap); }
-.home-subtitle { color: var(--accent); }
-:is(.home-lead,.home-courses__support,.home-note,.home-prepared,.home-teacher__caption) { max-width: 62ch; color: var(--muted); }
-.home-lead { font-size: clamp(1.05rem,2vw,1.2rem); }
-
-.home-button {
-  display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap;
-  min-height: var(--tap-min); min-width: 0; max-width: 100%;
-  margin: auto var(--card-pad) 0; /* En botones en línea equivale a 0; en la card los separa. */
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-md); font-weight: var(--weight-bold);
-  border: var(--border-width) solid var(--accent); border-radius: var(--radius-md);
-}
-.home-button--primary,
-.home-button--primary:hover { background: var(--accent); color: var(--accent-ink); }
-/* Tercer color: una CTA por vista; gana al hover general por especificidad. */
-.home-hero .home-button--primary { background: var(--accent-strong); color: var(--accent-strong-ink); }
-.home-button--secondary { background: var(--surface); color: var(--accent); }
-
-.home-visual { aspect-ratio: 640/420; }
-.home-visual__art { display: block; width: 100%; height: 100%; }
-.home-visual__waves path { stroke: var(--accent); }
-.home-visual__strings path { stroke: var(--border); }
-.home-visual__medallion { fill: var(--surface); }
-.home-visual__monogram { fill: var(--accent); font-size: 5rem; }
-
-.home-section h2 { margin-top: 0; }
-.home-section--tint-a { background: var(--bg); }
-.home-section--tint-b { background: var(--surface); }
-:is(.home-section--tint-a,.home-section--tint-b) { border-top: var(--border-width) solid var(--border); }
-.home-teacher__grid { display: grid; grid-template-columns: minmax(0,42fr) minmax(0,58fr); gap: var(--card-pad); }
-.home-teacher__image { display: block; width: 100%; height: auto; aspect-ratio: 6/7; object-fit: cover; }
-.home-list,.home-steps { margin: var(--space-4) 0 0; padding-left: var(--space-5); }
-
-.home-courses { text-align: center; }
-.home-divider {
-  width: 100%;
-  margin-block: var(--grid-gap);
-  border: 0; border-top: var(--border-width) solid var(--border);
-}
-.home-courses__title { margin-bottom: var(--space-2); }
-.home-courses__accent { display: block; color: var(--accent); }
-.home-courses__support { margin-inline: auto; }
-
-.home-cards {
-  display: grid; grid-template-columns: repeat(3, minmax(0,1fr));
-  gap: var(--grid-gap); margin: 0; padding: 0; list-style: none;
-}
-.home-card {
-  display: flex; flex-direction: column; height: 100%;
-  position: relative; margin: 0; padding: 0 0 var(--card-pad);
-  transition: .15s ease;
-}
-.home-card:is(:hover,:focus-within) { transform: translateY(-2px); border-color: var(--accent); }
-.home-card__link { position: absolute; inset: 0; z-index: 1; }
-.home-card__cover { position: relative; }
-/* La imagen va a la escala tipográfica, no al revés: no domina la tarjeta. */
-.home-card__image { display: block; width: 100%; height: calc(var(--font-size-md) * 4); object-fit: cover; }
-.home-card__badge {
-  position: absolute; right: var(--space-3); bottom: var(--space-3);
-  display: grid; place-items: center; width: 2rem; height: 2rem;
-  border-radius: 50%; background: var(--accent); color: var(--accent-ink);
-}
-.home-card__course {
-  margin: var(--card-pad) var(--card-pad) 0;
-  color: var(--ink); font-size: var(--font-size-lg); font-weight: var(--weight-bold);
-  line-height: var(--line-height-tight); min-height: 2.6em;
-}
-
-@media (max-width:48rem) {
-  :is(.home-hero__grid,.home-teacher__grid) { grid-template-columns: minmax(0,1fr); }
-  .home-cards { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .home-card:nth-child(odd):last-child { grid-column:1/-1; justify-self:center; width:calc(50% - var(--grid-gap)/2); }
-  .home-teacher__text { order:1; }
-}
-@media (max-width:20rem) {
-  .home-card__image { height: calc(var(--font-size-md) * 3); }
-}
-@media (prefers-reduced-motion:reduce) {
-  .home-card { transition:none; transform:none; }
+:host{display:block}
+.home-inner{max-width: var(--content-max-width);margin-inline:auto;padding-inline: clamp(1.25rem, 5vw, 3rem)}
+.home{width:auto;margin:calc(-1 * clamp(2rem,6vw,4rem)) -1.25rem -4rem;overflow-x:clip;font-size:var(--font-size-md);
+ &-surface{border:var(--border-width) solid var(--border);border-radius:var(--radius-md);background:var(--surface)}
+ & :is(a):focus-visible{outline:var(--focus-ring) solid var(--focus)}
+ &-hero,&-section{padding-block:var(--section-gap)}
+ &-hero{background:color-mix(in srgb,var(--accent) 10%,var(--surface));border-bottom:var(--border-width) solid var(--border)}
+ &-hero__grid{display:grid;grid-template-columns:minmax(0,45fr) minmax(0,55fr);gap:var(--section-gap)}
+ &-hero h1{margin:0 0 var(--space-3);font-size:var(--font-size-3xl);line-height:var(--line-height-tight)}
+ &-section h2{margin:0 0 var(--space-4);font-size:var(--font-size-2xl);line-height:var(--line-height-tight)}
+ &-subtitle,&-courses__accent{display:block;color:var(--accent)}
+ & :is(.home-lead,.home-courses__support,.home-note,.home-prepared,.home-teacher__caption){max-width:62ch;color:var(--muted)}
+ &-lead{font-size:var(--font-size-lg);line-height:var(--line-height-relaxed)}
+ &-teacher__caption{font-size:var(--font-size-sm)}
+ &-button{display:inline-flex;align-items:center;justify-content:center;flex-wrap:wrap;min-height:var(--tap-min);min-width:0;max-width:100%;margin:auto var(--card-pad) 0;padding:var(--space-2) var(--space-3);font-size:var(--font-size-md);font-weight:var(--weight-bold);border:var(--border-width) solid var(--accent);border-radius:var(--radius-md)}
+ &-button--primary,&-button--primary:hover{background:var(--accent);color:var(--accent-ink)}
+ &-hero &-button--primary{background:var(--accent-strong);color:var(--accent-strong-ink)}
+ &-button--secondary{background:var(--surface);color:var(--accent)}
+ &-visual{aspect-ratio:640/420}
+ &-visual__art{display:block;width:100%;height:100%}
+ &-visual__waves path{stroke:var(--accent)}
+ &-visual__strings path{stroke:var(--border)}
+ &-visual__medallion{fill:var(--surface)}
+ &-visual__monogram{fill:var(--accent);font-size:5rem}
+ &-section--tint-a{background:var(--bg)}
+ &-section--tint-b{background:var(--surface)}
+ & :is(.home-section--tint-a,.home-section--tint-b){border-top:var(--border-width) solid var(--border)}
+ &-teacher__grid{display:grid;grid-template-columns:minmax(0,42fr) minmax(0,58fr);gap:var(--card-pad)}
+ &-teacher__image{display:block;width:100%;height:auto;aspect-ratio:6/7;object-fit:cover}
+ &-courses{text-align:center}
+ &-divider{width:100%;margin-block:var(--grid-gap);border:0;border-top:var(--border-width) solid var(--border)}
+ &-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--grid-gap);margin:0;padding:0;list-style:none}
+ &-card{display:flex;flex-direction:column;height:100%;position:relative;margin:0;padding:0 0 var(--card-pad);transition:.15s ease}
+ &-card:is(:hover,:focus-within){border-color:var(--accent);box-shadow:var(--shadow-card)}
+ &-card__link{position:absolute;inset:0;z-index:1}
+ &-card__cover{position:relative}
+ &-card__image{display:block;width:100%;height:clamp(3.5rem,8vw,6rem);object-fit:cover}
+ &-card__badge{position:absolute;right:var(--space-3);bottom:var(--space-3);display:grid;place-items:center;width:2rem;height:2rem;border-radius:50%;background:var(--accent);color:var(--accent-ink)}
+ &-card__course{margin:var(--card-pad) var(--card-pad) 0;color:var(--ink);font-size:var(--font-size-lg);font-weight:var(--weight-bold);line-height:var(--line-height-tight);min-height:2.6em}
+ @media(max-width:48rem){&-hero__grid,&-teacher__grid{grid-template-columns:minmax(0,1fr)}&-cards{grid-template-columns:repeat(2,minmax(0,1fr))}&-card:nth-child(odd):last-child{grid-column:1/-1;justify-self:center;width:calc(50% - var(--grid-gap)/2)}&-teacher__text{order:1}}
+ @media(prefers-reduced-motion:reduce){&-card{transition:none}}
 }

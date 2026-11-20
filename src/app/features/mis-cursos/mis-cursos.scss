@@ -1,4 +1,4 @@
-﻿:host {
+:host {
   display: block;
 
   /* La rejilla y el ancho de tarjeta son de maquetación; los espacios, radios y
@@ -9,7 +9,6 @@
 
 /* Solo el aviso es caja; el resumen se integra con espacio y línea fina. */
 .notice {
-  margin: 0 0 var(--section-gap);
   padding: var(--space-4);
   border: var(--border-width) solid var(--border);
   border-left: calc(var(--border-width) * 5) solid var(--accent);
@@ -44,8 +43,7 @@
 }
 
 .library__summary {
-  margin: 0 0 var(--section-gap);
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
   border-top: var(--border-width) solid var(--border);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(8rem, 16rem);
@@ -53,9 +51,15 @@
   gap: var(--space-2) var(--space-5);
 }
 
-.library__summary h2 {
+.library__summary,
+.notice {
+  margin: 0 0 var(--section-gap);
+}
+
+.library__summary h2,
+.course-card__title {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: var(--font-size-xl);
 }
 
 .library__summary p {
@@ -141,17 +145,12 @@
   padding: var(--card-pad);
 }
 
-.course-card__title {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
 .course-card__meta,
 .course-card__summary,
 .course-card__progress-label {
   margin: 0;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--font-size-md);
 }
 
 .course-card__progress {

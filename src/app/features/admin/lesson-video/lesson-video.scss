@@ -73,19 +73,19 @@ ul {
 
 .upload h4 {
   margin: 0 0 var(--space-3);
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
 }
 
 .hint {
   color: #514c45;
-  font-size: 0.9rem;
+  font-size: var(--font-size-md);
 }
 
 .warning {
   padding: var(--space-2) var(--space-3);
   border-left: calc(var(--border-width) * 3) solid #9b2c2c;
   background: #f6efe8;
-  font-size: 0.9rem;
+  font-size: var(--font-size-md);
 }
 
 .progress {
@@ -164,7 +164,7 @@ ul {
 
 .toast__text {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: var(--font-size-md);
 }
 
 .toast__actions {
@@ -177,7 +177,7 @@ ul {
 .toast__actions button {
   min-height: 36px;
   padding: var(--space-1) var(--space-2);
-  font-size: 0.88rem;
+  font-size: var(--font-size-sm);
 }
 
 .toast__retry {

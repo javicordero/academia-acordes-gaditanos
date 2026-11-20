@@ -593,7 +593,7 @@ describe('Vista compartida de conversación', () => {
       expect(rules).toContain('border-radius: 0;');
       expect(rules).toContain('background: transparent;');
       expect(rules).toContain('box-shadow: none;');
-      expect(rules).toContain('font-size: 0.9rem;');
+      expect(rules).toContain('font-size: var(--font-size-md);');
       expect(rules).toContain('color: var(--danger, #a53a43);');
       expect(rules).toContain('font: inherit;');
       expect(rules).not.toContain('border: 1px');
@@ -921,7 +921,7 @@ describe('Vista compartida de conversación', () => {
 
   it('da espacio de sección y línea fina al bloque de conversación', () => {
     const css = styleText().replace(/\s+/g, '');
-    expect(css).toContain('padding-block:clamp(1rem,2.5vw,2rem)');
+    expect(css).toContain('padding-block:var(--section-gap)');
     expect(css).toContain('border-top:var(--border-width)solidvar(--border)');
   });
 });

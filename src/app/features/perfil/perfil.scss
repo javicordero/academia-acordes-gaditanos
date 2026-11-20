@@ -3,11 +3,11 @@
 .perfil {
   max-width: 42rem;
   margin-inline: auto;
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
 }
 
 .card {
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
   border-top: var(--border-width) solid var(--border);
 }
 

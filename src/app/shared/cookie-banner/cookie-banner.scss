@@ -20,7 +20,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem 1.5rem;
+  gap: var(--space-3) var(--space-5);
   max-width: var(--max-width);
   margin-inline: auto;
   padding: 0.85rem 1.25rem;
@@ -37,14 +37,14 @@
 
 .cookie-banner__title {
   margin-bottom: 0.35rem;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
 }
 
 .cookie-banner__text,
 .cookie-banner__hint {
   margin-bottom: 0.35rem;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: var(--font-size-md);
 }
 
 .cookie-banner__options {
@@ -63,7 +63,7 @@
 .cookie-banner__option {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-height: 44px;
   font-weight: 600;
 }
@@ -79,7 +79,7 @@
   flex: 0 1 auto;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .cookie-banner__button {

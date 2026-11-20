@@ -365,7 +365,7 @@ describe('Pantalla de un hilo del foro', () => {
     const styles = readFileSync('src/app/features/foro/forum-thread.scss', 'utf8');
     const page = styles.match(/\.page\s*\{[^}]*\}/)?.[0] ?? '';
     const feedback = styles.match(/\.forum-feedback\s*\{[^}]*\}/)?.[0] ?? '';
-    expect(page).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(page).toContain('padding-block: var(--section-gap)');
     expect(feedback).toContain('border: var(--border-width) solid var(--admin-success)');
   });
 });

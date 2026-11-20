@@ -244,7 +244,7 @@ describe('Catálogo', () => {
     expect(rules).not.toContain('border-radius');
     expect(rules).not.toContain('border: var(--border-width)');
     const header = cursosStyles.match(/\.catalog-header\s*\{[^}]*\}/)?.[0] ?? '';
-    expect(header).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(header).toContain('padding-block: var(--section-gap)');
   });
 
   it('no añade precios, profesor ni testimonios al catálogo', async () => {

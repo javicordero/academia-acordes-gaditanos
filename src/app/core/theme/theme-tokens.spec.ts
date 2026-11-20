@@ -14,13 +14,14 @@ const REQUIRED_TOKENS = [
   '--accent-strong', '--accent-strong-ink',
   '--border', '--focus', '--radius', '--font-body', '--font-display',
   '--space-1', '--space-2', '--space-3', '--space-4', '--space-5',
-  '--section-gap', '--card-pad', '--card-gap', '--grid-gap',
+  '--space-6', '--space-7', '--section-gap', '--block-gap',
+  '--card-pad', '--card-gap', '--grid-gap',
   '--radius-sm', '--radius-md', '--radius-lg', '--shadow-card',
   '--shadow-raised', '--border-width', '--content-max-width',
   '--font-size-xs', '--font-size-sm', '--font-size-md', '--font-size-lg',
   '--font-size-xl', '--font-size-2xl', '--font-size-3xl',
   '--line-height-tight', '--line-height-normal', '--line-height-relaxed',
-  '--weight-regular', '--weight-medium', '--weight-bold',
+  '--weight-regular', '--weight-medium', '--weight-semibold', '--weight-bold',
   '--icon-sm', '--icon-md', '--icon-lg', '--stroke-width',
   '--tap-min', '--focus-ring', '--z-panel', '--z-overlay', '--z-toast',
   '--success', '--success-ink', '--warning', '--warning-ink',
@@ -85,8 +86,26 @@ describe('tokens del estilo único Línea precisa', () => {
     expect(valueFor('linea', '--accent-strong-ink')).toBe('#ffffff');
     expect(valueFor('linea', '--font-body')).toBe("'Courier New', Courier, monospace");
     expect(valueFor('linea', '--font-display')).toBe('system-ui, sans-serif');
-    expect(valueFor('linea', '--space-3')).toBe('0.65rem');
-    expect(valueFor('linea', '--card-pad')).toBe('0.9rem');
+    expect(valueFor('linea', '--space-1')).toBe('0.25rem');
+    expect(valueFor('linea', '--space-3')).toBe('0.75rem');
+    expect(valueFor('linea', '--space-5')).toBe('1.5rem');
+    expect(valueFor('linea', '--space-6')).toBe('2rem');
+    expect(valueFor('linea', '--space-7')).toBe('3rem');
+    expect(valueFor('linea', '--section-gap')).toBe('3rem');
+    expect(valueFor('linea', '--block-gap')).toBe('1.5rem');
+    expect(valueFor('linea', '--card-pad')).toBe('1rem');
+    expect(valueFor('linea', '--card-gap')).toBe('0.5rem');
+    expect(valueFor('linea', '--grid-gap')).toBe('1rem');
+    expect(valueFor('linea', '--font-size-xs')).toBe('0.75rem');
+    expect(valueFor('linea', '--font-size-md')).toBe('1rem');
+    expect(valueFor('linea', '--font-size-lg')).toBe('1.125rem');
+    expect(valueFor('linea', '--font-size-xl')).toBe('1.25rem');
+    expect(valueFor('linea', '--font-size-2xl')).toBe('2rem');
+    expect(valueFor('linea', '--font-size-3xl')).toBe('3rem');
+    expect(valueFor('linea', '--line-height-tight')).toBe('1.1');
+    expect(valueFor('linea', '--line-height-normal')).toBe('1.5');
+    expect(valueFor('linea', '--line-height-relaxed')).toBe('1.65');
+    expect(valueFor('linea', '--weight-semibold')).toBe('600');
     expect(valueFor('linea', '--radius-md')).toBe('5px');
     expect(valueFor('linea', '--content-max-width')).toBe('72rem');
     expect(valueFor('linea', '--heading-tracking')).toBe('0.03em');
@@ -94,7 +113,7 @@ describe('tokens del estilo único Línea precisa', () => {
     expect(valueFor('linea', '--card-display')).toBe('stack');
     expect(valueFor('linea', '--density')).toBe('compact');
     expect(valueFor('linea', '--tap-min')).toBe('2.75rem');
-    expect(valueFor('linea', '--focus-ring')).toBe('2px');
+    expect(valueFor('linea', '--focus-ring')).toBe('3px');
   });
 
   it('index.html aplica el tema sin JS y el meta coincide con --bg', () => {

@@ -5,7 +5,7 @@
 .page {
   max-width: var(--content-max-width);
   margin-inline: auto;
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
 }
 
 .forum-back {
@@ -25,11 +25,11 @@
 
 .forum-card {
   min-width: 0;
-  padding-block: clamp(1rem, 2.5vw, 2rem);
+  padding-block: var(--section-gap);
   border-top: var(--border-width) solid var(--border);
 }
 
-.forum-card h2 { margin: 0 0 var(--space-1); font-size: 1.15rem; }
+.forum-card h2 { margin: 0 0 var(--space-1); font-size: var(--font-size-xl); }
 .forum-card__meta {
   display: flex;
   flex-wrap: wrap;
@@ -65,7 +65,7 @@
   padding-block: var(--section-gap);
   border-top: var(--border-width) solid var(--border);
 }
-.forum-form h2 { margin-top: 0; font-size: 1.3rem; }
+.forum-form h2 { margin-top: 0; font-size: var(--font-size-xl); }
 .forum-form label { font-weight: 650; }
 .forum-form input,
 .forum-form textarea {

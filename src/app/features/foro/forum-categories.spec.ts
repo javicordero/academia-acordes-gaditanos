@@ -95,8 +95,8 @@ describe('Pantalla de categorías del foro', () => {
     const styles = readFileSync('src/app/features/foro/forum-categories.scss', 'utf8');
     const page = styles.match(/\.page\s*\{[^}]*\}/)?.[0] ?? '';
     const card = styles.match(/\.forum-card\s*\{[^}]*\}/)?.[0] ?? '';
-    expect(page).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
-    expect(card).toContain('padding-block: clamp(1rem, 2.5vw, 2rem)');
+    expect(page).toContain('padding-block: var(--section-gap)');
+    expect(card).toContain('padding-block: var(--section-gap)');
     expect(card).toContain('border-top: var(--border-width) solid var(--border)');
     expect(card).not.toContain('background: var(--surface)');
     expect(card).not.toContain('border-radius');
