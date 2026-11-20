@@ -34,6 +34,15 @@ const noDetail = () => vi.fn().mockResolvedValue(null);
 const panels = (root: HTMLElement): HTMLElement[] =>
   Array.from(root.querySelectorAll<HTMLElement>('[data-section="cursos"] .home-courses'));
 
+// CSS encapsulado: se comprueban reglas declaradas y tokens, no cadenas de píxeles.
+const cssText = (): string => Array.from(document.querySelectorAll('style'))
+  .map((style) => style.textContent ?? '')
+  .join('\n')
+  .replace(/\s+/g, '');
+
+const ruleFor = (css: string, className: string): string =>
+  css.match(new RegExp(`\\.${className}\\[_ngcontent[^\\]]+\\]\\{([^}]*)\\}`))?.[1] ?? '';
+
 describe('Portada', () => {
   it('renderiza las secciones en el orden previsto con un solo h1', async () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
@@ -251,16 +260,14 @@ describe('Portada', () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
     await fixture.whenStable();
 
-    const styles = Array.from(document.querySelectorAll('style'))
-      .map((style) => style.textContent ?? '')
-      .join('\n')
-      .replace(/\s+/g, '');
+    const styles = cssText();
     expect(styles).toContain('grid-template-columns:repeat(3,minmax(0,1fr))');
-    expect(styles).toContain('object-fit:cover');
-    expect(styles).toContain('height:5rem');
-    expect(styles).toContain('height:3.5rem');
+    expect(ruleFor(styles, 'home-card__image')).toContain('object-fit:cover');
+    // La miniatura se mide con la escala tipográfica, no con rem sueltos.
+    expect(ruleFor(styles, 'home-card__image')).toMatch(/height:calc\(var\(--font-size-md\)\*\d+\)/);
+    expect(ruleFor(styles, 'home-card__course')).toContain('font-size:var(--font-size-lg)');
     expect(styles).toContain('font-size:var(--font-size-md)');
-    expect(styles).toContain('margin-block:var(--space-4)');
+    expect(ruleFor(styles, 'home-divider')).toMatch(/margin-block:var\(--[a-z-]+\)/);
     expect(styles).not.toContain('margin-top:calc(var(--space-5)+var(--space-4))');
     expect(styles).toMatch(/h2\[_ngcontent[^\]]+\]\{margin-top:0;?\}/);
     expect(styles).not.toContain('margin-top:2.25rem');
@@ -274,6 +281,8 @@ describe('Portada', () => {
     expect(movil).toContain('grid-column:1/-1');
     expect(movil).toContain('justify-self:center');
     expect(movil).not.toContain('font-size:var(--font-size-sm)');
+    // Tamaño de imagen en escritorio y una reducción en el media estrecho.
+    expect(styles.match(/height:calc\(var\(--font-size-md\)\*\d+\)/g) ?? []).toHaveLength(2);
   });
 
   it('no muestra etiquetas de muestra ni nivel en las tarjetas, pero conserva la nota del profesor', async () => {
@@ -323,12 +332,13 @@ describe('Portada', () => {
       .map((style) => style.textContent ?? '')
       .join('\n')
       .replace(/\s+/g, '');
-    expect(styles).toContain('margin:calc(-1*clamp(2rem,6vw,4rem))-1.25rem-4rem');
+    // Sangrado compensado con calc (regla declarada), no ancho de viewport.
+    expect(ruleFor(styles, 'home')).toMatch(/margin:calc\(/);
     expect(styles).toContain('width:auto');
     expect(styles).not.toContain('width:100vw');
     expect(styles).toContain('overflow-x:clip');
     expect(styles).toContain('padding-inline:clamp(1.25rem,5vw,3rem)');
-    expect(styles).toContain('padding-block:clamp(1rem,2.5vw,2rem)');
+    expect(styles).toContain('padding-block:var(--section-gap)');
     expect(styles).toContain('max-width:var(--content-max-width)');
     expect(styles).toContain('margin-inline:auto');
     for (const name of ['hero', 'cursos', 'aprenderas', 'preview', 'profesor', 'testimonios', 'cta']) {
@@ -362,7 +372,6 @@ describe('Portada', () => {
     const titleRule = styles.match(/\.home-courses__title\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
     const linkRule = styles.match(/\.home-card__link\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
     const courseRule = styles.match(/\.home-card__course\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    const cardButtonRule = styles.match(/\.home-card\[_ngcontent[^\]]+\]\.home-button\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
 
     // Fondo del hero derivado de tokens del tema, no blanco liso; conserva su línea.
     expect(heroRule).not.toContain('background:var(--surface)');
@@ -371,15 +380,15 @@ describe('Portada', () => {
     expect(heroRule).toContain('var(--surface)');
     expect(heroRule).toContain('border-bottom:var(--border-width)solidvar(--border)');
 
-    // Divisor con la misma separación a ambos lados, sin la suma desequilibrada.
-    expect(dividerRule).toContain('margin-block:var(--space-4)');
+    // Divisor integrado en la escala de la rejilla, con la misma separación a ambos lados.
+    expect(dividerRule).toMatch(/margin-block:var\(--grid-gap\)/);
     expect(dividerRule).not.toContain('margin-top');
     expect(dividerRule).not.toContain('margin-bottom');
-    expect(dividerRule.match(/var\(--space-[a-z0-9-]+\)/g) ?? []).toHaveLength(1);
+    expect(dividerRule.match(/margin-block:var\([^)]+\)/g) ?? []).toHaveLength(1);
     // La línea abarca todo el contenido, no un trozo centrado.
     expect(dividerRule).toContain('width:100%');
     expect(dividerRule).not.toContain('max-width:');
-    expect(dividerRule).toContain('margin-inline:0');
+    expect(dividerRule).not.toContain('margin-inline:');
     expect(dividerRule).not.toContain('width:min(');
 
     // El hueco entre tarjetas lo pone gap, no márgenes de ul/li ni del título.
@@ -396,8 +405,9 @@ describe('Portada', () => {
     expect(linkRule).toContain('z-index:1');
     expect(courseRule).toContain('color:var(--ink)');
     expect(courseRule).not.toContain('var(--accent)');
-    expect(cardButtonRule).toContain('padding:var(--space-1)var(--space-3)');
-    expect(cardButtonRule).toContain('margin:auto');
+    // Un solo padding de botón en toda la portada: la tarjeta no lo redefine.
+    expect(styles).not.toMatch(/\.home-card\[_ngcontent[^\]]+\]\.home-button/);
+    expect(ruleFor(styles, 'home-button')).toContain('margin:auto');
 
     // Hover de tarjeta y primary estable en reposo y hover.
     expect(styles).toMatch(/\.home-card\[_ngcontent[^\]]+\]:is\(:hover,:focus-within\)\{[^}]*transform:translateY\(-2px\)/);
@@ -405,9 +415,9 @@ describe('Portada', () => {
     expect(styles).toMatch(/\.home-button--primary\[_ngcontent[^\]]+\](?:,\.home-button--primary\[_ngcontent[^\]]+\]:hover)?\{background:var\(--accent\);color:var\(--accent-ink\);?\}/);
 
     // Los CTAs del hero comparten medidas; solo cambia el color.
-    const actionsRule = styles.match(/\.home-button\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    expect(actionsRule).toContain('min-height:44px');
-    expect(actionsRule).toContain('padding:var(--space-2)var(--space-4)');
+    const actionsRule = ruleFor(styles, 'home-button');
+    expect(actionsRule).toContain('min-height:var(--tap-min)');
+    expect(actionsRule).toMatch(/padding:var\(--space-\d+\)var\(--space-\d+\)/);
     expect(actionsRule).toContain('font-size:var(--font-size-md)');
     expect(actionsRule).toContain('font-weight:var(--weight-bold)');
   });
@@ -430,6 +440,10 @@ describe('Portada', () => {
       const span = card.querySelector<HTMLElement>('.home-button--primary')!;
       expect(span.tagName).toBe('SPAN');
       expect(span.getAttribute('aria-hidden')).toBe('true');
+      expect(span.getAttribute('href')).toBeNull();
+      expect(span.getAttribute('tabindex')).toBeNull();
+      expect(span.parentElement).toBe(card);
+      expect(link.parentElement).toBe(card);
     }
     expect(root.querySelectorAll('.home-card__link[href^="/cursos/"]')).toHaveLength(3);
     expect(root.querySelectorAll('.home-card__link[href="/cursos"]')).toHaveLength(3);
@@ -452,7 +466,6 @@ describe('Portada', () => {
     const coverRule = rule(/\.home-card__cover\[_ngcontent[^\]]+\]\{([^}]*)\}/);
     const imageRule = rule(/\.home-card__image\[_ngcontent[^\]]+\]\{([^}]*)\}/);
     const courseRule = rule(/\.home-card__course\[_ngcontent[^\]]+\]\{([^}]*)\}/);
-    const cardButtonRule = rule(/\.home-card\[_ngcontent[^\]]+\]\.home-button\[_ngcontent[^\]]+\]\{([^}]*)\}/);
 
     expect(cardRule).toContain('display:flex');
     expect(cardRule).toContain('flex-direction:column');
@@ -460,9 +473,12 @@ describe('Portada', () => {
     expect(coverRule).not.toContain('padding');
     expect(imageRule).not.toContain('padding');
     expect(imageRule).toContain('object-fit:cover');
+    expect(imageRule).toMatch(/height:calc\(var\(--font-size-md\)\*\d+\)/);
     expect(courseRule).toContain('min-height:');
     expect(courseRule).toContain('line-height:var(--line-height-tight)');
-    expect(cardButtonRule).toContain('margin:auto');
+    expect(courseRule).toContain('font-size:var(--font-size-lg)');
+    expect(courseRule).toContain('font-weight:var(--weight-bold)');
+    expect(ruleFor(styles, 'home-button')).toContain('margin:auto');
     expect(styles).toContain('grid-template-columns:repeat(3,minmax(0,1fr))');
     for (const card of Array.from(root.querySelectorAll('.home-card'))) {
       expect(card.querySelectorAll('a')).toHaveLength(1);
@@ -494,6 +510,101 @@ describe('Portada', () => {
       const nombre = anchor.textContent?.trim() || anchor.getAttribute('aria-label');
       expect(nombre).toBeTruthy();
     }
+  });
+
+  it('aplica el tercer color solo al CTA principal del hero, sin afectar a tarjetas ni al CTA final', async () => {
+    const fixture = setup({
+      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
+      detail: noDetail(),
+    });
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const styles = Array.from(document.querySelectorAll('style'))
+      .map((style) => style.textContent ?? '')
+      .join('\n')
+      .replace(/\s+/g, '');
+
+    // El único elemento con el color strong es el primary del hero, en reposo y hover.
+    const heroPrimary = styles.match(
+      /\.home-hero\[_ngcontent[^\]]+\]\.home-button--primary\[_ngcontent[^\]]+\](?:,\.home-hero\[_ngcontent[^\]]+\]\.home-button--primary\[_ngcontent[^\]]+\]:hover)?\{([^}]*)\}/,
+    )?.[1] ?? '';
+    expect(heroPrimary).toContain('background:var(--accent-strong)');
+    expect(heroPrimary).toContain('color:var(--accent-strong-ink)');
+    expect(heroPrimary).not.toContain('filter');
+    expect(styles.match(/background:var\(--accent-strong\)/g) ?? []).toHaveLength(1);
+    expect(styles.match(/color:var\(--accent-strong-ink\)/g) ?? []).toHaveLength(1);
+
+    // El primary general (tarjetas y CTA final) sigue azul, sin el token strong.
+    expect(styles).toMatch(/\.home-button--primary\[_ngcontent[^\]]+\](?:,\.home-button--primary\[_ngcontent[^\]]+\]:hover)?\{background:var\(--accent\);color:var\(--accent-ink\);?\}/);
+
+    // El enlace externo sigue siendo secondary; foco y tamaño intactos.
+    const hero = root.querySelector<HTMLElement>('[data-section="hero"]')!;
+    const primary = hero.querySelector<HTMLAnchorElement>('.home-button--primary')!;
+    expect(primary.textContent?.trim()).toBe('Nuestros cursos');
+    expect(hero.querySelector('.home-button--secondary')?.textContent?.trim())
+      .toBe('Acordes Gaditanos');
+    expect(ruleFor(styles, 'home-button')).toContain('min-height:var(--tap-min)');
+    expect(styles).toContain(':focus-visible');
+    expect(styles).toContain('outline:var(--focus-ring)solidvar(--focus)');
+  });
+
+  it('unifica padding de botón, ritmo vertical y divisor con tokens, sin filtros de color', async () => {
+    const fixture = setup({
+      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
+      detail: noDetail(),
+    });
+    await fixture.whenStable();
+    const styles = cssText();
+
+    // Un solo padding para todos los botones; la tarjeta no redefine el suyo.
+    const buttonRule = ruleFor(styles, 'home-button');
+    expect(buttonRule).toMatch(/padding:var\(--space-\d+\)var\(--space-\d+\)/);
+    expect(styles).not.toMatch(/\.home-card\[_ngcontent[^\]]+\]\.home-button/);
+
+    // El primary no cambia de color al hover: sin filtros, feedback por foco y tamaño.
+    expect(styles).not.toMatch(/filter:brightness/);
+    expect(styles).not.toMatch(/\.home-card[^{]*\{[^}]*filter:/);
+
+    // Ritmo vertical común, sin anulación local en el CTA final.
+    expect(styles).toContain('padding-block:var(--section-gap)');
+    expect(styles).not.toMatch(/\.home-cta\[_ngcontent/);
+    expect(ruleFor(styles, 'home-divider')).toMatch(/margin-block:var\(--grid-gap\)/);
+
+    // Tokens de accesibilidad en lugar de literales.
+    expect(buttonRule).toContain('min-height:var(--tap-min)');
+    expect(styles).not.toContain('min-height:44px');
+    expect(styles).toContain('outline:var(--focus-ring)solidvar(--focus)');
+    expect(styles).not.toContain('outline:3px');
+
+    // Guardas de ancho para que el CTA no desborde la tarjeta estrecha.
+    expect(buttonRule).toContain('min-width:0');
+    expect(buttonRule).toContain('max-width:100%');
+    expect(buttonRule).toContain('flex-wrap:wrap');
+    expect(styles).not.toMatch(/@media\(max-width:20rem\)\{[^}]*\.home-button/);
+  });
+
+  it('muestra la imagen del profesor sin distorsión y con pie accesible', async () => {
+    const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const teacher = root.querySelector<HTMLElement>('[data-section="profesor"]')!;
+    const figure = teacher.querySelector<HTMLElement>('figure.home-teacher__visual')!;
+    const image = figure.querySelector<HTMLImageElement>('img.home-teacher__image')!;
+    const caption = figure.querySelector<HTMLElement>('figcaption.home-teacher__caption')!;
+
+    expect(figure.contains(image)).toBe(true);
+    expect(figure.contains(caption)).toBe(true);
+    expect(image.getAttribute('width')).toBe('480');
+    expect(image.getAttribute('height')).toBe('560');
+    expect(caption.textContent?.trim()).toMatch(/muestra/);
+
+    const styles = cssText();
+    const imageRule = ruleFor(styles, 'home-teacher__image');
+    expect(imageRule).toContain('object-fit:cover');
+    expect(imageRule).not.toContain('object-fit:fill');
+    expect(imageRule).toContain('aspect-ratio:6/7');
+    expect(imageRule).toContain('height:auto');
   });
 
   it('muestra el banner editorial con h1, subtítulo y lead honestos', async () => {
@@ -729,12 +840,13 @@ describe('Portada', () => {
       .replace(/\s+/g, '');
     expect(styles).toContain('@media(max-width:48rem)');
     expect(styles).toContain('@media(max-width:20rem)');
-    expect(styles).toContain('min-height:44px');
+    expect(styles).toContain('min-height:var(--tap-min)');
+    expect(styles).toContain('outline:var(--focus-ring)solidvar(--focus)');
     expect(styles).toContain(':focus-visible');
     expect(styles).toContain('prefers-reduced-motion');
     expect(styles).toContain('aspect-ratio');
     // Geometría gobernada por tokens de tema: cambia de tema sin recargar.
-    for (const token of ['--content-max-width', '--section-gap', '--grid-gap', '--card-pad', '--border-width', '--radius-md']) {
+    for (const token of ['--content-max-width', '--section-gap', '--grid-gap', '--card-pad', '--border-width', '--radius-md', '--tap-min', '--focus-ring']) {
       expect(styles).toContain(`var(${token}`);
     }
   });

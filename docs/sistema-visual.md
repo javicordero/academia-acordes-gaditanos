@@ -78,6 +78,12 @@ Los roles semánticos son el contrato; los tokens fijan sus valores:
   `accent-ink`, `focus`, estados disabled/success/warn/danger). No se crea una
   paleta paralela.
 
+> **Nota (tercer color, en prueba):** se han incorporado los tokens
+> `--accent-strong` (`#BE3D24`) y `--accent-strong-ink` (`#ffffff`) como tercer
+> color «de fuerza» para CTA/estado activo (máximo un elemento por vista; AA
+> 5,41:1 sobre superficie). Están en fase de prueba en el `index.html` y aún no
+> se usan en los componentes; el resto de la paleta no cambia.
+
 Reglas:
 
 - Texto **≥ 4,5:1** contra su fondo; controles y bordes de interés **≥ 3:1**.

@@ -11,6 +11,7 @@ const components = readFileSync(COMPONENTS_PATH, 'utf8');
 
 const REQUIRED_TOKENS = [
   '--bg', '--surface', '--ink', '--muted', '--accent', '--accent-ink',
+  '--accent-strong', '--accent-strong-ink',
   '--border', '--focus', '--radius', '--font-body', '--font-display',
   '--space-1', '--space-2', '--space-3', '--space-4', '--space-5',
   '--section-gap', '--card-pad', '--card-gap', '--grid-gap',
@@ -80,6 +81,8 @@ describe('tokens del estilo único Línea precisa', () => {
       expect(valueFor('linea', token)).toMatch(/^#[0-9a-f]{6}$/i);
     }
     expect(valueFor('linea', '--bg')).toBe('#eef0f5');
+    expect(valueFor('linea', '--accent-strong')).toBe('#BE3D24');
+    expect(valueFor('linea', '--accent-strong-ink')).toBe('#ffffff');
     expect(valueFor('linea', '--font-body')).toBe("'Courier New', Courier, monospace");
     expect(valueFor('linea', '--font-display')).toBe('system-ui, sans-serif');
     expect(valueFor('linea', '--space-3')).toBe('0.65rem');
