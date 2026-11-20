@@ -10,12 +10,21 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
   imports: [RouterLink],
   host: { '(document:keydown.escape)': 'onDocumentEscape()' },
   template: `
-    <button #menu class="menu" type="button" aria-controls="classroom-index" aria-label="Lecciones del curso"
-      title="Lecciones del curso" [attr.aria-expanded]="open()" [class.menu--open]="open()"
+    <button #menu class="menu" type="button" aria-controls="classroom-index"
+      [attr.aria-label]="open() ? 'Cerrar índice de lecciones' : 'Lecciones del curso'"
+      [attr.title]="open() ? 'Cerrar índice de lecciones' : 'Lecciones del curso'"
+      [attr.aria-expanded]="open()" [class.menu--open]="open()"
       (click)="open.set(!open())">
-      <svg class="icon menu__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <path d="M3 5.5h14M3 10h14M3 14.5h14" />
-      </svg>
+      @if (!open()) {
+        <svg class="icon menu__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+          <path d="M3 5.5h14M3 10h14M3 14.5h14" />
+        </svg>
+      } @else {
+        <svg class="icon menu__icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"
+          [class.menu__icon--close]="open()">
+          <path d="M4 4l12 12M16 4 4 16" />
+        </svg>
+      }
       <span class="menu__label">Lecciones del curso</span>
     </button>
     <nav #index id="classroom-index" aria-label="Lecciones del curso" [class.open]="open()"
@@ -167,7 +176,8 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
     .menu { display:none; }
 
     @media (max-width:47.999rem) {
-      /* Barra fina siempre fija en el mismo punto: al abrir no hay salto. */
+      /* Barra fina siempre fija en el mismo punto y tamaño: al abrir no hay salto.
+         El único cambio de .menu--open es el plano (z-index), nunca geometría. */
       .menu {
         display:flex; align-items:center; gap:var(--space-2);
         position:fixed; inset:var(--space-4) auto auto 0;
@@ -176,15 +186,16 @@ interface Lesson { id: string; section_id: string; title: string; slug: string; 
         font:inherit; font-weight:700; cursor:pointer;
       }
       .menu__icon { width:1.45rem; height:1.45rem; stroke-width:1.6; }
-      /* Sin backdrop ni X: el propio hamburger cierra el cajón y devuelve el foco.
-         Abierto solo cambia el plano, por encima del cajón, nunca la posición. */
+      /* Un solo botón: hamburguesa al cerrar, X al abrir. Queda por encima del
+         cajón y devuelve el foco; sin backdrop ni segundo botón de cierre. */
       .menu--open { z-index:50; }
       nav:not(.open) { display:none; }
+      /* Cajón puramente superpuesto: no entra en el flujo, no empuja la barra y
+         arranca su contenido tras los 48 px del burger, sin solaparlo. */
       nav.open {
         position:fixed; inset:0 auto 0 0; z-index:40;
         width:85%; max-width:24rem; height:100vh; height:100dvh;
-        border-inline-end:var(--border-width) solid var(--border);
-        padding-top:var(--space-5);
+        padding-top:calc(var(--space-4) + 48px + var(--space-2));
         box-shadow:none;
       }
     }

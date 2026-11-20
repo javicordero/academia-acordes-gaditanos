@@ -87,6 +87,8 @@ describe('Índice del aula', () => {
     button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
     expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(button.getAttribute('aria-label')).toBe('Lecciones del curso');
+    expect(button.querySelector('svg.menu__icon--close')).toBeNull();
     expect(document.activeElement).toBe(button);
 
     const link = nav.querySelector<HTMLAnchorElement>('a')!;
@@ -147,26 +149,36 @@ describe('Índice del aula', () => {
     expect(button.getAttribute('title')).toBe('Lecciones del curso');
   });
 
-  it('el cajón se cierra con el propio hamburger visible y devuelve el foco, sin X ni backdrop', async () => {
+  it('el mismo botón muestra la X al abrir, cierra el cajón y devuelve el foco, sin segundo botón ni backdrop', async () => {
     const { fixture, root } = await setup();
     const menu = root.querySelector<HTMLButtonElement>('.menu')!;
+    expect(root.querySelectorAll('.menu')).toHaveLength(1);
     expect(root.querySelector('.nav-close')).toBeNull();
     expect(root.querySelector('.nav-backdrop')).toBeNull();
     expect(menu.getAttribute('aria-label')).toBe('Lecciones del curso');
+    expect(menu.getAttribute('title')).toBe('Lecciones del curso');
     expect(menu.getAttribute('aria-expanded')).toBe('false');
+    expect(menu.querySelector('svg.menu__icon--close')).toBeNull();
+    expect(menu.querySelector('svg.menu__icon path')?.getAttribute('d')).toBe('M3 5.5h14M3 10h14M3 14.5h14');
 
     menu.focus(); // jsdom no enfoca con .click(): se simula el foco real del botón.
     menu.click();
     fixture.detectChanges();
     expect(menu.getAttribute('aria-expanded')).toBe('true');
+    expect(menu.getAttribute('aria-label')).toBe('Cerrar índice de lecciones');
+    expect(menu.getAttribute('title')).toBe('Cerrar índice de lecciones');
     expect(menu.classList.contains('menu--open')).toBe(true);
+    expect(menu.querySelectorAll('svg.menu__icon')).toHaveLength(1);
+    expect(menu.querySelector('svg.menu__icon--close path')?.getAttribute('d')).toBe('M4 4l12 12M16 4 4 16');
     expect(document.body.style.overflow).toBe('hidden');
 
-    // El mismo botón, ahora visible sobre el cajón, es el cierre accesible.
+    // La X vive en el mismo botón: al pulsarla se cierra y vuelve la hamburguesa.
     menu.click();
     fixture.detectChanges();
     expect(menu.getAttribute('aria-expanded')).toBe('false');
+    expect(menu.getAttribute('aria-label')).toBe('Lecciones del curso');
     expect(menu.classList.contains('menu--open')).toBe(false);
+    expect(menu.querySelector('svg.menu__icon--close')).toBeNull();
     expect(document.activeElement).toBe(menu);
     expect(document.body.style.overflow).toBe('');
   });
@@ -513,17 +525,36 @@ describe('Índice del aula', () => {
     expect(css).toMatch(/nav\.open\s*\{[^}]*position:\s*fixed/);
   });
 
-  it('el burger abierto conserva la posición del cerrado: solo cambia el plano', async () => {
-    await setup();
+  it('el burger abierto conserva posición y tamaño: solo cambia el plano y el icono', async () => {
+    const { fixture, root } = await setup();
+    const menu = root.querySelector<HTMLButtonElement>('.menu')!;
+    const nav = root.querySelector<HTMLElement>('nav')!;
+    const clasesCerrado = [...menu.classList];
     const css = componentCss().replace(/\[_ngcontent-[^\]]*\]/g, '');
     const mobileMenu = [...css.matchAll(/\.menu\s*\{([^}]*)\}/g)]
       .map(m => m[1].replace(/\s+/g, ' ')).find(rule => /display:\s*flex/.test(rule)) ?? '';
     expect(mobileMenu).toMatch(/position:\s*fixed/);
     expect(mobileMenu).toMatch(/inset:\s*var\(--space-4\)\s+auto\s+auto\s+0/);
+    expect(mobileMenu).toMatch(/min-width:\s*48px/);
+    expect(mobileMenu).toMatch(/min-height:\s*48px/);
     const openRule = css.match(/\.menu--open\s*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
     expect(openRule).toMatch(/z-index:\s*50/);
-    expect(openRule).not.toMatch(/position\s*:/);
-    expect(openRule).not.toMatch(/inset\s*:/);
+    // Ninguna propiedad geométrica o de fondo puede cambiar al abrir: sin salto.
+    for (const property of ['position', 'inset', 'top', 'left', 'display', 'padding', 'width', 'height', 'min-width', 'min-height', 'background']) {
+      expect(openRule).not.toMatch(new RegExp(`(?:^|;|\\s)${property}\\s*:`));
+    }
+    const navOpenRule = css.match(/nav\.open\s*\{([^}]*)\}/)?.[1]?.replace(/\s+/g, ' ') ?? '';
+    expect(navOpenRule).toMatch(/z-index:\s*40/); // por debajo del burger (50)
+    // El contenido del cajón empieza tras los 48 px del botón: no lo solapa.
+    expect(navOpenRule).toMatch(/padding-top:\s*calc\(var\(--space-4\)\s*\+\s*48px/);
+    expect(componentCss()).toMatch(/\[[^\]]*\]:focus-visible\s*\{[^}]*outline:\s*3px/);
+
+    menu.click();
+    fixture.detectChanges();
+    expect(menu.classList.contains('menu--open')).toBe(true);
+    expect([...menu.classList].filter(name => name !== 'menu--open')).toEqual(clasesCerrado);
+    expect(root.querySelectorAll('.menu')).toHaveLength(1);
+    expect(nav.classList.contains('open')).toBe(true);
   });
 
   it('usa tokens de tema en la geometría del índice sin alterar el cajón', async () => {
