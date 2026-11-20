@@ -17,6 +17,19 @@ discrepasen, manda el código.
 > sin selector en la cabecera y sin persistencia en `localStorage`. Un tema
 > oscuro queda para el futuro si se decide.
 
+> **Nota de implementación (sistema de espaciado y jerarquía):** el sistema se
+> ha aplicado **globalmente** con la escala base de 4 px y la escala tipográfica
+> ~1,2 sobre 16 px aprobadas, fundamentadas en los patrones de espaciado de
+> Carbon y USWDS (con su medio paso de 4 px), las directrices de 8 dp de
+> Material 3 (ya citadas en §9), los criterios de foco y objetivos táctiles de
+> WCAG y `clamp()` de MDN. Los tokens `--space-1..7`, `--section-gap`,
+> `--block-gap`, `--card-pad`, `--card-gap`, `--grid-gap`, `--focus-ring`, la
+> escala `--font-size-*` y `--weight-semibold` viven en `theme-tokens.scss` y
+> son la fuente de verdad; `styles.scss` y las features los consumen (con
+> `gap` entre hermanos y `margin` solo hacia el exterior, salvo el sangrado
+> negativo documentado del shell). No cambia la paleta ni las decisiones
+> abiertas de producto.
+
 ## 1. Principios
 
 - **Token-first:** color, tipografía, espaciado, radio, sombra y borde se

@@ -14,6 +14,16 @@ discrepan, manda el código.
 > documento da rol, requisitos, criterios y lista de archivos; la propuesta
 > concreta la hace el agente de rediseño.
 
+> **Nota de ejecución (espaciado y jerarquía):** el sistema de espaciado y
+> jerarquía aprobado se ha implementado **en toda la web** sobre la escala base
+> de 4 px y la escala tipográfica ~1,2, con base en Carbon, USWDS, Material 3
+> (§9 de `sistema-visual.md`), los criterios WCAG de foco/objetivos táctiles y
+> `clamp()` de MDN. Los tokens de `theme-tokens.scss` son la fuente de verdad
+> y los consumen `styles.scss` y todas las features. La paleta (incluido
+> `--accent-strong`) no se ha tocado; las decisiones abiertas que este
+> documento seguía marcando como tales (tercer color y jerarquías) quedan
+> implementadas con esta escala y no se reabren aquí.
+
 ---
 
 ## 1) Estado actual y alcance
