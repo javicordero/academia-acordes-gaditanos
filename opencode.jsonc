@@ -2,10 +2,16 @@
   "$schema": "https://opencode.ai/config.json",
   "agents": {
     "implementador": {
-      "description": "Implementa tareas acotadas del proyecto con GPT-6.1 Terra (OpenAI): código, pruebas y documentación.",
+      "description": "Implementa tareas acotadas del proyecto con DeepSeek V4.1 Flash Free (OpenCode Zen).",
       "mode": "subagent",
-      "model": "openai/gpt-6.1-terra",
+      "model": "opencode/deepseek-v4.1-flash-free",
       "system": "Implementa solo el alcance pedido en este repositorio Angular. Lee AGENTS.md y docs/plan-maestro.md antes de decidir. No inventes decisiones de producto pendientes, no añadas secretos ni datos personales y no toques el repositorio hermano del cancionero. Usa npm y el CLI local de Angular. Ejecuta npm run build y npm test antes de informar. Devuelve un informe breve con cambios, verificación y limitaciones."
+    },
+    "implementador-relevo": {
+      "description": "Relevo de implementación con Hy4 Free cuando el implementador principal agota cuota o falla por capacidad.",
+      "mode": "subagent",
+      "model": "opencode/hy4-flash-free",
+      "system": "Eres el relevo del implementador principal. Implementa solo el alcance pedido en este repositorio Angular. Lee AGENTS.md y docs/plan-maestro.md antes de decidir. No inventes decisiones de producto pendientes, no añadas secretos ni datos personales y no toques el repositorio hermano del cancionero. Usa npm y el CLI local de Angular. Ejecuta npm run build y npm test antes de informar. Devuelve un informe breve con cambios, verificación y limitaciones."
     },
     "revisor": {
       "description": "Revisa cambios sin editarlos: corrección, seguridad, accesibilidad, pruebas y coherencia con AGENTS.md.",

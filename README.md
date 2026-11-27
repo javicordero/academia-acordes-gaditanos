@@ -463,28 +463,19 @@ están en `UPSTREAM.md`.
 Modelos autorizados para el flujo de agentes del proyecto:
 
 - **Sol** coordina, revisa y decide.
-- **Implementador principal:** DeepSeek V4.1 Flash de AMD Token Lab, ID de
-  proveedor/modelo `tokenlab/DeepSeek-V4.1-Flash` (sin variante). Autorizado
-  expresamente por el usuario para implementación y reparaciones normales o
-  complejas. Se desconoce su coste de catálogo: no se afirma que sea gratuito
-  ni más barato.
-- **Tareas MUY sencillas/operativas:** se reservan a los modelos gratuitos de
-  OpenCode, como fallback inmediato DeepSeek V4.1 Flash Free
-  (`opencode/deepseek-v4.1-flash-free`) y, si agota cuota o no está disponible,
-  Hy4 Free (`opencode/hy4-flash-free`) como última opción, decidido por quien
-  orquesta y limitado a la tarea afectada. AMD puede tener limitaciones de
-  capacidad: ante un fallo por capacidad, no ignorar el error, no entrar en
-  bucle de reintento y no quedarse esperando; reportarlo a quien orquesta. Si
-  los gratuitos están bloqueados por cuota, informar a quien orquesta antes de
-  seguir.
-- **Revisor preferido:** Hy4 Free, ID `opencode/hy4-flash-free` (sin cambios).
-- No usar otro proveedor o modelo de pago sin permiso explícito.
+- **Implementador principal:** DeepSeek V4.1 Flash Free de OpenCode Zen, ID
+  `opencode/deepseek-v4.1-flash-free`.
+- **Relevo de implementación:** Hy4 Free, ID `opencode/hy4-flash-free`, si el
+  principal agota cuota o falla por capacidad. Un solo relevo: sin bucles de
+  reintento ni esperas indefinidas; si tampoco puede, se informa y se detiene.
+- **Revisor preferido:** Hy4 Free, ID `opencode/hy4-flash-free`.
+- No usar AMD Token Lab ni otro proveedor o modelo de pago sin permiso explícito.
 - La configuración vive en `opencode.jsonc`; no se cambia el modelo global de
   OpenCode ni el agente por defecto desde este repositorio. `opencode.jsonc` no
-  admite un campo de fallback documentado: el implementador queda fijado en
-  DeepSeek V4.1 Flash de AMD y el revisor en Hy4 Free; el orden de preferencia
-  descrito arriba es una pauta de orquestación, no una clave de configuración
-  que haya que añadir.
+  admite un campo de fallback documentado: `implementador` queda fijado en
+  DeepSeek V4.1 Flash Free y `implementador-relevo` en Hy4 Free; la elección
+  entre ambos es una pauta de orquestación, no una clave de configuración que
+  haya que añadir.
 
 ## Aviso
 
