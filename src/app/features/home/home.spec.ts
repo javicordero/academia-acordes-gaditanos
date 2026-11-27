@@ -53,8 +53,7 @@ describe('Portada', () => {
       .map((element) => element.dataset['section']);
 
     expect(sections).toEqual([
-      'hero', 'cursos', 'aprenderas', 'preview',
-      'profesor', 'testimonios', 'cta',
+      'hero', 'cursos', 'aprenderas', 'profesor', 'cta',
     ]);
     expect(sections[0]).toBe('hero');
     expect(root.querySelector('.home-banner')).toBeNull();
@@ -134,10 +133,10 @@ describe('Portada', () => {
         expect(tarjeta.classList.contains('home-surface')).toBe(true);
       }
     }
-    expect(bloques[0].querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim())
-      .toBe('Aprende guitarra desde 0 orientado al Carnaval');
-    expect(bloques[1].querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim())
-      .toBe('Aprende guitarra intermedia · contenido de muestra');
+    expect(root.querySelector('#home-cursos')?.textContent?.trim()).toBe('Nuestros cursos');
+    expect(bloques.map(b => b.querySelector('h3')?.textContent?.trim()))
+      .toEqual(['Guitarra desde cero', 'Guitarra intermedia']);
+    expect(bloques[1].querySelector('.label')?.textContent?.trim()).toBe('Contenido de muestra');
     const covers = Array.from(root.querySelectorAll<HTMLImageElement>('.home-card__image'));
     expect(covers).toHaveLength(6);
     for (const image of covers) {
@@ -145,11 +144,11 @@ describe('Portada', () => {
       expect(image.getAttribute('aria-hidden')).toBeNull();
     }
     for (const bloque of bloques) {
-      expect(Array.from(bloque.querySelectorAll('.home-card__cover'))
+      expect(Array.from(bloque.querySelectorAll('.cover'))
         .every((cover) => cover.getAttribute('aria-hidden') === 'true')).toBe(true);
     }
     expect(root.innerHTML).not.toContain('curso-default');
-    expect(Array.from(bloques[0].querySelectorAll('.home-card__badge'))
+    expect(Array.from(bloques[0].querySelectorAll('.badge'))
       .map((badge) => badge.textContent?.trim()))
       .toEqual(['1', '2', '3']);
     expect(root.querySelector('.home-courses__support strong')?.textContent)
@@ -256,33 +255,15 @@ describe('Portada', () => {
     expect(segundo.querySelectorAll('a[href^="/cursos/"]')).toHaveLength(0);
   });
 
-  it('declara tres columnas en escritorio y 2+1 en móvil con fuentes y miniaturas reducidas', async () => {
+  it('mantiene tres columnas en escritorio y la tercera centrada en la rejilla móvil', async () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
     await fixture.whenStable();
-
     const styles = cssText();
     expect(styles).toContain('grid-template-columns:repeat(3,minmax(0,1fr))');
-    expect(ruleFor(styles, 'home-card__image')).toContain('object-fit:cover');
-    // La miniatura es proporcional al ancho, no una altura fija de 80 px.
-    expect(ruleFor(styles, 'home-card__image')).toContain('height:clamp(3.5rem,8vw,6rem)');
-    expect(ruleFor(styles, 'home-card__course')).toContain('font-size:var(--font-size-lg)');
-    expect(styles).toContain('font-size:var(--font-size-md)');
-    expect(ruleFor(styles, 'home-divider')).toMatch(/margin-block:var\(--[a-z-]+\)/);
-    expect(styles).not.toContain('margin-top:calc(var(--space-5)+var(--space-4))');
-    expect(styles).toMatch(/\.home-section\[_ngcontent[^\]]+\]h2\[_ngcontent[^\]]+\]\{margin:0\s*0\s*var\(--space-4\)/);
-    expect(styles).not.toContain('margin-top:2.25rem');
-
-    const inicio = styles.indexOf('@media(max-width:48rem)');
-    const fin = styles.indexOf('@media(prefers-reduced-motion');
-    expect(inicio).toBeGreaterThan(-1);
-    expect(fin).toBeGreaterThan(inicio);
-    const movil = styles.slice(inicio, fin);
-    expect(movil).toContain('grid-template-columns:repeat(2,minmax(0,1fr))');
-    expect(movil).toContain('grid-column:1/-1');
-    expect(movil).toContain('justify-self:center');
-    expect(movil).not.toContain('font-size:var(--font-size-sm)');
-    // Tamaño de imagen en escritorio y una reducción en el media estrecho.
-    expect(styles.match(/height:clamp\(3\.5rem,8vw,/g) ?? []).toHaveLength(1);
+    const mobile = styles.slice(styles.indexOf('@media(max-width:48rem)'));
+    expect(mobile).toContain('grid-template-columns:repeat(2,minmax(0,1fr))');
+    expect(mobile).toContain('grid-column:1/-1');
+    expect(mobile).toContain('justify-self:center');
   });
 
   it('no muestra etiquetas de muestra ni nivel en las tarjetas, pero conserva la nota del profesor', async () => {
@@ -297,7 +278,7 @@ describe('Portada', () => {
     expect(cursos.querySelectorAll('.home-card__demo')).toHaveLength(0);
     expect(cursos.querySelectorAll('.home-card__level')).toHaveLength(0);
     expect(cursos.textContent).not.toMatch(/De muestra/);
-    expect(cursos.textContent).toContain('desde 0');
+    expect(cursos.textContent).toContain('desde cero');
     expect(cursos.textContent).toContain('intermedia');
 
     const profesor = root.querySelector<HTMLElement>('[data-section="profesor"]')!;
@@ -305,123 +286,34 @@ describe('Portada', () => {
     expect(profesor.textContent).not.toContain('Contenido de muestra');
   });
 
-  it('compensa el padding del shell, alterna fondos con líneas y no crea cards fuera de los cursos', async () => {
-    const fixture = setup({
-      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
-      detail: noDetail(),
-    });
+  it('reserva las tarjetas para los cursos y mantiene un divisor entre ambos bloques', async () => {
+    const fixture = setup({ list: vi.fn().mockResolvedValue([course('1', 'curso', 'Curso')]), detail: noDetail() });
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
-
-    const section = (name: string) => root.querySelector<HTMLElement>(`[data-section="${name}"]`)!;
-    expect(section('aprenderas').classList.contains('home-section--tint-b')).toBe(true);
-    expect(section('preview').classList.contains('home-section--tint-a')).toBe(true);
-    expect(section('profesor').classList.contains('home-section--tint-b')).toBe(true);
-    expect(section('testimonios').classList.contains('home-section--tint-a')).toBe(true);
-    for (const name of ['hero', 'cursos', 'profesor', 'testimonios', 'cta']) {
-      expect(section(name).classList.contains('home-surface')).toBe(false);
+    expect(root.querySelectorAll('section')).toHaveLength(5);
+    for (const section of root.querySelectorAll('section')) {
+      expect(section.firstElementChild?.classList.contains('home-inner')).toBe(true);
+      if (section.dataset['section'] !== 'cursos') expect(section.querySelector('.home-surface')).toBeNull();
     }
-    expect(section('hero').querySelector('.home-visual')?.classList.contains('home-surface')).toBe(false);
-    const divider = section('cursos').querySelector<HTMLElement>('.home-divider')!;
-    expect(divider).not.toBeNull();
-    expect(divider.previousElementSibling?.classList.contains('home-courses')).toBe(true);
-    expect(divider.nextElementSibling?.classList.contains('home-courses')).toBe(true);
-    expect(divider.getAttribute('aria-hidden')).toBe('true');
-
-    const styles = Array.from(document.querySelectorAll('style'))
-      .map((style) => style.textContent ?? '')
-      .join('\n')
-      .replace(/\s+/g, '');
-    // Sangrado compensado con calc (regla declarada), no ancho de viewport.
-    expect(ruleFor(styles, 'home')).toMatch(/margin:calc\(/);
-    expect(styles).toContain('width:auto');
-    expect(styles).not.toContain('width:100vw');
-    expect(styles).toContain('overflow-x:clip');
-    expect(styles).toContain('padding-inline:clamp(1.25rem,5vw,3rem)');
-    expect(styles).toContain('padding-block:var(--section-gap)');
-    expect(styles).toContain('max-width:var(--content-max-width)');
-    expect(styles).toContain('margin-inline:auto');
-    for (const name of ['hero', 'cursos', 'aprenderas', 'preview', 'profesor', 'testimonios', 'cta']) {
-      expect(section(name).querySelector('.home-inner')).not.toBeNull();
-    }
-    const homeRule = styles.match(/\.home\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    expect(homeRule).not.toContain('max-width');
-    expect(homeRule).toContain('-1.25rem');
-    expect(homeRule).not.toContain('100vw');
-    expect(styles).toContain('border-bottom:var(--border-width)solidvar(--border)');
-    expect(styles).toContain('border-top:var(--border-width)solidvar(--border)');
-    expect(styles).toContain('background:var(--bg)');
-    expect(styles).toContain('background:var(--surface)');
+    const divider = root.querySelector('hr.home-divider')!;
+    expect(divider.previousElementSibling).toBe(panels(root)[0]);
+    expect(divider.nextElementSibling).toBe(panels(root)[1]);
   });
 
-  it('tiñe el hero con tokens, centra el divisor y deja el espaciado de listas a la rejilla', async () => {
-    const fixture = setup({
-      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
-      detail: noDetail(),
-    });
+  it('alterna bandas grises y blancas a sangre, con el catálogo sobre blanco', async () => {
+    const fixture = setup({ list: vi.fn().mockResolvedValue([course('1', 'curso', 'Curso')]), detail: noDetail() });
     await fixture.whenStable();
-    const styles = Array.from(document.querySelectorAll('style'))
-      .map((style) => style.textContent ?? '')
-      .join('\n')
-      .replace(/\s+/g, '');
-
-    const heroRule = styles.match(/\.home-hero\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    const dividerRule = styles.match(/\.home-divider\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    const cardsRule = styles.match(/\.home-cards\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    const cardRule = styles.match(/\.home-card\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    const titleRule = styles.match(/\.home-section\[_ngcontent[^\]]+\]h2\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    const linkRule = styles.match(/\.home-card__link\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    const courseRule = styles.match(/\.home-card__course\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-
-    // Fondo del hero derivado de tokens del tema, no blanco liso; conserva su línea.
-    expect(heroRule).not.toContain('background:var(--surface)');
-    expect(heroRule).toContain('color-mix(');
-    expect(heroRule).toContain('var(--accent)');
-    expect(heroRule).toContain('var(--surface)');
-    expect(heroRule).toContain('border-bottom:var(--border-width)solidvar(--border)');
-
-    // Divisor integrado en la escala de la rejilla, con la misma separación a ambos lados.
-    expect(dividerRule).toMatch(/margin-block:var\(--grid-gap\)/);
-    expect(dividerRule).not.toContain('margin-top');
-    expect(dividerRule).not.toContain('margin-bottom');
-    expect(dividerRule.match(/margin-block:var\([^)]+\)/g) ?? []).toHaveLength(1);
-    // La línea abarca todo el contenido, no un trozo centrado.
-    expect(dividerRule).toContain('width:100%');
-    expect(dividerRule).not.toContain('max-width:');
-    expect(dividerRule).not.toContain('margin-inline:');
-    expect(dividerRule).not.toContain('width:min(');
-
-    // El hueco entre tarjetas lo pone gap, no márgenes de ul/li ni del título.
-    expect(cardsRule).toContain('gap:var(--grid-gap)');
-    expect(cardsRule).toContain('margin:0');
-    expect(cardsRule).toContain('padding:0');
-    expect(cardsRule).toContain('list-style:none');
-    expect(cardRule).toContain('margin:0');
-    expect(titleRule).toMatch(/^margin:0\s*0\s*var\(--space-4\)/);
-    expect(titleRule).toContain('font-size:var(--font-size-2xl)');
-
-    // Enlace estirado, título en tinta y botón compacto de tarjeta.
-    expect(linkRule).toContain('position:absolute');
-    expect(linkRule).toContain('inset:0');
-    expect(linkRule).toContain('z-index:1');
-    expect(courseRule).toContain('color:var(--ink)');
-    expect(courseRule).not.toContain('var(--accent)');
-    // Un solo padding de botón en toda la portada: la tarjeta no lo redefine.
-    expect(styles).not.toMatch(/\.home-card\[_ngcontent[^\]]+\]\.home-button/);
-    expect(ruleFor(styles, 'home-button')).toContain('margin:auto');
-
-    // Hover solo en la card: borde y sombra suave, sin mover ni teñir el primary.
-    expect(styles).toMatch(/\.home-card\[_ngcontent[^\]]+\]:is\(:hover,:focus-within\)\{[^}]*box-shadow:var\(--shadow-card\)/);
-    expect(styles).toContain('border-color:var(--accent)');
-    expect(styles).not.toContain('transform:translateY');
-    expect(styles).toMatch(/\.home-button--primary\[_ngcontent[^\]]+\](?:,\.home-button--primary\[_ngcontent[^\]]+\]:hover)?\{background:var\(--accent\);color:var\(--accent-ink\);?\}/);
-
-    // Los CTAs del hero comparten medidas; solo cambia el color.
-    const actionsRule = ruleFor(styles, 'home-button');
-    expect(actionsRule).toContain('min-height:var(--tap-min)');
-    expect(actionsRule).toMatch(/padding:var\(--space-\d+\)var\(--space-\d+\)/);
-    expect(actionsRule).toContain('font-size:var(--font-size-md)');
-    expect(actionsRule).toContain('font-weight:var(--weight-bold)');
+    const root = fixture.nativeElement as HTMLElement;
+    const styles = cssText();
+    const base = ruleFor(styles, 'home').match(/--band:([^;}]+)/)?.[1];
+    expect(base).toBe('var(--surface)');
+    const bands = Array.from(root.querySelectorAll('section'), section =>
+      Array.from(section.classList, name => ruleFor(styles, name).match(/--band:([^;}]+)/)?.[1])
+        .find(value => value !== undefined) ?? base);
+    expect(bands).toEqual([
+      'var(--bg)', base, 'var(--bg)', base, 'var(--bg)',
+    ]);
+    expect(styles).toContain('border-image-outset:0100vi');
   });
 
   it('hace clicable toda la tarjeta con un solo enlace y un span decorativo', async () => {
@@ -451,40 +343,20 @@ describe('Portada', () => {
     expect(root.querySelectorAll('.home-card__link[href="/cursos"]')).toHaveLength(3);
   });
 
-  it('equilibra las tarjetas con imagen a borde, columna flex y botón abajo', async () => {
-    const fixture = setup({
-      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
-      detail: noDetail(),
-    });
+  it('asocia cada cubierta decorativa y su indicación de acción a un único título', async () => {
+    const fixture = setup({ list: vi.fn().mockResolvedValue([course('1', 'curso', 'Curso')]), detail: noDetail() });
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
-    const styles = Array.from(document.querySelectorAll('style'))
-      .map((style) => style.textContent ?? '')
-      .join('\n')
-      .replace(/\s+/g, '');
-
-    const rule = (selector: RegExp): string => styles.match(selector)?.[1] ?? '';
-    const cardRule = rule(/\.home-card\[_ngcontent[^\]]+\]\{([^}]*)\}/);
-    const coverRule = rule(/\.home-card__cover\[_ngcontent[^\]]+\]\{([^}]*)\}/);
-    const imageRule = rule(/\.home-card__image\[_ngcontent[^\]]+\]\{([^}]*)\}/);
-    const courseRule = rule(/\.home-card__course\[_ngcontent[^\]]+\]\{([^}]*)\}/);
-
-    expect(cardRule).toContain('display:flex');
-    expect(cardRule).toContain('flex-direction:column');
-    expect(cardRule).toContain('height:100%');
-    expect(coverRule).not.toContain('padding');
-    expect(imageRule).not.toContain('padding');
-    expect(imageRule).toContain('object-fit:cover');
-    expect(imageRule).toContain('height:clamp(3.5rem,8vw,6rem)');
-    expect(courseRule).toContain('min-height:');
-    expect(courseRule).toContain('line-height:var(--line-height-tight)');
-    expect(courseRule).toContain('font-size:var(--font-size-lg)');
-    expect(courseRule).toContain('font-weight:var(--weight-bold)');
-    expect(ruleFor(styles, 'home-button')).toContain('margin:auto');
-    expect(styles).toContain('grid-template-columns:repeat(3,minmax(0,1fr))');
-    for (const card of Array.from(root.querySelectorAll('.home-card'))) {
-      expect(card.querySelectorAll('a')).toHaveLength(1);
+    for (const card of root.querySelectorAll('.home-card')) {
+      const image = card.querySelector('img')!;
+      expect(image.alt).toBe('');
+      expect(image.closest('[aria-hidden=true]')).not.toBeNull();
+      expect(card.querySelector('h4')?.textContent?.trim()).toBeTruthy();
+      expect(card.lastElementChild?.matches('span.cue[aria-hidden=true]')).toBe(true);
     }
+    const link = ruleFor(cssText(), 'home-card__link');
+    expect(link).toContain('position:absolute');
+    expect(link).toContain('inset:0');
   });
 
   it('mantiene un único enlace al catálogo dentro de la sección de cursos', async () => {
@@ -514,98 +386,49 @@ describe('Portada', () => {
     }
   });
 
-  it('aplica el tercer color solo al CTA principal del hero, sin afectar a tarjetas ni al CTA final', async () => {
-    const fixture = setup({
-      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
-      detail: noDetail(),
-    });
+  it('reserva el relleno azul tinta al único enlace primario y mantiene el externo discreto', async () => {
+    const fixture = setup({ list: vi.fn().mockResolvedValue([course('1', 'curso', 'Curso')]), detail: noDetail() });
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
-
-    const styles = Array.from(document.querySelectorAll('style'))
-      .map((style) => style.textContent ?? '')
-      .join('\n')
-      .replace(/\s+/g, '');
-
-    // El único elemento con el color strong es el primary del hero, en reposo y hover.
-    const heroPrimary = styles.match(
-      /\.home-hero\[_ngcontent[^\]]+\]\.home-button--primary\[_ngcontent[^\]]+\](?:,\.home-hero\[_ngcontent[^\]]+\]\.home-button--primary\[_ngcontent[^\]]+\]:hover)?\{([^}]*)\}/,
-    )?.[1] ?? '';
-    expect(heroPrimary).toContain('background:var(--accent-strong)');
-    expect(heroPrimary).toContain('color:var(--accent-strong-ink)');
-    expect(heroPrimary).not.toContain('filter');
-    expect(styles.match(/background:var\(--accent-strong\)/g) ?? []).toHaveLength(1);
-    expect(styles.match(/color:var\(--accent-strong-ink\)/g) ?? []).toHaveLength(1);
-
-    // El primary general (tarjetas y CTA final) sigue azul, sin el token strong.
-    expect(styles).toMatch(/\.home-button--primary\[_ngcontent[^\]]+\](?:,\.home-button--primary\[_ngcontent[^\]]+\]:hover)?\{background:var\(--accent\);color:var\(--accent-ink\);?\}/);
-
-    // El enlace externo sigue siendo secondary; foco y tamaño intactos.
-    const hero = root.querySelector<HTMLElement>('[data-section="hero"]')!;
-    const primary = hero.querySelector<HTMLAnchorElement>('.home-button--primary')!;
-    expect(primary.textContent?.trim()).toBe('Nuestros cursos');
-    expect(hero.querySelector('.home-button--secondary')?.textContent?.trim())
-      .toBe('Acordes Gaditanos');
-    expect(ruleFor(styles, 'home-button')).toContain('min-height:var(--tap-min)');
-    expect(styles).toContain(':focus-visible');
-    expect(styles).toContain('outline:var(--focus-ring)solidvar(--focus)');
+    const primary = root.querySelectorAll('a.home-button--primary');
+    expect(primary).toHaveLength(1);
+    expect(primary[0].closest('[data-section="hero"]')).not.toBeNull();
+    expect(root.querySelector('.home-hero a.quiet')?.textContent?.trim()).toBe('Acordes Gaditanos');
+    const styles = cssText();
+    expect(styles).toMatch(/\.home-hero[^{}]*\.home-button--primary[^{}]*\{[^}]*background:var\(--accent-strong\);color:var\(--accent-strong-ink\)/);
+    expect(styles.match(/background:var\(--accent-strong\)/g)).toHaveLength(1);
+    expect(styles).not.toMatch(/\.home-button--primary[^{}]*:hover[^{}]*\{[^}]*background/);
   });
 
-  it('unifica padding de botón, ritmo vertical y divisor con tokens, sin filtros de color', async () => {
-    const fixture = setup({
-      list: vi.fn().mockResolvedValue([course('1', 'curso-uno', 'Curso uno')]),
-      detail: noDetail(),
-    });
+  it('permite localizar la tarjeta por foco o puntero sin desplazarla ni filtrar colores', async () => {
+    const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
     await fixture.whenStable();
     const styles = cssText();
-
-    // Un solo padding para todos los botones; la tarjeta no redefine el suyo.
-    const buttonRule = ruleFor(styles, 'home-button');
-    expect(buttonRule).toMatch(/padding:var\(--space-\d+\)var\(--space-\d+\)/);
-    expect(styles).not.toMatch(/\.home-card\[_ngcontent[^\]]+\]\.home-button/);
-
-    // El primary no cambia de color al hover: sin filtros, feedback por foco y tamaño.
-    expect(styles).not.toMatch(/filter:brightness/);
-    expect(styles).not.toMatch(/\.home-card[^{]*\{[^}]*filter:/);
-
-    // Ritmo vertical común, sin anulación local en el CTA final.
-    expect(styles).toContain('padding-block:var(--section-gap)');
-    expect(styles).not.toMatch(/\.home-cta\[_ngcontent/);
-    expect(ruleFor(styles, 'home-divider')).toMatch(/margin-block:var\(--grid-gap\)/);
-
-    // Tokens de accesibilidad en lugar de literales.
-    expect(buttonRule).toContain('min-height:var(--tap-min)');
-    expect(styles).not.toContain('min-height:44px');
+    expect(styles).toContain(':is(:hover,:focus-within)');
     expect(styles).toContain('outline:var(--focus-ring)solidvar(--focus)');
-    expect(styles).not.toContain('outline:3px');
-
-    // Guardas de ancho para que el CTA no desborde la tarjeta estrecha.
-    expect(buttonRule).toContain('min-width:0');
-    expect(buttonRule).toContain('max-width:100%');
-    expect(buttonRule).toContain('flex-wrap:wrap');
-    expect(styles).not.toMatch(/@media\(max-width:20rem\)\{[^}]*\.home-button/);
+    expect(styles).not.toMatch(/filter:brightness|transform:translateY/i);
   });
 
-  it('muestra la imagen del profesor sin distorsión y con pie accesible', async () => {
+  it('muestra la imagen aportada del profesor sin distorsión y con alternativa textual', async () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
     const teacher = root.querySelector<HTMLElement>('[data-section="profesor"]')!;
     const figure = teacher.querySelector<HTMLElement>('figure.home-teacher__visual')!;
     const image = figure.querySelector<HTMLImageElement>('img.home-teacher__image')!;
-    const caption = figure.querySelector<HTMLElement>('figcaption.home-teacher__caption')!;
+
 
     expect(figure.contains(image)).toBe(true);
-    expect(figure.contains(caption)).toBe(true);
-    expect(image.getAttribute('width')).toBe('480');
-    expect(image.getAttribute('height')).toBe('560');
-    expect(caption.textContent?.trim()).toMatch(/muestra/);
+
+    expect(image.getAttribute('width')).toBe('1024');
+    expect(image.getAttribute('height')).toBe('683');
+    expect(image.alt).toContain('Fotografía aportada');
 
     const styles = cssText();
-    const imageRule = ruleFor(styles, 'home-teacher__image');
+    const imageRule = styles.match(/(?:^|})img\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
     expect(imageRule).toContain('object-fit:cover');
     expect(imageRule).not.toContain('object-fit:fill');
-    expect(imageRule).toContain('aspect-ratio:6/7');
+    expect(styles).toMatch(/figure\[_ngcontent[^\]]+\]img\[_ngcontent[^\]]+\]\{aspect-ratio:1024\/683/);
     expect(imageRule).toContain('height:auto');
   });
 
@@ -643,7 +466,7 @@ describe('Portada', () => {
     expect(externo.getAttribute('rel')).toBe('noopener noreferrer');
     expect(externo.textContent?.trim()).toBe('Acordes Gaditanos');
     expect(externo.getAttribute('aria-label')).toContain('Acordes Gaditanos');
-    expect(externo.classList.contains('home-button--secondary')).toBe(true);
+    expect(externo.classList.contains('quiet')).toBe(true);
     expect(hero.textContent).not.toContain('Mi biblioteca');
     expect(hero.textContent).not.toMatch(/inicia sesión|regístrate|pagar|comprar|precio/i);
   });
@@ -686,18 +509,13 @@ describe('Portada', () => {
     expect(text).not.toMatch(/garantiz|resultados asegurados|método propio|sin experiencia/i);
   });
 
-  it('presenta los testimonios como espacio preparado y honesto, sin datos inventados', async () => {
+  it('no muestra testimonios vacíos ni el recorrido eliminado', async () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
-
-    const testimonials = root.querySelector('[data-section="testimonios"]')!;
-    expect(testimonials.querySelector('.home-prepared')?.textContent)
-      .toContain('Aquí se incorporarán testimonios reales cuando estén disponibles');
-    expect(testimonials.textContent).toContain('Todavía no hay testimonios publicados');
-    expect(testimonials.querySelector('img')).toBeNull();
-    expect(testimonials.querySelector('blockquote')).toBeNull();
-    expect(root.textContent).not.toMatch(/\d+\s*(?:€|\$|EUR|USD)\b/i);
+    expect(root.querySelector('[data-section="testimonios"]')).toBeNull();
+    expect(root.querySelector('[data-section="preview"]')).toBeNull();
+    expect(root.querySelector('blockquote')).toBeNull();
   });
 
   it('muestra el nombre definitivo del profesor con subtítulo y texto de ejemplo', async () => {
@@ -707,7 +525,8 @@ describe('Portada', () => {
 
     const teacher = root.querySelector<HTMLElement>('[data-section="profesor"]')!;
     expect(teacher.querySelector('h2')?.textContent?.trim()).toBe('Tu profesor');
-    expect(teacher.querySelector('.home-teacher__lead')?.textContent?.trim())
+    expect(teacher.querySelector('.home-teacher__text h2.chapter')).not.toBeNull();
+    expect(teacher.querySelector('.name')?.textContent?.trim())
       .toBe('Pablo Franco Toscano');
     expect(teacher.querySelector('.home-teacher__role')?.textContent?.trim())
       .toBe('Profesor de guitarra de conservatorio');
@@ -718,7 +537,7 @@ describe('Portada', () => {
     expect(teacher.textContent).not.toContain('Profesor de muestra');
   });
 
-  it('usa un placeholder local accesible y no inventa credenciales, correos ni testimonios', async () => {
+  it('usa la imagen local aportada sin inventar credenciales, correos ni testimonios', async () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
@@ -726,9 +545,9 @@ describe('Portada', () => {
     const teacher = root.querySelector<HTMLElement>('[data-section="profesor"]')!;
     const image = teacher.querySelector('img');
     expect(image).not.toBeNull();
-    expect(image?.getAttribute('src')).toBe('images/profesor-placeholder.svg');
+    expect(image?.getAttribute('src')).toBe('images/profesor.webp');
     const alt = (image?.getAttribute('alt') ?? '').trim();
-    expect(alt.toLowerCase()).toMatch(/muestra/);
+    expect(alt).toContain('Fotografía aportada');
 
     const text = teacher.textContent ?? '';
     expect(text).not.toContain('@');
@@ -736,7 +555,7 @@ describe('Portada', () => {
     expect(teacher.querySelector('blockquote')).toBeNull();
   });
 
-  it('coloca el visual del profesor sobre el texto en móvil y mantiene dos columnas en escritorio', async () => {
+  it('coloca el texto del profesor antes de la imagen y mantiene dos columnas en escritorio', async () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
@@ -746,14 +565,15 @@ describe('Portada', () => {
     const visualIndex = children.findIndex((element) => element.classList.contains('home-teacher__visual'));
     const textIndex = children.findIndex((element) => element.classList.contains('home-teacher__text'));
     expect(visualIndex).toBeGreaterThanOrEqual(0);
-    expect(visualIndex).toBeLessThan(textIndex);
+    expect(textIndex).toBeGreaterThanOrEqual(0);
+    expect(textIndex).toBeLessThan(visualIndex);
 
     const styles = Array.from(document.querySelectorAll('style'))
       .map((style) => style.textContent ?? '')
       .join('\n')
       .replace(/\s+/g, '');
     expect(styles).toContain('grid-template-columns:minmax(0,42fr)minmax(0,58fr)');
-    expect(styles).toContain('order:1');
+    expect(styles).toContain('grid-template-columns:minmax(0,1fr)');
   });
 
   it('muestra un estado vacío honesto y enlace al catálogo cuando no hay cursos', async () => {
@@ -812,7 +632,7 @@ describe('Portada', () => {
     const root = fixture.nativeElement as HTMLElement;
 
     expect(root.querySelector('a[href^="/aula/"]')).toBeNull();
-    expect(root.textContent).toContain('cuando están disponibles');
+    expect(root.querySelector('[data-section=cta]')).not.toBeNull();
   });
 
   it('asocia cada sección con su encabezado mediante aria-labelledby', async () => {
@@ -823,71 +643,45 @@ describe('Portada', () => {
     for (const section of Array.from(root.querySelectorAll<HTMLElement>('section[data-section]'))) {
       const labelledBy = section.getAttribute('aria-labelledby');
       expect(labelledBy).toBeTruthy();
-      expect(root.querySelector(`#${labelledBy}`)).not.toBeNull();
+      expect(section.querySelector(`h1#${labelledBy}, h2#${labelledBy}`)).not.toBeNull();
     }
   });
 
-  it('declara responsive, objetivo táctil, foco y movimiento reducido sin píxeles frágiles', async () => {
+  it('aplica el mínimo táctil y reserva las transiciones al movimiento permitido', async () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
+    await fixture.whenStable();
+    const styles = cssText();
+    expect(styles).toContain('min-height:var(--tap-min)');
+    expect(styles).toContain(':focus-visible');
+    expect(styles).toContain('outline:var(--focus-ring)solidvar(--focus)');
+    const motion = styles.indexOf('@media(prefers-reduced-motion:no-preference)');
+    expect(motion).toBeGreaterThan(-1);
+    expect(styles.slice(motion)).toContain('transition:');
+    expect(ruleFor(styles, 'home-card')).not.toContain('transition:');
+  });
+
+  it('mantiene la jerarquía de encabezados y las cuatro materias', async () => {
+    const fixture = setup({ list: vi.fn().mockResolvedValue([course('1', 'curso', 'Curso')]), detail: noDetail() });
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
-
-    expect(root.querySelector('.home-hero')).not.toBeNull();
-    expect(root.querySelector('.home-cards, .home-note')).not.toBeNull();
-    expect(root.querySelector('.home-button')).not.toBeNull();
-
-    const styles = Array.from(document.querySelectorAll('style'))
-      .map((style) => style.textContent ?? '')
-      .join('\n')
-      .replace(/\s+/g, '');
-    expect(styles).toContain('@media(max-width:48rem)');
-    expect(styles).toContain('clamp(3.5rem,8vw,6rem)');
-    expect(styles).toContain('min-height:var(--tap-min)');
-    expect(styles).toContain('outline:var(--focus-ring)solidvar(--focus)');
-    expect(styles).toContain(':focus-visible');
-    expect(styles).toContain('prefers-reduced-motion');
-    expect(styles).toContain('aspect-ratio');
-    // Geometría gobernada por tokens de tema: cambia de tema sin recargar.
-    for (const token of ['--content-max-width', '--section-gap', '--grid-gap', '--card-pad', '--border-width', '--radius-md', '--tap-min', '--focus-ring']) {
-      expect(styles).toContain(`var(${token}`);
-    }
+    const headings = Array.from(root.querySelectorAll('h1,h2,h3,h4'), h => Number(h.tagName.slice(1)));
+    expect(headings[0]).toBe(1);
+    expect(headings.slice(1).every((level, i) => level <= headings[i] + 1)).toBe(true);
+    expect(root.querySelectorAll('[data-section="aprenderas"] ul > li')).toHaveLength(4);
+    expect(root.querySelector('[data-section="preview"]')).toBeNull();
   });
 
-  it('aplica la escala tipográfica con tokens: h1 3xl, h2 2xl, h3 lg, cuerpo md y small sm', async () => {
+  it('admite títulos largos y conserva el ancho disponible para el foco en móvil', async () => {
     const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
     await fixture.whenStable();
     const styles = cssText();
-
-    const h1 = styles.match(/\.home-hero\[_ngcontent[^\]]+\]h1\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    const h2 = styles.match(/\.home-section\[_ngcontent[^\]]+\]h2\[_ngcontent[^\]]+\]\{([^}]*)\}/)?.[1] ?? '';
-    expect(h1).toContain('font-size:var(--font-size-3xl)');
-    expect(h1).toContain('line-height:var(--line-height-tight)');
-    expect(h2).toContain('font-size:var(--font-size-2xl)');
-    expect(h2).toContain('line-height:var(--line-height-tight)');
-    expect(h2).toMatch(/^margin:0\s*0\s*var\(--space-4\)/);
-    expect(ruleFor(styles, 'home-card__course')).toContain('font-size:var(--font-size-lg)');
-    expect(ruleFor(styles, 'home-card__course')).not.toContain('font-size:var(--font-size-md)');
-    expect(ruleFor(styles, 'home')).toContain('font-size:var(--font-size-md)');
-    expect(ruleFor(styles, 'home-lead')).toContain('line-height:var(--line-height-relaxed)');
-    expect(ruleFor(styles, 'home-teacher__caption')).toContain('font-size:var(--font-size-sm)');
-  });
-
-  it('usa cubierta proporcional y unidad de espacio en secciones sin desbordar a 320px', async () => {
-    const fixture = setup({ list: vi.fn().mockResolvedValue([]), detail: noDetail() });
-    await fixture.whenStable();
-    const styles = cssText();
-
-    expect(ruleFor(styles, 'home-card__image')).toContain('height:clamp(3.5rem,8vw,6rem)');
-    expect(styles).not.toContain('height:80px');
-    expect(styles).toMatch(/\.home-hero\[_ngcontent[^\]]+\],\.home-section\[_ngcontent[^\]]+\]\{padding-block:var\(--section-gap\);?\}/);
-    expect(styles).not.toMatch(/\.home-cta\[_ngcontent/);
-    expect(styles).not.toContain('padding-block:var(--card-pad)');
-    expect(ruleFor(styles, 'home')).toContain('overflow-x:clip');
-    expect(ruleFor(styles, 'home-inner')).toContain('padding-inline:clamp(1.25rem,5vw,3rem)');
-    const button = ruleFor(styles, 'home-button');
-    expect(button).toContain('min-width:0');
-    expect(button).toContain('max-width:100%');
-    expect(button).toContain('flex-wrap:wrap');
+    expect(styles).toContain('overflow-wrap:anywhere');
+    expect(styles).toContain('minmax(0,1fr)');
+    expect(styles).not.toContain('width:100vw');
+    expect(styles).not.toContain('overflow-x:hidden');
+    expect(styles).toContain('max-width:100%');
+    expect(styles).toContain('aspect-ratio:2.5');
+    expect(styles).toContain('object-fit:cover');
   });
 
   it('distingue el catálogo no configurado de un catálogo vacío', async () => {
@@ -900,5 +694,15 @@ describe('Portada', () => {
 
     expect(root.textContent).toContain('necesita configurar la conexión');
     expect(root.textContent).not.toContain('Todavía no hay cursos publicados');
+  });
+
+  it('anuncia un fallo del catálogo sin perder el encabezado ni la salida al catálogo', async () => {
+    const fixture = setup({ list: vi.fn().mockRejectedValue(new Error('failed')), detail: noDetail() });
+    await fixture.whenStable();
+    const section = (fixture.nativeElement as HTMLElement).querySelector('[data-section="cursos"]')!;
+    expect(section.querySelector('[role="alert"]')?.textContent).toContain('No se han podido cargar los cursos');
+    expect(section.querySelector(`h2#${section.getAttribute('aria-labelledby')}`)).not.toBeNull();
+    expect(section.querySelector('a[href="/cursos"]')).not.toBeNull();
+    expect(section.querySelector('.home-cards')).toBeNull();
   });
 });
