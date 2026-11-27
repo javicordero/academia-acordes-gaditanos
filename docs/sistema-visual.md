@@ -91,13 +91,108 @@ Los roles semánticos son el contrato; los tokens fijan sus valores:
   `accent-ink`, `focus`, estados disabled/success/warn/danger). No se crea una
   paleta paralela.
 
-> **Nota (tercer color, en prueba):** se han incorporado los tokens
-> `--accent-strong` (`#BE3D24`) y `--accent-strong-ink` (`#ffffff`) como tercer
-> color «de fuerza» para CTA/estado activo (máximo un elemento por vista; AA
-> 5,41:1 sobre superficie). Están en fase de prueba en el `index.html` y aún no
-> se usan en los componentes; el resto de la paleta no cambia.
+> **Azul tinta:** `--accent-strong` (`#3048a3`) es una versión más oscura del
+> azul de enlace, obtenida al mezclar aproximadamente 68 % de `--accent` con
+> 32 % de `--ink`. Contraste **8,13:1** con blanco (`--accent-strong-ink` o
+> `--surface`) y **7,13:1** con el gris `--bg`. En la portada identifica el
+> botón principal, las etiquetas y el borde activo
+> de las tarjetas. En el pie compartido distingue los enlaces al
+> recibir puntero o foco. Solo el botón principal lleva el relleno de acento.
 
-Reglas:
+### Extensión a las páginas públicas (2026-11-26)
+
+Revisión posterior: la portada coloca el texto del profesor antes de la foto
+(foto a la derecha en escritorio). `core/theme/course-pages.scss` reúne el
+acabado específico de catálogo, biblioteca y ficha con selectores acotados a
+esos tres hosts. Las tarjetas comparten portada, proporción, bordes y jerarquía;
+la biblioteca añade progreso global y por curso, y un estado vacío propio.
+La ficha alterna bandas blancas y grises, con imagen a la izquierda, datos
+agrupados y bloques numerados cuyos enlaces de lección ocupan toda la fila.
+Los contenidos pendientes siguen identificados como tales.
+
+La revisión del foro vive en `core/theme/forum-pages.scss`: categorías en dos
+columnas (una en móvil), hilos con metadatos secundarios y conversación con
+respuestas sangradas y formularios diferenciados. Se revisan estados poblados
+mediante fixtures, sin publicar mensajes. La marca queda centrada verticalmente
+en la cabecera; el hover cambia el color y «Iniciar sesión» usa un borde discreto.
+La línea identifica la ruta activa y el foco de teclado sigue siendo independiente. En catálogo,
+la compra ocupa el ancho de la tarjeta y su explicación queda como ayuda breve.
+
+El aula tiene ajustes propios en `core/theme/classroom-page.scss`, limitados a
+`main > app-aula`: índice gris/azul sin los fondos beige heredados, controles de
+44 px como mínimo, etiquetas de muestra sin cortes, título sin el límite global
+de 24 caracteres y materiales agrupados por documento. Las dudas conservan el
+servicio de conversación compartido, con menos separación y acciones secundarias
+de texto. Se comprueban índice normal/compacto/móvil, PDF, estados de vídeo y foco
+con fixtures locales. La maqueta del iframe verifica geometría, no reproducción
+real ni la interfaz interna del proveedor.
+
+El reproductor de escritorio ocupa la altura del viewport menos la banda de
+acciones (76 px), con scroll independiente para acceder al contenido inferior.
+En móvil conserva la proporción 16:9. El botón del índice está anclado a la
+barra del aula (no es fijo ni sticky) y se desplaza con el documento. El índice
+se abre a todo el ancho justo debajo de esa barra, sin mover el botón; su altura
+se limita al espacio disponible y las lecciones tienen scroll interno.
+Las tarjetas de catálogo y biblioteca amplían el enlace de ficha a toda su
+superficie mediante un pseudoelemento; comprar y continuar mantienen enlaces
+independientes por encima, sin anidar controles ni añadir paradas de tabulación.
+
+`core/theme/loading-pages.scss` adapta las cargas a las rejillas públicas,
+la ficha en dos columnas, las listas y el aula. La variante de tarjeta admite
+una cantidad acotada (1–6) y conserva un solo anuncio accesible por bloque.
+El pie presenta seis redes en una fila de iconos, enlaces legales sin cabecera
+y LinkedIn/GitHub junto a la autoría. Cada icono conserva nombre accesible
+y área táctil de 44 px; los SVG son locales.
+
+Cobertura pendiente de revisión visual detallada: favoritos con contenido,
+estados adicionales del perfil y autenticación, consentimiento de cookies
+y capturas individuales de privacidad, términos y reembolsos. Comparten los
+estilos públicos, pero la revisión básica no cubre todos sus estados.
+
+- La portada queda en **cinco secciones**: hero, nuestros cursos, qué aprenderás,
+  profesor y cierre. Se retiran «Cómo funciona» y «Testimonios»; estos últimos
+  se incorporarán cuando haya testimonios reales. El bloque del profesor conserva
+  la imagen local aportada y la bio sigue identificada como presentación de ejemplo.
+- Fondos exclusivamente `--surface` y `--bg`. Enlaces en azul y hover azul tinta,
+  sin burbujas, saltos ni sombras. Tarjetas: cambia el borde, no la posición.
+  El botón relleno mantiene sus colores y utiliza un trazo interior al hover.
+  El foco de teclado permanece independiente con `--focus`.
+- `core/theme/public-pages.scss`, cargado desde `styles.scss`, contiene los
+  patrones compartidos y los ajustes por clase de catálogo/ficha, biblioteca,
+  favoritos, perfil, foro/conversaciones, auth, legal, 404 y aula pública.
+  Su lista explícita de hosts bajo `main` excluye `app-admin` y
+  `app-admin-preview`: no cambia sus controles aunque compartan componentes.
+- Cabecera: marca azul tinta, ruta activa con línea, menú móvil con filas amplias
+  y desplegable de cuenta espaciado. Conserva los cierres, la navegación por
+  teclado y el foco existentes; no modifica autenticación ni permisos.
+- Se comprueban rutas anónimas y estados de alumno con fixtures en memoria del
+  navegador, tráfico remoto bloqueado y ninguna operación real de cuenta/pago.
+  No equivale a una prueba E2E de Supabase, Stripe o Bunny.
+
+### Revisión de administración (2026-11-27)
+
+`core/theme/admin-pages.scss` añade el acabado del workspace bajo
+`main > app-admin`, separado de los selectores públicos. Se revisan listado,
+alta/edición, estructura e inspector (datos, vídeo y materiales), gestión de
+lección, estado editorial y vista previa. La navegación pierde los recuadros
+anidados, los botones principales usan azul tinta y los secundarios mantienen
+un hover sin desplazamiento. El árbol reserva espacio para el título, los
+estados sin partir palabras y los controles de orden de 44 px.
+
+Los textos de éxito/aviso/error sobre fondos claros derivan del color de estado
+mezclado con tinta, en vez del blanco pensado para fondos sólidos. Los contrastes
+medidos en etiquetas y avisos de las fixtures van de 5,02:1 a 7,14:1. Los campos
+de archivo y los paneles anidados respetan el ancho disponible. En vista previa,
+el índice móvil se despliega dentro de la página; en escritorio queda en una
+columna junto al contenido, sin el botón móvil.
+
+Verificación visual con fixtures locales a 320, 768 y 1440 px: sin desbordamiento
+horizontal; estados de carga, vacío, errores, validación y progreso de subida;
+pestañas con flechas y cierre del índice con Escape. La reducción de movimiento
+desactiva también la transición de la barra de subida. El tráfico remoto está
+bloqueado: esta revisión no acredita guardados, subidas ni reproducción real.
+
+### Reglas de contraste
 
 - Texto **≥ 4,5:1** contra su fondo; controles y bordes de interés **≥ 3:1**.
   Ante duda, se corrige la paleta.

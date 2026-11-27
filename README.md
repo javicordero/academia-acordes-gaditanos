@@ -2,6 +2,16 @@
 
 *De Acordes Gaditanos*
 
+El acabado del área pública y de alumno se documenta en
+[`docs/sistema-visual.md`](docs/sistema-visual.md). Los patrones compartidos viven
+en `src/app/core/theme/public-pages.scss`, con ajustes de cursos, foro, aula y
+carga en los archivos correspondientes `*-pages.scss` y `classroom-page.scss`.
+Su alcance explícito por página excluye el panel de administración y su vista previa. La portada muestra cinco
+secciones; los testimonios quedan pendientes de contenido real.
+La revisión editorial tiene su propia hoja `src/app/core/theme/admin-pages.scss`,
+limitada a administración: navegación, formularios, estructura, materiales,
+vídeo y vista previa, con comprobaciones responsive y de contraste.
+
 Base técnica de la academia online de guitarra para el Carnaval de Cádiz. Esta
 fase levanta el proyecto Angular y su shell navegable, con **autenticación real
 de Supabase** (registro, acceso, salida, confirmación y recuperación por correo)
