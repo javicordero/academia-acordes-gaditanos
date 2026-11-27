@@ -5,6 +5,12 @@
 @use './app/core/theme/fonts';
 @use './app/core/theme/theme-tokens';
 @use './app/core/theme/theme-components';
+@use './app/core/theme/public-pages';
+@use './app/core/theme/course-pages';
+@use './app/core/theme/forum-pages';
+@use './app/core/theme/classroom-page';
+@use './app/core/theme/loading-pages';
+@use './app/core/theme/admin-pages';
 
 :root {
   color-scheme: light;
@@ -117,18 +123,19 @@ a:hover {
 
 .skip-link {
   position: absolute;
-  top: -4rem;
+  top: 0;
+  transform: translateY(calc(-100% - 1rem));
+  max-width: calc(100% - 2rem);
   left: var(--space-4);
   z-index: 100;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   background: var(--ink);
   color: #fff;
-  transition: top 0.15s ease;
 }
 
 .skip-link:focus {
-  top: 0;
+  transform: none;
   z-index: 100;
   color: #fff;
 }

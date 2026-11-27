@@ -82,7 +82,7 @@ describe('tokens del estilo único Línea precisa', () => {
       expect(valueFor('linea', token)).toMatch(/^#[0-9a-f]{6}$/i);
     }
     expect(valueFor('linea', '--bg')).toBe('#eef0f5');
-    expect(valueFor('linea', '--accent-strong')).toBe('#BE3D24');
+    expect(valueFor('linea', '--accent-strong')).toBe('#3048a3');
     expect(valueFor('linea', '--accent-strong-ink')).toBe('#ffffff');
     expect(valueFor('linea', '--font-body')).toBe("'Courier New', Courier, monospace");
     expect(valueFor('linea', '--font-display')).toBe('system-ui, sans-serif');

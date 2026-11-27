@@ -1,0 +1,176 @@
+// Acabado editorial, aislado del área pública y de los permisos del panel.
+:root[data-theme='linea'] main > app-admin {
+  --admin-accent-strong: var(--accent-strong);
+  --admin-surface-hover: var(--bg);
+  // Estos textos van sobre superficies claras, no sobre rellenos de estado.
+  --admin-success-text: color-mix(in srgb, var(--success) 70%, var(--ink));
+  --admin-warn-text: color-mix(in srgb, var(--warning) 70%, var(--ink));
+  --admin-danger-text: color-mix(in srgb, var(--danger) 70%, var(--ink));
+
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  .admin-workspace { max-width: none; padding-block: 0; }
+  :is(h1,h2,h3,h4) { letter-spacing: -.025em; }
+  h1 { font-size: clamp(1.75rem,4vw,2.75rem); margin-bottom: var(--space-5); }
+  .eyebrow { color: var(--accent-strong); }
+  a { color: var(--accent); }
+  a:hover { color: var(--accent-strong); background: transparent; }
+  :is(button,a,input,select,textarea,summary) { touch-action: manipulation; }
+  :is(button,a,input,select,textarea,summary):focus-visible { outline: var(--focus-ring) solid var(--focus); outline-offset: var(--focus-ring); }
+  :is(button,.structure-link,a[download]) {
+    min-height: var(--tap-min); min-width: 0; max-width: 100%;
+    margin: 0; padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--accent); border-radius: var(--radius-md);
+    color: var(--accent); background: var(--surface); box-shadow: none;
+    font-size: var(--font-size-sm); transform: none; filter: none;
+  }
+  :is(button,.structure-link,a[download]):is(:hover,:active):not(:disabled) {
+    transform: none; filter: none; box-shadow: none;
+    border-color: var(--accent-strong); color: var(--accent-strong); background: var(--bg);
+  }
+  :is(button.button,button[type='submit'],a[download]) {
+    background: var(--accent-strong); color: var(--accent-strong-ink); border-color: var(--accent-strong);
+    &:hover:not(:disabled) { background: var(--accent-strong); color: var(--accent-strong-ink); box-shadow: inset 0 0 0 2px currentColor; }
+  }
+  :is(button:disabled,fieldset:disabled button) { border-color: var(--border); background: var(--bg); color: var(--muted); opacity: 1; cursor: not-allowed; }
+  :is(input,select,textarea) { max-width: 100%; min-width: 0; }
+  input[type='file'] { display: block; width: 100%; padding: var(--space-2); border: var(--list-divider); border-radius: var(--radius-md); background: var(--surface); font-size: var(--font-size-sm); }
+  input[type='file']::file-selector-button { max-width: 100%; white-space: normal; font-size: var(--font-size-sm); }
+  .admin-workspace :is(form,section,li) { box-shadow: none; }
+  :is(.field-hint,.editor-note,.structure-intro,.structure-hint,.materials-context,.hint,#video-guid-hint) { color: var(--muted); font-size: var(--font-size-sm); }
+  .course-header { margin: 0; padding-block: var(--space-5); }
+  .course-header .course-header__title { margin: 0; font-size: var(--font-size-xl); }
+  .status-badge { font-size: var(--font-size-xs); color: var(--accent-strong); border-color: var(--accent-strong); }
+  .course-nav { margin: 0 0 var(--space-6); padding-block: var(--space-3); border-block: var(--list-divider); }
+  .course-nav__list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .course-nav__list > li { margin: 0; padding: 0; border: 0; background: transparent; border-radius: 0; }
+  .course-nav__link { font-size: var(--font-size-sm); padding: var(--space-3); border-radius: var(--radius-md); }
+  .course-nav__link:hover { border-color: var(--accent-strong); color: var(--accent-strong); }
+  .course-nav__link[aria-current='page'] { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-strong-ink); }
+  .section-heading { margin-block: var(--space-6) var(--space-4); }
+  .admin-courses { margin-top: var(--space-5); padding: var(--space-5); background: var(--surface); border: var(--list-divider); border-radius: var(--radius-lg); gap: 0; }
+  .admin-courses .course-row { padding-block: var(--space-4); }
+  .course-row:first-child { border-top: 0; }
+  .course-row__head { justify-content: space-between; align-items: center; }
+  .course-row__title { font: bold var(--font-size-lg)/1.4 var(--font-display); }
+  .course-row__link { font-size: var(--font-size-sm); }
+  .empty-state { padding: var(--space-5); background: var(--surface); border-radius: var(--radius-md); }
+
+  app-course-editor {
+    display: block; max-width: 52rem;
+    > h2 { margin-top: var(--space-4); font-size: var(--font-size-xl); }
+    form { padding: clamp(1rem,3vw,2rem); border-radius: var(--radius-lg); }
+    .form-field { margin-bottom: var(--space-5); }
+    .form-error-summary { border-inline-start-color: var(--danger); }
+    .form-error-summary li { padding: 0; background: transparent; }
+    .form-error-summary a { display: inline-flex; align-items: center; min-height: var(--tap-min); }
+  }
+
+  app-structure {
+    > h2 { margin-block: var(--space-4); font-size: var(--font-size-xl); }
+    .structure-intro { max-width: 90ch; }
+    .structure-workspace { gap: var(--space-5); }
+    :is(.outline,.inspector) { margin: 0; padding: var(--space-4); border: var(--list-divider); border-radius: var(--radius-lg); background: var(--surface); }
+    :is(.outline,.inspector) > h3 { margin: 0 0 var(--space-3); }
+    .outline-list { margin-block: var(--space-4) 0; gap: var(--space-4); }
+    .outline-block { padding: var(--space-3); margin: 0; border-radius: var(--radius-md); background: var(--bg); }
+    .outline-lessons { margin: var(--space-3) 0; gap: var(--space-2); }
+    .outline-lesson { margin: 0; padding: var(--space-3); background: var(--surface); border-radius: var(--radius-md); }
+    .outline-row { gap: var(--space-2); }
+    .outline-select { justify-content: flex-start; flex-wrap: wrap; text-align: left; font-family: var(--font-display); color: var(--ink); background: transparent; border-color: transparent; }
+    .outline-select--section { flex: 1 1 calc(100% - 3.5rem); }
+    .outline-select--lesson { flex: 1 1 100%; }
+    .outline-name { flex: 1 1 10rem; }
+    .outline-select[aria-current='true'] { border-color: var(--accent-strong); background: var(--bg); color: var(--accent-strong); }
+    .status-chip { flex-shrink: 0; white-space: nowrap; font-size: var(--font-size-xs); }
+    .status-chip--preview { background: var(--bg); }
+    .outline-position { margin-inline-start: auto; }
+    .outline-order { display: flex; gap: var(--space-1); }
+    :is(.outline-fold,.outline-order__button,.structure-drag) { min-width: var(--tap-min); min-height: var(--tap-min); padding: var(--space-1); }
+    .outline-add { margin-top: var(--space-2); }
+    .outline-block--add { border: 0; background: transparent; padding: 0; }
+    .inspector { position: static; }
+    .inspector form { padding: 0; margin: 0; border: 0; background: transparent; }
+    .inspector-check { display: flex; align-items: center; gap: var(--space-2); min-height: var(--tap-min); font-size: var(--font-size-sm); }
+    .inspector-check input { flex-shrink: 0; }
+    .inspector-actions { gap: var(--space-2); }
+    .inspector-tabs { gap: var(--space-1); }
+    .inspector-tabs button { flex: 1 1 auto; padding-inline: var(--space-2); font-family: var(--font-display); white-space: nowrap; }
+    .inspector-tabs button[aria-selected='true'] { border-bottom: 3px solid var(--accent-strong); color: var(--accent-strong); background: var(--bg); }
+    .inspector :is(app-lesson-video > section,.materials-panel) { padding: 0; margin-block: var(--space-4); border: 0; border-radius: 0; background: transparent; }
+    .inspector-legacy summary { font-size: var(--font-size-sm); padding-block: var(--space-3); cursor: pointer; }
+  }
+
+  app-lesson-video {
+    > section { padding: var(--space-5); border: var(--list-divider); background: var(--surface); border-radius: var(--radius-lg); }
+    form { padding: 0; border: 0; }
+    .upload { max-width: none; }
+    .warning { background: var(--admin-warn-surface); color: var(--admin-warn-text); border-color: var(--admin-warn); }
+    .progress { margin-top: var(--space-4); height: .75rem; border-radius: var(--radius-lg); background: var(--bg); }
+    .progress-fill { background: var(--accent-strong); }
+    .toast-stack { z-index: var(--z-toast); }
+    .toast { color: var(--ink); border-radius: var(--radius-md); }
+    .toast--info { background: var(--bg); border-inline-start-color: var(--accent); }
+    .toast--success { background: var(--admin-success-surface); border-inline-start-color: var(--admin-success); }
+    .toast--error { background: var(--admin-danger-surface); border-inline-start-color: var(--admin-danger); }
+    .toast__actions button { min-height: var(--tap-min); }
+  }
+  .materials-panel {
+    max-width: none; padding: var(--space-5); border-radius: var(--radius-lg);
+    > h3 { margin: 0; }
+    form { padding: 0; border: 0; background: transparent; }
+    li { margin: 0; padding: var(--space-3); border: 0; border-radius: var(--radius-md); }
+    li > span:first-child { flex: 1 1 12rem; min-width: 0; }
+    li > [role='status']:empty { display: none; }
+    li > [role='status']:not(:empty) { flex-basis: 100%; font-size: var(--font-size-sm); }
+  }
+  .skeleton__shape { background: var(--border); }
+  .skeleton__index { width: 100%; }
+  .skeleton__avatar { display: none; }
+  @media(max-width:40rem) {
+    .course-nav__list > li { flex: 1 1 9rem; }
+    .course-nav__link { height: 100%; }
+    :is(.admin-courses,.materials-panel,app-lesson-video > section) { padding: var(--space-4); }
+    .course-row__head { align-items: flex-start; }
+  }
+  @media(prefers-reduced-motion:reduce) { .progress-fill { transition: none; } }
+}
+
+// La vista previa usa el ancho del workspace; no hereda el sangrado del aula pública.
+:root[data-theme='linea'] main > app-admin app-admin-preview {
+  display: block; min-width: 0;
+  > .page { padding: 0; border: 0; background: transparent; }
+  .aula-layout { margin: 0; gap: var(--space-4); }
+  :is(.aula-sidebar,.aula-content) { height: auto; max-height: none; }
+  .aula-content { padding: var(--space-4); overflow: visible; background: var(--surface); border: var(--list-divider); border-radius: var(--radius-lg); }
+  .video-stage { margin: 0; border-radius: var(--radius-md); background: var(--ink); color: var(--surface); }
+  .video-stage:has(iframe) { padding: 0; }
+  .lesson-nav { flex-wrap: wrap; width: 100%; }
+  .lesson-nav > a { min-width: 0; }
+  .preview-action { max-width: 100%; white-space: normal; }
+  .progress-control { min-width: 0; }
+  :is(.preview-comentarios,.conversation) { padding: 0; border: 0; background: transparent; margin-block: var(--space-5); }
+  .comments-feedback p[role='alert'] { padding: 0; border: 0; background: transparent; }
+  app-classroom-nav {
+    nav { border: var(--list-divider); border-radius: var(--radius-lg); }
+    :is(.nav-block,li) { margin: 0; padding: var(--space-2) 0; border-radius: 0; background: transparent; }
+    h2 { font-size: var(--font-size-xl); margin-top: var(--space-4); }
+    :is(.block-toggle,.index-compress,.menu) { border: 0; text-align: left; color: var(--ink); }
+    .block-toggle { justify-content: flex-start; }
+    .lesson-row__link { font-family: var(--font-display); font-size: var(--font-size-sm); color: var(--muted); }
+    .lesson-row__link:is(:hover,[aria-current='page']) { background: var(--bg); color: var(--accent-strong); }
+    small { white-space: nowrap; }
+    .index-compress { display: none; }
+  }
+  @media(min-width:48rem) {
+    .aula-layout { grid-template-columns: minmax(12rem,.8fr) minmax(0,1.6fr); }
+    app-classroom-nav .menu { display: none; }
+  }
+  @media(max-width:47.999rem) {
+    .aula-sidebar { position: relative; inset: auto; }
+    app-classroom-nav .menu { position: relative; inset: auto; width: 100%; justify-content: flex-start; min-height: var(--tap-min); padding: var(--space-3); background: var(--surface); border: var(--list-divider); }
+    app-classroom-nav .menu__label { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: normal; }
+    app-classroom-nav nav.open { position: relative; inset: auto; width: 100%; max-width: none; height: auto; max-height: 65dvh; padding-top: var(--space-2); }
+  }
+}

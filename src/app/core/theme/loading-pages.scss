@@ -1,0 +1,42 @@
+// Esqueletos del área pública: el panel conserva sus variantes originales.
+:root[data-theme='linea'] main > :is(app-home,app-cursos,app-course-detail,app-mis-cursos,app-favoritos,app-forum-categories,app-forum-threads,app-forum-thread,app-aula) {
+  .skeleton__shape { background: var(--border); }
+  .skeleton__cards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: var(--space-5); }
+  .skeleton__card { border-radius: var(--radius-lg); }
+  .skeleton__visual { aspect-ratio: 2.5; border-radius: 0; }
+  .skeleton__card-body { padding: var(--space-5); gap: var(--space-4); min-height: 12rem; }
+  .skeleton__card-title { width: 80%; }
+  .skeleton__row { height: auto; min-height: 6rem; padding: var(--space-5); border: var(--list-divider); border-radius: var(--radius-lg); background: var(--surface); }
+  .skeleton__avatar { display: none; }
+  .skeleton__index { width: 100%; border: 0; padding: 0; gap: var(--space-5); }
+  @media(max-width:60rem) { .skeleton__cards { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+  @media(max-width:38rem) { .skeleton__cards { grid-template-columns: minmax(0,1fr); } }
+}
+:root[data-theme='linea'] main > app-home {
+  .skeleton__card-body { min-height: 5rem; padding: var(--card-pad); }
+  .skeleton__cards { gap: var(--grid-gap); margin-block: var(--space-5); }
+  @media(max-width:48rem) {
+    .skeleton__cards { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .skeleton__card:last-child { grid-column: 1/-1; width: calc((100% - var(--grid-gap))/2); justify-self: center; }
+  }
+}
+:root[data-theme='linea'] main > app-course-detail {
+  .skeleton__cards { grid-template-columns: minmax(0,1fr); }
+  .skeleton__card { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); gap: var(--section-gap); border: 0; background: transparent; }
+  .skeleton__visual { aspect-ratio: 1.4; border-radius: var(--radius-lg); }
+  .skeleton__card-body { align-content: center; padding: 0; }
+  @media(max-width:48rem) { .skeleton__card { grid-template-columns: minmax(0,1fr); } .skeleton__visual { aspect-ratio: 2.5; } }
+}
+:root[data-theme='linea'] main > app-forum-categories {
+  .skeleton__list { grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-4); margin-top: var(--section-gap); }
+  .skeleton__row { min-height: 12rem; }
+  @media(max-width:40rem) { .skeleton__list { grid-template-columns: minmax(0,1fr); } }
+}
+:root[data-theme='linea'] main > app-aula {
+  .nav-skeleton,.content-skeleton { background: transparent; border: 0; border-radius: 0; }
+  .nav-skeleton { padding: var(--space-5) var(--space-4); }
+  .content-skeleton { margin-inline: calc(-1 * var(--aula-indent)); padding-top: var(--classroom-toolbar-height); }
+  .video-stage:has(app-skeleton) { display: block; padding: 0; min-height: 0; }
+  .skeleton__video { border-radius: 0; max-height: calc(100dvh - var(--classroom-toolbar-height)); }
+  @media(min-width:48rem) { .skeleton__video { height: calc(100dvh - var(--classroom-toolbar-height)); aspect-ratio: auto; } }
+}

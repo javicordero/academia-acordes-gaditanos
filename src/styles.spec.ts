@@ -10,8 +10,8 @@ function ruleBody(selector: string): string {
 
 describe('Enlace de salto', () => {
   it('permanece fuera de pantalla sin foco y se muestra al enfocarse', () => {
-    expect(ruleBody('.skip-link')).toMatch(/top:\s*-[\d.]+(?:rem|px)/);
-    expect(ruleBody('.skip-link:focus')).toMatch(/top:\s*0(?![\d.])/);
+    expect(ruleBody('.skip-link')).toContain('translateY(calc(-100% - 1rem))');
+    expect(ruleBody('.skip-link:focus')).toMatch(/transform:\s*none/);
     expect(ruleBody('.skip-link:focus')).toMatch(/z-index:\s*100/);
   });
 });

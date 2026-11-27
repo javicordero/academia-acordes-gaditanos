@@ -1,0 +1,41 @@
+// Categorías, temas y conversación: sólo rutas del foro, nunca administración.
+:root[data-theme='linea'] main > :is(app-forum-categories, app-forum-threads, app-forum-thread) {
+  .page { max-width: var(--content-max-width); }
+  .page > h1 { margin-bottom: var(--space-5); }
+  .forum-back { display: inline-flex; align-items: center; min-height: var(--tap-min); gap: var(--space-3); margin-bottom: var(--space-5); font-size: var(--font-size-sm); }
+  .forum-back::before { content: '←' / ''; }
+  .forum-list { padding: 0; gap: var(--space-4); background: transparent; }
+  .forum-card { height: 100%; padding: var(--space-5); border: var(--list-divider); border-radius: var(--radius-lg); background: var(--surface); }
+  .forum-card:is(:hover,:focus-within) { border-color: var(--accent-strong); }
+  .forum-card h2 { line-height: 1.3; }
+  .forum-card h2 a { display: inline-flex; align-items: center; min-height: var(--tap-min); }
+  .forum-card__description { margin-bottom: var(--space-5); font-size: var(--font-size-sm); }
+  .forum-link { display: flex; justify-content: space-between; gap: var(--space-4); padding-inline: 0; border-top: var(--list-divider); border-radius: 0; font-size: var(--font-size-sm); font-weight: bold; }
+  .forum-card__meta { gap: var(--space-2) var(--space-4); font-size: var(--font-size-xs); }
+  :is(.forum-badge,.comment-badge) { background: var(--bg); color: var(--accent-strong); border: 1px solid var(--border); border-radius: var(--radius-md); font-size: var(--font-size-xs); }
+  .forum-form { max-width: 48rem; padding: clamp(1rem,4vw,2rem); border: var(--list-divider); border-radius: var(--radius-lg); background: var(--surface); gap: var(--space-3); }
+  .forum-form h2 { margin-bottom: var(--space-3); }
+  .forum-form .field-hint { margin-bottom: var(--space-3); font-size: var(--font-size-xs); }
+  .forum-status,.comments-empty { padding: var(--space-5); border-inline-start: 3px solid var(--accent-strong); background: var(--surface); color: var(--muted); }
+  .conversation { margin-block: var(--space-6); padding-block: var(--space-6); }
+  .conversation > h2 { margin: 0 0 var(--space-5); }
+  .comment-list { gap: var(--space-4); }
+  .comment { padding: var(--space-5); border-radius: var(--radius-lg); }
+  .comment-meta { font-size: var(--font-size-sm); }
+  .comment-body { margin-block: var(--space-4); }
+  .comment-list--replies { margin-top: var(--space-4); }
+  .comment--reply { padding: var(--space-3); border: 0; background: var(--bg); }
+  .comment-form { gap: var(--space-3); }
+  .conversation > .comment-form { padding: var(--space-5); margin-top: var(--space-6); background: var(--surface); border: var(--list-divider); border-radius: var(--radius-lg); }
+  .comment-actions-row { flex-wrap: wrap; }
+  :is(.reply-button,.delete-button) { padding-inline: 0; border: 0; background: transparent; font-size: var(--font-size-sm); }
+  .delete-button { color: var(--danger); }
+  :is(.reply-button,.delete-button):hover:not(:disabled) { border: 0; background: transparent; }
+  .delete-button:hover:not(:disabled) { color: var(--danger); box-shadow: inset 0 -1px currentColor; }
+}
+:root[data-theme='linea'] main > app-forum-categories {
+  .forum-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .forum-card { display: flex; flex-direction: column; }
+  .forum-link { margin-top: auto; }
+  @media(max-width:40rem) { .forum-list { grid-template-columns: minmax(0,1fr); } }
+}
