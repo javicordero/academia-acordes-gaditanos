@@ -12,6 +12,8 @@
         </div>
       }
       @case ('card') {
+        <div class="skeleton__cards">
+        @for (card of cardIndices(); track card) {
         <div class="skeleton__card">
           <div class="skeleton__shape skeleton__visual"></div>
           <div class="skeleton__card-body">
@@ -19,6 +21,8 @@
             <div class="skeleton__shape skeleton__line"></div>
             <div class="skeleton__shape skeleton__line"></div>
           </div>
+        </div>
+        }
         </div>
       }
       @case ('list') {

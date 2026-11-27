@@ -27,6 +27,17 @@ async function render(variant?: SkeletonVariant, overrides: Record<string, unkno
 }
 
 describe('SkeletonBlock', () => {
+  it('reserva varias tarjetas con un único aviso y acota cantidades inválidas', async () => {
+    const { fixture, root } = await render('card', { count: 3 });
+    expect(root.querySelectorAll('.skeleton__card')).toHaveLength(3);
+    expect(root.querySelectorAll('[role="status"]')).toHaveLength(1);
+    fixture.componentRef.setInput('count', Infinity);
+    await fixture.whenStable();
+    expect(root.querySelectorAll('.skeleton__card')).toHaveLength(1);
+    fixture.componentRef.setInput('count', 100);
+    await fixture.whenStable();
+    expect(root.querySelectorAll('.skeleton__card')).toHaveLength(6);
+  });
   it('renderiza las seis variantes con su geometría reservada', async () => {
     const expected: Record<SkeletonVariant, string> = {
       title: '.skeleton__title',

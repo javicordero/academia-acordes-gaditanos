@@ -23,6 +23,12 @@ export class SkeletonBlock {
   /** Solo aplica a la variante `text`; se acota para no crear DOM ilimitado. */
   readonly lines = input(DEFAULT_LINES);
   readonly ariaLabel = input('Cargando contenido…');
+  /** Rejillas públicas; una tarjeta por defecto conserva los usos individuales. */
+  readonly count = input(1);
+  readonly cardIndices = computed(() => {
+    const count = this.count();
+    return Array.from({ length: Number.isFinite(count) ? Math.min(6, Math.max(1, Math.trunc(count))) : 1 }, (_, i) => i);
+  });
 
   readonly lineIndices = computed(() => {
     const requested = this.lines();
