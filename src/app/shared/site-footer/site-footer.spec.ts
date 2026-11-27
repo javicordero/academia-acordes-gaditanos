@@ -44,11 +44,11 @@ describe('SiteFooter', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('muestra la marca de Acordes Gaditanos', async () => {
+  it('identifica las redes con nombre accesible y presenta iconos sin cabeceras', async () => {
     const element = await render();
-    const brand = element.querySelector('.site-footer__title');
-
-    expect(brand?.textContent?.trim()).toBe('Acordes Gaditanos');
+    expect(element.querySelector('ul[aria-label="Redes sociales de Acordes Gaditanos"]')).not.toBeNull();
+    expect(element.querySelectorAll('h2,h3')).toHaveLength(0);
+    expect(element.querySelectorAll('.site-footer__link svg[aria-hidden="true"]')).toHaveLength(8);
   });
 
   it('atribuye el desarrollo a Javier Cordero Toscano', async () => {
@@ -104,11 +104,8 @@ describe('SiteFooter', () => {
     expect(links).toEqual(
       EXPECTED_LEGAL_LINKS.map(([label, href]) => [label, href]),
     );
-    expect(element.querySelector('#footer-legal')?.textContent?.trim()).toBe(
-      'Legal',
-    );
     expect(
-      element.querySelector('ul[aria-labelledby="footer-legal"]'),
+      element.querySelector('ul[aria-label="Información legal"]'),
     ).not.toBeNull();
   });
 
@@ -129,8 +126,7 @@ describe('SiteFooter', () => {
       .map((style) => style.textContent ?? '')
       .join('\n');
 
-    expect(css).toContain('site-footer__legal-link');
-    expect(css).toContain('44px');
+    expect(css).toMatch(/\.site-footer[^{]*\sa[^{]*\{[^}]*min-height:\s*var\(--tap-min\);[^}]*min-width:\s*var\(--tap-min\)/);
   });
 
   it('conserva los enlaces externos y no añade rutas de herramientas ni suscripción', async () => {
