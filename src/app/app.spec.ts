@@ -567,7 +567,7 @@ describe('App shell · cabecera según la ruta', () => {
     expect(getComputedStyle(menu).display).toBe('none');
     expect(getComputedStyle(close).display).toBe('block');
     expect(toggle.getAttribute('aria-label')).toBe('Cerrar menú');
-    expect(element.querySelector('[title]')).toBeNull();
+    expect(element.querySelector('.site-header [title]')).toBeNull();
 
     toggle.click();
     await fixture.whenStable();

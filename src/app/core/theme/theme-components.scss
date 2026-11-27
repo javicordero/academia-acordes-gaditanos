@@ -6,6 +6,17 @@
  */
 
 :root[data-theme='linea'] {
+  // Hover visible sin desplazamientos; activo y foco conservan sus marcas.
+  .site-header {
+    .brand { flex-direction: row; align-items: center; }
+    .nav-list .hdr-link { border-radius: 0; }
+    .hdr-link:hover:not(.is-active) { color: var(--ink); box-shadow: none; }
+    .session-actions .login-link { border: 1px solid var(--border); border-radius: var(--radius-md); padding-inline: var(--space-4); color: var(--accent-strong); }
+    .session-actions .login-link:is(:hover,.is-active) { border-color: var(--accent-strong); background: var(--bg); color: var(--accent-strong); box-shadow: none; }
+    .menu-link { border-radius: 0; }
+    .menu-link:hover { box-shadow: inset 2px 0 var(--accent-strong); }
+    :is(.nav-toggle,.user-menu__trigger):is(:hover,[aria-expanded='true']) { box-shadow: inset 0 0 0 1px var(--border); color: var(--accent-strong); }
+  }
   h1, h2, h3 {
     text-transform: var(--heading-transform);
     letter-spacing: var(--heading-tracking);
