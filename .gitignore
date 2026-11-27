@@ -45,6 +45,9 @@ yarn-error.log
 !.vscode/extensions.json
 .history/*
 
+# Salida local de herramientas de navegador (capturas, snapshots y consola)
+/.playwright-mcp/
+
 # Miscellaneous
 /.angular/cache
 .sass-cache/
