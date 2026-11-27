@@ -1,6 +1,6 @@
 <header class="catalog-header">
   <p id="catalog-eyebrow" class="eyebrow">Catálogo</p>
-  <h1>Cursos</h1>
+  <h1 id="catalog-title">Cursos</h1>
   <p class="lead">Explora los cursos publicados de la academia.</p>
   @if (checkoutEnabled()) {
     <p class="checkout-notice">{{ checkoutNotice }}</p>
@@ -9,7 +9,7 @@
 
 @switch (state()) {
   @case ('loading') {
-    <app-skeleton variant="card" ariaLabel="Cargando cursos…" />
+    <app-skeleton variant="card" [count]="3" ariaLabel="Cargando cursos…" />
   }
   @case ('unavailable') {
     <p class="state" role="status">El catálogo necesita configurar la conexión con Supabase.</p>
@@ -22,7 +22,7 @@
     @if (courses().length === 0) {
       <p class="state">No hay cursos publicados por el momento.</p>
     } @else {
-      <section class="catalog" aria-labelledby="catalog-eyebrow">
+      <section class="catalog" aria-labelledby="catalog-title">
         <div class="filters" role="search">
           <div class="filters__field">
             <label for="filtro-busqueda">Buscar cursos</label>

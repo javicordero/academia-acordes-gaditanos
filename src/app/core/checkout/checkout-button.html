@@ -6,7 +6,7 @@
 
     @if (isLink()) {
       <a class="buy" [routerLink]="['/cursos', courseSlug()]" [queryParams]="{ comprar: '1' }">{{ buttonLabel }}</a>
-      <p class="hint">Se abre la ficha del curso para iniciar la compra.</p>
+      <p class="hint">Consulta los detalles antes de comprar.</p>
     } @else if (showLogin()) {
       <p><a class="buy" [routerLink]="['/auth/login']" [queryParams]="{ returnUrl: loginReturnUrl() }">Iniciar sesión para comprar</a></p>
     } @else {

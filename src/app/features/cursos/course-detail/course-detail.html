@@ -35,12 +35,15 @@
 
       <div class="course-detail">
         <div class="course-hero">
+          <div class="course-hero__visual" aria-hidden="true"></div>
+          <div class="course-hero__copy">
           <p class="course-hero__level">Nivel: {{ levels[data.course.level] }}</p>
           <h1 class="course-hero__title">{{ data.course.title }}</h1>
           @if (data.course.summary) {
             <p class="course-hero__summary">{{ data.course.summary }}</p>
           }
           <ng-container [ngTemplateOutlet]="courseCta" />
+          </div>
         </div>
 
         <div class="access-panel">
@@ -136,20 +139,27 @@
         <section class="section section--syllabus" aria-labelledby="syllabus-title">
           <h2 id="syllabus-title">Bloques y lecciones del catálogo</h2>
           <p class="section__intro">Índice de las lecciones publicadas de este curso. El acceso se comprueba al abrir cada lección: según tu sesión y tu derecho activo podrás verla o encontrarás el aviso correspondiente.</p>
-          @for (section of data.sections; track section.id) {
+          @for (section of data.sections; track section.id; let blockIndex = $index) {
             <div class="syllabus__block" role="group" [attr.aria-labelledby]="'syllabus-' + section.id">
+              <div class="syllabus__heading">
+              <p class="syllabus__number">Bloque {{ blockIndex + 1 < 10 ? '0' : '' }}{{ blockIndex + 1 }}</p>
               <h3 [id]="'syllabus-' + section.id">{{ section.title }}</h3>
               @if (section.summary) {
                 <p>{{ section.summary }}</p>
               }
+              </div>
               <ul class="lesson-index">
                 @for (lesson of data.lessons; track lesson.id) {
                   @if (lesson.section_id === section.id) {
                     <li>
-                      <a [routerLink]="['/aula', data.course.slug, lesson.slug]">{{ lesson.title }}</a>
+                      <a [routerLink]="['/aula', data.course.slug, lesson.slug]">
+                        <span>{{ lesson.title }}
                       @if (lesson.is_free_preview) {
-                        <span>(muestra)</span>
+                        <span class="lesson-index__badge">Muestra gratuita</span>
                       }
+                        </span>
+                        <span class="lesson-index__arrow" aria-hidden="true">→</span>
+                      </a>
                     </li>
                   }
                 }

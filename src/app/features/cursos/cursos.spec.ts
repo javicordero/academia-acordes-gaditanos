@@ -126,7 +126,8 @@ describe('Catálogo', () => {
     expect(root.querySelector('header.catalog-header h1')?.textContent?.trim()).toBe('Cursos');
     expect(root.querySelector('.catalog-header .eyebrow')?.textContent?.trim()).toBe('Catálogo');
     expect(root.querySelector('.catalog-header .lead')?.textContent).toContain('Explora los cursos publicados');
-    expect(root.querySelector('section.catalog')?.getAttribute('aria-labelledby')).toBe('catalog-eyebrow');
+    expect(root.querySelector('section.catalog')?.getAttribute('aria-labelledby')).toBe('catalog-title');
+    expect(root.querySelector('#catalog-title')?.tagName).toBe('H1');
     expect(root.querySelector('[role="search"]')).not.toBeNull();
     expect(root.querySelector('label[for="filtro-busqueda"]')?.textContent?.trim()).toBe('Buscar cursos');
     expect(root.querySelector('#filtro-busqueda')?.getAttribute('type')).toBe('search');

@@ -399,7 +399,7 @@ describe('Ficha de curso', () => {
     expect(card.querySelector('.preview-card__media')?.textContent).toContain('Vista previa disponible en el aula');
     expect(root.querySelector('iframe')).toBeNull();
     expect(root.querySelector('video')).toBeNull();
-    expect(text()).toContain('(muestra)');
+    expect(root.querySelector('.lesson-index__badge')?.textContent).toContain('Muestra gratuita');
   });
 
   it('accesibilidad: jerarquía h2/h3, estados anunciados y sin main anidado', async () => {
