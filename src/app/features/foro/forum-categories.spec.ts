@@ -38,7 +38,8 @@ describe('Pantalla de categorías del foro', () => {
     expect(text()).toContain('Foro');
     expect(text()).toContain('Ritmo y acompañamiento');
     const link = harness.routeNativeElement?.querySelector<HTMLAnchorElement>('a[href="/foro/' + CATEGORY + '"]');
-    expect(link?.textContent).toContain('Ver hilos de Pasodoble');
+    expect(link?.textContent).toContain('Ver hilos');
+    expect(link?.getAttribute('aria-label')).toBe('Ver hilos de Pasodoble');
     expect(listCategories).toHaveBeenCalledTimes(1);
   });
 

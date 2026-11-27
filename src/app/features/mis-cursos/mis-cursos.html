@@ -32,9 +32,12 @@
   }
 
   <header class="library__header">
+    <div>
     <p class="eyebrow">Tu biblioteca</p>
     <h1 id="mis-cursos-title">Mis cursos</h1>
-    <p>Tus cursos y tu progreso manual.</p>
+    <p>Retoma tus lecciones y sigue tu progreso.</p>
+    </div>
+    <a class="library__catalog-link" routerLink="/cursos">Explorar cursos <span aria-hidden="true">↗</span></a>
   </header>
 
   @switch (auth.status()) {
@@ -51,7 +54,7 @@
     @case ('authenticated') {
       @switch (state()) {
         @case ('loading') {
-          <app-skeleton variant="card" ariaLabel="Cargando tus cursos…" />
+          <app-skeleton variant="card" [count]="3" ariaLabel="Cargando tus cursos…" />
         }
         @case ('error') {
           <div class="notice notice--alert library__status">
@@ -62,8 +65,11 @@
           </div>
         }
         @case ('empty') {
+          <section class="library-empty" aria-labelledby="library-empty-title">
+          <h2 id="library-empty-title">Tu próxima lección empieza aquí</h2>
           <p class="library__status">No tienes cursos disponibles en tu biblioteca.</p>
           <a class="action action--primary" routerLink="/cursos">Ver catálogo</a>
+          </section>
         }
         @case ('ready') {
           @if (unavailable()) {
@@ -79,11 +85,16 @@
           }
 
           <section class="library__summary" aria-labelledby="library-summary-title">
+            <div class="library__summary-copy">
             <h2 id="library-summary-title">Tu progreso</h2>
             <p>{{ summary().completed }}/{{ summary().total }} lecciones completadas ({{ summary().percent }} %) en {{ summary().count }} curso{{ summary().count === 1 ? '' : 's' }}.</p>
+            </div>
+            <div class="library__meter">
+            <p class="library__percent" aria-hidden="true">{{ summary().percent }}<span>%</span></p>
             <div class="library__summary-track" role="progressbar" aria-label="Progreso global de tus cursos"
               aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="summary().percent">
               <span class="library__summary-bar" [style.width.%]="summary().percent"></span>
+            </div>
             </div>
           </section>
 
@@ -96,8 +107,8 @@
                   <span class="course-card__shape course-card__shape--hole"></span>
                 </div>
                 <div class="course-card__body">
-                  <h2 class="course-card__title">{{ course.title }}</h2>
                   <p class="course-card__meta">Nivel: {{ levels[course.level] }}</p>
+                  <h2 class="course-card__title">{{ course.title }}</h2>
                   @if (course.summary) {
                     <p class="course-card__summary">{{ course.summary }}</p>
                   }

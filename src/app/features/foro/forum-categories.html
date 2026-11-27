@@ -24,7 +24,7 @@
               <article class="forum-card">
                 <h2>{{ category.title }}</h2>
                 <p class="forum-card__description">{{ category.description }}</p>
-                <a class="forum-link" [routerLink]="[category.id]">Ver hilos de {{ category.title }}</a>
+                <a class="forum-link" [routerLink]="[category.id]" [attr.aria-label]="'Ver hilos de ' + category.title">Ver hilos <span aria-hidden="true">→</span></a>
               </article>
             </li>
           }
